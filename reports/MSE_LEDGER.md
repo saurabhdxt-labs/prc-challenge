@@ -49,7 +49,8 @@ deciding where to spend compute.
 | # | lever | MSE removed | verdict |
 |---|---|---|---|
 | 1 | mangled-designator / 24h-slip repair | **+305** | **CLOSED — not established** |
-| | | | **remaining: 25,979** |
+| 2 | stand-occupancy / witness block | **+350** | **CLOSED — established but far below band** |
+| | | | **remaining: 25,629** |
 
 ### 1. Mangled-designator separator — CLOSED (2026-09-08)
 
@@ -76,10 +77,41 @@ cause is sample size and it is structural: the 24h-slip block rests on **12 rows
 expected **3.09** in 2026. No separator estimated from twelve examples yields an established gain,
 however clean it looks descriptively. **Do not reopen without new information, not a new estimator.**
 
-## Open, with a mechanism and enough coverage to matter
+### 2. Stand-occupancy / witness block — CLOSED (2026-09-08)
 
-**Stand-occupancy / witness reparameterisation** — mechanism gate PASSED, incremental-value gate
-OPEN. See `reports/STAND_OCCUPANCY.md`. Pre-registered with kill thresholds in Amendment 5.
+Paired A/B, pre-registered in Amendment 5. Fold A, 1,723,425 training rows, 339,015 held-out
+matched rows, identical folds/seed/hyper-parameters, differing only by the ten-feature stand block.
+
+```
+baseline (68 feats)   235.59      <- E1 reference 235.95, reproduced to 0.36 s
++ stand block (78)    234.84
+paired gain            +0.76 s    95% CI [+0.37, +1.14]   ESTABLISHED
+GLOBAL MSE REMOVED       +350     of 25,979 needed (1.3%)   -> band: CLOSED (<1,000)
+```
+
+**The decisive line is the decomposition, not the headline.** The gain is entirely on rows the
+mechanism does *not* describe, and the witness rows — the whole point — got **worse**:
+
+| cut | n | baseline | +stand | gain |
+|---|---|---|---|---|
+| witness `gapa <= 600` | 1,664 | 352.7 | 362.0 | **−9.33** |
+| witness `gapa <= 1800` | 3,252 | 383.6 | 384.7 | **−1.16** |
+| non-witness | 335,763 | 233.7 | 232.9 | +0.79 |
+| `delta < −600` (the tail) | 14,898 | 733.3 | 730.5 | +2.76 |
+
+This confirms `RED_TEAM.md` §4.3 exactly: **`prev_arr_gap` in the baseline already carries the
+stand signal, and the model already fits those rows.** The block's small residual value comes from
+its counts and per-stand slack statistics acting on ordinary rows, not from the witness mechanism.
+
+Note the sample-size lesson in reverse: at two training months the same block was worth +89.9 s on
+`gapa <= 600` and +809 MSE overall. With ten months the baseline learns the same thing and the
+advantage evaporates. **A gain measured on a weak baseline is not a gain.**
+
+Per Amendment 5's fixed threshold, steps 4–6 of the stand plan (slack GBM, NN slack, leaf-similarity
+neighbours) are **not attempted**. The mechanism is real — 39x enrichment, 93–99% witness detection —
+and it is already priced into the incumbent.
+
+## Open, with a mechanism and enough coverage to matter
 
 **The matched-row tail** — 30.5% of matched SSE sits in 0.61% of rows, and its two mechanisms are
 now named and separated by airport and season (`reports/TRAIN_SERVE_AUDIT.md` §3): summer ATFM slot

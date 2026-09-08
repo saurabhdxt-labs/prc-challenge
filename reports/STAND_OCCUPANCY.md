@@ -1,7 +1,12 @@
 # Stand occupancy as evidence for the negative-delta tail
 
-**Status: the mechanism gate has PASSED. The incremental-value gate is OPEN and is the only thing
-that decides whether this is worth anything.** Pre-registered in Amendment 5 with kill thresholds.
+**Status: CLOSED, 2026-09-08. The mechanism gate PASSED; the incremental-value gate FAILED.**
+The paired A/B removed **+350 global MSE** (95% CI on the paired gain [+0.37, +1.14] s, so
+established but far below Amendment 5's 1,000 MSE band), and the witness rows themselves got
+*worse* (`gapa <= 600`: 352.7 -> 362.0). `prev_arr_gap` in the baseline already carries the signal,
+exactly as `RED_TEAM.md` 4.3 claimed. Full result in `reports/MSE_LEDGER.md` section 2. Steps 4-6
+of the stand plan are not attempted. Everything below records the mechanism evidence, which stands
+and is why the hypothesis was worth testing.
 
 ## The idea
 
