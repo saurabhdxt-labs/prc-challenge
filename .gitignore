@@ -1,0 +1,38 @@
+# Data NEVER enters the repo. The challenge supplies it; redistribution is not ours to do.
+data/
+*.parquet
+*.csv
+*.zip
+
+# Outputs. `reports/` is deliberately NOT ignored: prize eligibility requires
+# "sufficient documentation to understand and reproduce the results", and a repo
+# whose every result artifact is ignored has nothing to reproduce against.
+# Large or regenerable artifacts are excluded individually instead.
+submissions/
+reports/**/*.parquet
+*.joblib
+*.pkl
+
+# Handoffs are working files for the next session, never part of the record.
+_HANDOFF_*.md
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Credentials — nothing with a secret ever gets tracked
+.env
+*.pem
+credentials*
+*_secret*

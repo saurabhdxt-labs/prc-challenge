@@ -1,0 +1,23 @@
+{
+  "input_rows": 4167797,
+  "ceiling_sec": 10800,
+  "dropped": {
+    "not_departure": 2082750,
+    "C2_missing": 0,
+    "C1_non_positive": 388,
+    "C5_duplicate_id": 0
+  },
+  "flagged": {
+    "C3_above_ceiling": 202
+  },
+  "kept_rows": 2084659,
+  "distribution": {
+    "min": 1.0,
+    "p1": 293.0,
+    "median": 912.0,
+    "mean": 991.3862780435553,
+    "p99": 2339.0,
+    "p99_9": 4501.0,
+    "max": 131167.0
+  }
+}
