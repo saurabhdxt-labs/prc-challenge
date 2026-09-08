@@ -270,6 +270,43 @@ def _smooth_enc(tr_key, tr_val, keys, prior, k=SMOOTH):
     return pd.Series(keys).map(enc).fillna(prior).to_numpy(np.float32)
 
 
+def infold_encodings(keys, y, delta, tr_mask, enc_keys=ENC_KEYS):
+    """The 24 smoothed target encodings, fitted on TRAINING rows only.
+
+    The leak lives at this call site, not inside `_smooth_enc`: passing the full key array
+    instead of `keys[tr_mask]` lets held-out targets into the features and every downstream
+    interval becomes meaningless. Guarded by tests/test_stand_fit.py.
+    """
+    y_tr, d_tr = np.asarray(y)[tr_mask], np.asarray(delta)[tr_mask]
+    py, pdl = float(y_tr.mean()), float(d_tr.mean())
+    out = {}
+    for k in enc_keys:
+        kk = keys[k].to_numpy()
+        out[f"te_{k}"] = _smooth_enc(kk[tr_mask], y_tr, kk, py)
+        out[f"de_{k}"] = _smooth_enc(kk[tr_mask], d_tr, kk, pdl)
+    return out
+
+
+def infold_slack_stats(gapa, delta, ars, tr_mask):
+    """Per-stand median/IQR of stand-vacancy slack, fitted on TRAINING rows only.
+
+    `slack = T_c - BLOCK = -(gapa + delta)` reads `delta`, which is the target. Every
+    statistic here must therefore be computed under `tr_mask` and merely *applied* to the
+    held-out rows; if the mask is dropped the held-out targets enter the features and the
+    A/B silently measures a leak. Guarded by tests/test_stand_fit.py.
+    """
+    slack = -(np.asarray(gapa, dtype=float) + np.asarray(delta, dtype=float))
+    ok = tr_mask & np.isfinite(slack) & (slack > 0) & (slack < 21600)
+    if not ok.any():
+        raise ValueError("no admissible training rows for the slack statistics")
+    g = pd.DataFrame({"k": np.asarray(ars)[ok], "s": slack[ok]}).groupby("k", observed=True).s
+    med, iqr = g.median(), g.quantile(.75) - g.quantile(.25)
+    gm = float(np.median(slack[ok]))
+    k = pd.Series(np.asarray(ars))
+    return (k.map(med).fillna(gm).to_numpy(np.float32),
+            k.map(iqr).fillna(float(np.nanmedian(iqr))).to_numpy(np.float32))
+
+
 def cmd_fit(smoke: bool):
     paths = sorted(glob.glob(str(CACHE / "training_2025-*.parquet")))
     assert paths, "run `cache` first"
@@ -283,44 +320,47 @@ def cmd_fit(smoke: bool):
     print(f"rows {len(d):,}   train {tr_m.sum():,}   test(Jan+Jul) {te_m.sum():,}")
 
     # ---- in-fold encodings: fitted on training months only ----
-    y_tr, dl_tr = d.y.to_numpy()[tr_m], d.delta.to_numpy()[tr_m]
-    py, pd_ = float(y_tr.mean()), float(dl_tr.mean())
-    for k in ENC_KEYS:
-        kk = d[k].to_numpy()
-        d[f"te_{k}"] = _smooth_enc(kk[tr_m], y_tr, kk, py)
-        d[f"de_{k}"] = _smooth_enc(kk[tr_m], dl_tr, kk, pd_)
+    for col, vals in infold_encodings(d, d.y.to_numpy(), d.delta.to_numpy(), tr_m).items():
+        d[col] = vals
 
     # ---- in-fold stand slack statistics: slack = -(gapa + delta), training rows only ----
-    slack = -(d.gapa.to_numpy() + d.delta.to_numpy())
-    ok = tr_m & np.isfinite(slack) & (slack > 0) & (slack < 21600)
-    st = d.ars.to_numpy()
-    g = pd.DataFrame({"k": st[ok], "s": slack[ok]}).groupby("k", observed=True).s
-    med, iqr = g.median(), g.quantile(.75) - g.quantile(.25)
-    gm = float(np.median(slack[ok]))
-    d["stand_slack_med"] = pd.Series(st).map(med).fillna(gm).to_numpy(np.float32)
-    d["stand_slack_iqr"] = pd.Series(st).map(iqr).fillna(float(np.nanmedian(iqr))).to_numpy(np.float32)
+    d["stand_slack_med"], d["stand_slack_iqr"] = infold_slack_stats(
+        d.gapa.to_numpy(), d.delta.to_numpy(), d.ars.to_numpy(), tr_m)
 
     # the string columns have done their work (encodings + per-stand slack); drop them
     # before the design matrix is allocated, or 2M rows of Arrow strings sit beside it
     d = d.drop(columns=[c for c in set(ENC_KEYS) | {"ars"} if c in d.columns and c != "ap"])
     gc.collect()
 
+    #: >=3 seeds. A single-seed paired bootstrap certified seed noise as ESTABLISHED once
+    #: (Protocol B, 2026-09-08: increments +0.245 / -0.212 / -0.253, sd 0.28 s, sign flips).
+    SEEDS = (0,) if smoke else (0, 1, 2)
     cfg = dict(max_iter=60 if smoke else 400, learning_rate=0.05,
-               max_leaf_nodes=127, min_samples_leaf=20, random_state=0, early_stopping=False)
+               max_leaf_nodes=127, min_samples_leaf=20, early_stopping=False)
     yv, proxy, dlt = d.y.to_numpy(), d.proxy.to_numpy(), d.delta.to_numpy()
     out = {}
     for name, feats in (("baseline", BASELINE_FEATS), ("+stand", VARIANT_FEATS)):
         X = np.empty((len(d), len(feats)), dtype=np.float32)
         for i, c in enumerate(feats):
             X[:, i] = pd.to_numeric(d[c], errors="coerce").to_numpy(np.float32)
-        m = HGR(**cfg).fit(X[tr_m], dlt[tr_m])
-        raw = proxy[te_m] - m.predict(X[te_m])
+        preds = []
+        for sd_ in SEEDS:
+            mo = HGR(random_state=sd_, **cfg).fit(X[tr_m], dlt[tr_m])
+            preds.append(mo.predict(X[te_m]))
+            del mo
+            gc.collect()
+        per_seed = [np.sqrt(((yv[te_m] - np.maximum(proxy[te_m] - p_, 1.0)) ** 2).mean())
+                    for p_ in preds]
+        print(f"    per-seed RMSE: " + " ".join(f"{v:.2f}" for v in per_seed)
+              + f"   sd {np.std(per_seed):.3f}")
+        raw = proxy[te_m] - np.mean(preds, axis=0)
         # runtime guards. The floor at 1 s is required (taxi-out is strictly positive) but
         # it must not be doing real work: if it binds often the delta model is broken, not
         # merely imprecise, and the RMSE would be flattered by the clamp.
         assert np.isfinite(raw).all(), f"{name}: non-finite predictions"
         bound = float((raw < 1.0).mean())
         assert bound < 0.005, f"{name}: positivity floor binds on {100*bound:.2f}% of rows"
+        out.setdefault("_seeds", {})[name] = per_seed
         print(f"    guard: floor binds on {100*bound:.3f}% of rows; "
               f"pred range [{raw.min():.0f}, {raw.max():.0f}]")
         pred = np.maximum(raw, 1.0)
@@ -331,6 +371,8 @@ def cmd_fit(smoke: bool):
         gc.collect()
 
     yt = yv[te_m]
+    sA, sB = out["_seeds"]["baseline"], out["_seeds"]["+stand"]
+    seed_sd = float(np.std([a - b for a, b in zip(sA, sB)]))
     e0, e1 = yt - out["baseline"], yt - out["+stand"]
     r0, r1 = np.sqrt((e0 ** 2).mean()), np.sqrt((e1 ** 2).mean())
     W_M = 339551 / 344841
@@ -346,8 +388,13 @@ def cmd_fit(smoke: bool):
     print("=" * 92)
     print(f"  baseline           {r0:8.2f}      (E1 reference 235.95)")
     print(f"  + stand block      {r1:8.2f}")
+    est = lo > 0 and (r0 - r1) > 2 * seed_sd
     print(f"  paired gain        {r0 - r1:+8.2f} s   95% CI [{lo:+.2f}, {hi:+.2f}]"
-          f"   {'ESTABLISHED' if lo > 0 else 'NOT ESTABLISHED'}")
+          f"   seed sd {seed_sd:.3f}"
+          f"   {'ESTABLISHED' if est else 'NOT ESTABLISHED'}")
+    if lo > 0 and not est:
+        print("    (bootstrap excludes zero but the gain is inside 2x seed noise - "
+              "the interval is measuring fitting variance, not signal)")
     print(f"  GLOBAL MSE REMOVED {dmse:+,.0f}   of 25,979 remaining "
           f"({100 * dmse / 25979:+.1f}%)")
     band = "MAJOR" if dmse > 4000 else "USEFUL" if dmse > 1000 else "CLOSED (<1000)"
