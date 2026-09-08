@@ -45,6 +45,19 @@ LEMD 60 s, EGLL 55 s, LFPG 56 s. Forward generalisation has never been measured,
 interval reported in this project reflects the actual extrapolation risk. Forward folds
 (train Jan–Jun -> test Jul, etc.) are outstanding.
 
+**First measurement, 2026-09-08 (Protocol B).** Matched design — same test rows (July 2025,
+186,765), same training volume, same learner, six training months each:
+
+| fold | A0 no stand info | A1 baseline | A2 +stand |
+|---|---|---|---|
+| FORWARD (train Jan–Jun) | 277.12 | 273.65 | 273.84 |
+| STRADDLE (train Apr–Jun, Aug–Oct) | 271.41 | 269.39 | 269.70 |
+
+**Interleaving flatters by +4.26 s at equal training volume.** Expect the real 2026 matched RMSE
+meaningfully above the fold-A 230.4–235.6, not at it. Every component number in `MSE_LEDGER.md` was
+measured on the easier setting. A confound remains: the two folds also differ in mean temporal
+distance to July (3.5 vs 2.0 months), which interleaving cannot separate.
+
 ## 5. The residual has two named mechanisms and they run in opposite directions
 
 `P(delta < -600)` — the "pushed back, then held" tail that carries 30.5% of matched SSE — ranks the
