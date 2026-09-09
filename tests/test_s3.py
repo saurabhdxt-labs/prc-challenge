@@ -150,12 +150,12 @@ def test_upload_puts_the_exact_file_bytes_under_the_bucket_and_key(tmp_path):
     src = tmp_path / "merry-quicksand_v2.parquet"
     payload = bytes(range(256)) * 400              # 102,400 bytes, not valid UTF-8
     src.write_bytes(payload)
-    opener = _CapturingOpener(status=200)
+    opener = _CapturingOpener(status=204)          # NOT 200: a hard-coded return cannot pass
     client = s3.S3(s3.Credentials("AK", "SK"), endpoint="https://example.org", opener=opener)
 
     status = client.upload("prc-2026-merry-quicksand", "merry-quicksand_v2.parquet", src)
 
-    assert status == 200
+    assert status == 204, "upload must return the server's status, not a hard-coded 200"
     req = opener.request
     assert req.get_method() == "PUT"
     assert req.full_url == (
@@ -183,10 +183,14 @@ def test_upload_signs_the_payload_rather_than_declaring_it_unsigned(tmp_path):
     assert sent != hashlib.sha256(b"").hexdigest(), "the empty-body hash means the body is unsigned"
 
 
-def test_upload_signature_changes_when_the_body_changes(tmp_path):
-    """Two different submissions must not produce the same Authorization signature; if they
-    do, the payload hash is not actually inside the string-to-sign and a corrupted upload
-    would still authenticate.
+def test_signer_signature_changes_when_the_body_changes():
+    """Two different bodies must not produce the same Authorization signature; if they do,
+    the payload hash is not actually inside the string-to-sign and a corrupted upload would
+    still authenticate.
+
+    NOTE ON SCOPE: this calls `_signed_request` directly and does NOT exercise `upload()`.
+    It is a signer test. Named accordingly after a review on 2026-09-09 found it filed as
+    an upload test when replacing `S3.upload` with `return None` leaves it green.
 
     Fails when the payload hash is hard-coded (e.g. always `_sha256(b"")`) in
     `_signed_request` (prc/s3.py:100-107)."""
@@ -198,4 +202,24 @@ def test_upload_signature_changes_when_the_body_changes(tmp_path):
     sig_a = a.headers["Authorization"].split("Signature=")[1]
     sig_b = b.headers["Authorization"].split("Signature=")[1]
     assert sig_a != sig_b, "same signature for different bodies means the payload is not signed"
-    assert len(sig_a) == 64 and set(sig_a) <= set("0123456789abcdef")
+
+
+def test_upload_propagates_a_rejection_instead_of_swallowing_it(tmp_path):
+    """A 403 from the bucket must reach the caller. If `upload` swallowed it, a submission
+    would be reported as sent while nothing landed — and a 403 on this exact call is the
+    failure that already cost this project a day (build_submission.py:291).
+
+    Fails when `upload` wraps its opener call in `try/except Exception: return 0`, or
+    otherwise returns normally on a non-2xx response (prc/s3.py:154-157)."""
+    import urllib.error
+    src = tmp_path / "merry-quicksand_v2.parquet"
+    src.write_bytes(b"rejected payload")
+
+    def refusing_opener(req):
+        raise urllib.error.HTTPError(req.full_url, 403, "Forbidden", {}, None)
+
+    client = s3.S3(s3.Credentials("AK", "SK"), endpoint="https://example.org",
+                   opener=refusing_opener)
+    with pytest.raises(urllib.error.HTTPError) as e:
+        client.upload("bucket", "merry-quicksand_v2.parquet", src)
+    assert e.value.code == 403
