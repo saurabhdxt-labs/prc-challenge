@@ -1,0 +1,12 @@
+{
+  "matched": {
+    "hgb_control": 233.60128321483668,
+    "lgb_enc": 222.35001542038202,
+    "lgb_native": 227.46695980436442,
+    "lgb_refit": 212.2671436935903
+  },
+  "best_iter": {
+    "lgb_enc": 399,
+    "lgb_native": 222
+  }
+}

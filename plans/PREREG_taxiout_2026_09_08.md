@@ -625,3 +625,66 @@ amendment.
 
 **8. Reported whatever it says.** The per-airport table goes into `reports/ADSB_GATE.md` with the
 verdict against §5, including a NO-GO.
+
+---
+
+# AMENDMENT 7 — is the LEARNER the bottleneck, not the data?
+*Appended 2026-09-08 (night). Nothing above this line has been edited.*
+
+**1. Why this exists.** Every experiment in this project has used one learner:
+`HistGradientBoostingRegressor(max_iter=400, lr=0.05, max_leaf_nodes=127, random_state=0)` —
+untuned, single-seed, single-family. The published solutions of the two prior editions of this
+competition did not. `PRC-Data-Challenge-2024/team_likable_jelly` used **LightGBM with 50,000
+trees, averaged over several random seeds** (single model 1612 RMSE, ten-model average 1564 —
+a 3.0% gain from averaging alone). `team_tiny_rainbow` ensembled LightGBM + XGBoost + CatBoost +
+neural networks. `PRC-Data-Challenge-2025/zestful-mango` split into two gradient-boosting models
+by trajectory data quality.
+
+**We have spent this project testing whether the DATA is exhausted, using a baseline learner whose
+capacity has never been established.** That is the untested assumption.
+
+**2. Hypothesis.** *A properly-sized LightGBM, with native categorical handling for high-cardinality
+columns, materially reduces matched-row RMSE against the 400-iteration HGB control on the identical
+fold.*
+
+**3. Design.** Fold A (Jan+Jul 2025 held out), identical cached rows, identical `delta` target,
+identical scoring code, identical leakage guards, identical feature set. Three arms:
+
+| arm | learner | features |
+|---|---|---|
+| control | HGB, 400 iters, lr 0.05, 127 leaves, seed 0 | the 68-feature encoded matrix |
+| `lgb_enc` | LightGBM, up to 50,000 trees, lr 0.01, early stopping | the same 68-feature matrix |
+| `lgb_native` | LightGBM, same config | raw categoricals natively, encodings dropped |
+
+The third arm separates **boosting capacity** from **information recovered by not target-encoding
+`STAND_mvt`** (1,862 levels; sklearn caps native categoricals at 255). LightGBM's own guidance is
+that high-cardinality categoricals need `cat_smooth` / `min_data_per_group` regularisation, so both
+are set rather than left at defaults.
+
+**Early stopping uses two months carved out of the TRAINING fold, never the held-out fold.** Using
+Jan+Jul for early stopping would leak the evaluation set into model selection.
+
+**4. Recorded regardless of outcome.** Best iteration reached; matched RMSE; projected total with
+the stratum held fixed at 1527.2; per-airport RMSE; `delta < -600` RMSE; **residual correlation
+with the HGB control**; and global MSE removed against the ledger. The residual correlation matters
+independently of the headline: a learner that is only slightly better but fails *differently* is
+worth more in an ensemble than one that is better and fails the same way.
+
+**5. Decision thresholds, fixed before the run.**
+- **≥10% matched RMSE reduction** (230.4 → ≤207): pivot the project. Tuning, multi-seed averaging,
+  CatBoost/XGBoost and ensembling become the main programme, and the stand A/B is **re-run on
+  LightGBM** — an HGB-based A/B may have judged a feature useless only because HGB cannot represent
+  what LightGBM handles natively.
+- **5–10%**: major result, carried into the pipeline.
+- **2–5%**: useful ensemble material, not the path to 248.
+- **<2%**: learner capacity is NOT the missing mechanism; return to the stand/slack specialists
+  with that question closed.
+
+**6. Seeds.** Establish first that the learner wins on a single seed. Only then average seeds 0,1,2,
+and expand to 5–10 only if the ensemble moves materially. The 2024 evidence is a **3%** gain from
+1→10 models — it is not evidence for a large effect and must not be quoted as one.
+
+**7. Machine tradeoff, named.** LightGBM runs with `n_jobs=4` of 18 cores rather than the standing
+`OMP_NUM_THREADS=1`, because 50,000 trees single-threaded is hours rather than minutes. Swap is
+2.7 GB of 4.1 GB with ~5.4 GB reclaimable; the run aborts if swap passes 3.5 GB. Three
+`com.phantom.*` jobs are running and are not touched.
