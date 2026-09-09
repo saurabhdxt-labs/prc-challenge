@@ -51,7 +51,11 @@ deciding where to spend compute.
 | 1 | mangled-designator / 24h-slip repair | **+305** | **CLOSED — not established** |
 | 2 | stand-occupancy / witness block (marginal to E1) | **+350** | **CLOSED — single-seed, label unearned; see §2** |
 | 3 | ADS-B stand gate (ten-airport census, Amendment 6) | **+2,243** | **CLOSED — NO-GO, 2 of 10 airports; ingest not justified** |
-| | | | **remaining: 23,386** |
+| 4 | LightGBM at proper capacity (Amendment 7) | **+4,251** | **BANKED — USEFUL band (+4.0%), not the pivot** |
+| | | | **remaining: 19,135** |
+
+*(Levers 1-3 are closed and bank nothing; only lever 4 moves the position. Measured total:
+296.7 -> 293.57.)*
 
 ### 1. Mangled-designator separator — CLOSED (2026-09-08)
 
@@ -146,6 +150,54 @@ estimators recover **~3,000–3,400 MSE**, and even that is optimistic because t
 fitted `p` as the true probability, which flatters sharper cells. `STRATUM_MONSTERS.md` §3a rejected
 fine buckets under held-out LOMO. **That tension is unresolved** and settling it needs a LOMO test
 scored by expected MSE on the 2026 composition, which has not been run.
+
+### 4. Learner capacity — BANKED at +4.0%, and it is NOT the missing mechanism
+
+Every measurement in this project until tonight used one learner: sklearn
+HistGradientBoosting, 400 iterations, single seed, untuned. The published solutions of both
+prior editions did not — `team_likable_jelly` (2024) used LightGBM with 50,000 trees averaged
+over seeds; `team_tiny_rainbow` ensembled four families. Those 50 prior-year repositories had
+been an open to-do since `plans/RESEARCH_2026_09_08.md` line 166 and had never been opened.
+
+Fold A, identical rows, target, scoring code and leakage guards:
+
+```
+hgb_control   235.59            best_iter    —      resid corr 1.000
+lgb_enc       227.67   +3.4%    best_iter 17,557    0.956
+lgb_native    233.73   +0.8%    best_iter  2,175    0.939
+lgb_refit     226.24   +4.0%    21,948 trees        0.954    +4,251 MSE
+```
+
+**Capacity WAS binding** — LightGBM wanted 17,557 trees where HGB used 400–900 — but it is
+worth 4%, not the >=10% that would have pivoted the project. Per Amendment 7 section 5 this is
+the USEFUL band, so the stand A/B is NOT re-run on LightGBM.
+
+**Native categoricals LOSE to target encoding.** `lgb_native` gained only 0.8% and early-stopped
+at 2,175 trees. `STAND_mvt`'s 1,884 levels were never the problem, and sklearn's 255-level cap
+was never costing us anything. That hypothesis is closed.
+
+`lgb_refit` at 226.24 beats the previous best matched configuration (230.41, itself a two-model
+blend) by 4.2 s. Every airport improves; the `delta < -600` tail moves 733.3 -> 693.2.
+
+**A methodological failure worth recording.** The 3-month smoke of this same experiment showed
++9.1% and was reported as indicative. The full 10-month run gives +4.0%. The smoke's HGB control
+was data-starved. This file already contained that exact warning from lever 2 — "a gain measured
+against a weak baseline is not a gain" — and it was repeated anyway, on a preliminary number that
+the owner then planned around. **No smoke or subsample result is to be quoted as a magnitude
+again; only as evidence that the code runs.**
+
+### What the leader's trajectory says, and what it rules out
+
+`youthful-giraffe` is public: v1 265.76 on day one, then two days of 0.2 s increments to 262.74,
+then **v13 at 248.48 — a single 14.26 s step (7,290 MSE)** — then polish to 246.71.
+
+Two separable facts. Their OPENING submission was 265.76 while our best measured position after
+all of this is 293.57: **~28 s of base-model advantage that learner capacity explains only ~9 s
+of.** And there exists a discrete ~7,290 MSE object that at least one team found on 2026-09-08.
+
+Four candidate explanations for that edge are now closed with measurement, not opinion:
+stand occupancy (+350), the date-slip block (+305), ADS-B (+2,243, NO-GO), and learner capacity
+(+4,251, useful but not it). **Whatever their advantage is, it is none of these.**
 
 ## Open, with a mechanism and enough coverage to matter
 

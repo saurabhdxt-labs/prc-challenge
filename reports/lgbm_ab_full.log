@@ -1,0 +1,50 @@
+rows 2,062,440   fit 1,378,585   early-stop 344,840   test 339,015
+  hgb_control          235.59   (expect ~235.6)
+  lgb_enc              227.67   best_iter 17,557
+    native arm: 44 numeric + 12 categorical (STAND_mvt levels: 1,884)
+  lgb_native           233.73   best_iter 2,175
+    refit arm: 21,948 trees on all 1,723,425 training rows (best_iter 17,557 x 1.25)
+  lgb_refit            226.24   21,948 trees, no early stop
+
+================================================================================================
+AMENDMENT 7 RESULT — fold A, matched rows, stratum held fixed at 1527.2
+================================================================================================
+arm                matched  vs control       %    total   MSE removed  resid corr
+hgb_control         235.59       +0.00   +0.0%   300.72            +0       1.000
+lgb_enc             227.67       +7.92   +3.4%   294.65        +3,614       0.956
+lgb_native          233.73       +1.86   +0.8%   299.28          +860       0.939
+lgb_refit           226.24       +9.35   +4.0%   293.57        +4,251       0.954
+
+best arm: lgb_refit  +4.0%  ->  Amendment 7 band: USEFUL (2-5%)
+
+airport           n   hgb_control       lgb_enc    lgb_native     lgb_refit
+EDDF         36,231         189.6         181.9         186.9         181.0
+EDDM         26,854         178.0         169.0         176.0         169.1
+EGLL         39,744         243.6         233.1         240.9         230.8
+EHAM         40,141         173.2         166.0         171.2         165.0
+LEBL         28,489         225.9         222.1         227.6         222.0
+LEMD         35,019         182.5         176.8         180.7         176.7
+LFPG         38,713         256.3         248.0         257.9         246.7
+LIRF         26,131         397.8         387.0         391.1         383.7
+LSZH         21,811         187.7         179.0         185.4         176.9
+LTFM         45,882         257.1         249.1         255.6         247.2
+
+delta<-600   14,898         733.3         699.4         717.3         693.2
+     2720.60 real      8250.76 user       555.96 sys
+          5119131648  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             1736341  page reclaims
+                  74  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 149  voluntary context switches
+           200971833  involuntary context switches
+      86131753123262  instructions retired
+      35663451187497  cycles elapsed
+          6444587152  peak memory footprint
