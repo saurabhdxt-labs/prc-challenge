@@ -1061,3 +1061,44 @@ submission that differs from v2 ONLY in this. That makes v3 a clean board measur
 
 Does not license: any board projection from the fold (Amendment 9), any claim about the 2026 fill
 rate itself (the 2026 arrival stamping is an input, not a verdict), or any change outside LIRF.
+
+---
+
+# RESULT 4 · 2026-09-09 · Amendment 11 — NOT WORKING
+
+12-fold LOMO exactly as specified in 11.2; control reproduces `bs.fit_unmatched` bit-exact on every
+fold; wall-clock 4 s, peak RSS 2.86 GB. Script `amend11_lomo.py` and `amend11_result.json` in the
+session scratchpad; numbers reproduced below from the run log.
+
+| arm | stratum RMSE pooled | **ex-monster** | AUC LIRF | regime-tracking error |
+|---|---|---|---|---|
+| control (L-e as shipped) | 1610.68 | 958.96 | 0.877 | 0.0709 |
+| treatment (+3 arrival-regime features) | 1600.09 | **950.54** | 0.885 | 0.0512 |
+| permuted (features shuffled across months) | 1606.84 | **952.98** | 0.884 | 0.0589 |
+
+Paired month-block bootstrap, treatment − control, ex-monster: **−8.42 [−13.27, −3.49]**.
+Permuted − control, ex-monster: −5.98 [−13.51, +3.33].
+
+**Clauses (11.3):**
+- (a) ex-monster interval excludes zero in the improving direction — **TRUE**.
+- (b) regime-tracking error falls 27.8% — between the 30% ESTABLISHED bar and the 15% kill bar;
+  **inconclusive** on its own.
+- (c) the permuted arm retains **71% of the gain** (5.98 of 8.42) — **>= half, which is a NOT
+  WORKING trigger.**
+
+**VERDICT: NOT WORKING.** The hypothesis was that the arrival stream's *month-level* stamping
+regime calibrates P(fill) under shift. It does not: shuffling the month assignment leaves most of
+the gain intact, so what the features carry is the *airline-level* stamping rate, which is one more
+encoding of airline identity — a signal L-e already has. The residual attributable to the actual
+mechanism is ~2.4 s of ex-monster stratum RMSE, and the whole treatment is worth ~250 MSE at fold
+weights. Not shippable, not worth a submission.
+
+**What this closes and what it does not.** Closed: aggregate (month, airline, airline×month)
+arrival-stamping rates as regime features. Not addressed: a *row-level* link — whether the inbound
+arrival of the same turnaround (same stand, immediately prior) carries the stamp flag. That is a
+different hypothesis with a different mechanism (a per-record capture failure shared by both legs)
+and is screened separately before any amendment is written for it.
+
+Also on record: the per-airline 2026 arrival-stamping drift table computed the same night (RYR
+15→22%, LAV 56→26%, 60% of the LIRF stake on airlines that moved >3pp) was a preview of THIS
+mechanism and is therefore **not evidence of anything** now that the mechanism is refuted.
