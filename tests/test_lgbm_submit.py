@@ -304,3 +304,33 @@ def test_smoke_end_to_end_splices_a_sample_into_a_scratch_copy_of_v2(tmp_path, c
     text = capsys.readouterr().out
     assert ls.SMOKE_BANNER in text
     assert "best_iter" in text and "n_ref" in text and "peak RSS" in text
+
+
+class _RecordingBooster:
+    """Stands in for a trained lightgbm.Booster; records the kwargs predict() received."""
+    def __init__(self):
+        self.calls = []
+    def predict(self, X, **kw):
+        self.calls.append(kw)
+        return np.zeros(len(X), dtype="float64")
+
+
+def test_every_predict_is_threaded_like_training():
+    """Booster.predict does NOT inherit the training `num_threads`; it takes its thread count
+    from the OpenMP runtime, which this repo pins to 1 (OMP_NUM_THREADS=1) beside the live
+    fleet. On 2026-09-09 the v3 fit trained at ~295% CPU and then sat single-threaded for 40+
+    minutes inside LGBM_BoosterPredictForMat on 23,000 trees x 345k rows, twice (stopping set,
+    then ranking rows). Both sites must go through one helper that forwards num_threads.
+
+    Fails when `predict_delta` drops the `num_threads=params["num_threads"]` forward, or when
+    either call site bypasses the helper (asserted via the recorded kwargs)."""
+    M = _load("lgbm_submit")
+    fake = _RecordingBooster()
+    X = np.zeros((7, len(M.FEATS)), dtype="float32")
+    out = M.predict_delta(fake, X, M.P, num_iteration=42)
+    assert out.shape == (7,) and out.dtype == np.float64
+    assert fake.calls == [{"num_iteration": 42, "num_threads": M.P["num_threads"]}], fake.calls
+    assert M.P["num_threads"] == 4, "the measured config uses 4 threads; predict must too"
+    # both production call sites must route through the helper
+    src = (ROOT / "scripts" / "lgbm_submit.py").read_text()
+    assert src.count(".predict(") == 1, "a call site bypasses predict_delta"

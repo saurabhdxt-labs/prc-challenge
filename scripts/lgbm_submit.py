@@ -269,6 +269,16 @@ def _rmse(a, b) -> float:
     return float(np.sqrt(((np.asarray(a, dtype="float64") - np.asarray(b, dtype="float64")) ** 2).mean()))
 
 
+def predict_delta(booster, X, params, num_iteration=None):
+    """Every prediction goes through here so it is threaded like training.
+
+    lightgbm's Booster.predict takes its thread count from the OpenMP runtime, not from the
+    training params; under this repo's OMP_NUM_THREADS=1 cap a 23k-tree predict on 345k rows
+    ran single-threaded for 40+ minutes on 2026-09-09. Forwarding num_threads fixes it at the
+    only place a predict is issued."""
+    return booster.predict(X, num_iteration=num_iteration, num_threads=params["num_threads"])
+
+
 def fit_and_refit(X, dlt, y, proxy, train, fit, es, params, nest, patience):
     """lgbm_ab's refit arm: early-stop on `es`, then refit on all training rows at n_ref."""
     log(f"early-stopping run: fit {fit.sum():,} rows, stop on {es.sum():,} rows "
@@ -280,7 +290,7 @@ def fit_and_refit(X, dlt, y, proxy, train, fit, es, params, nest, patience):
                              lgb.log_evaluation(0), _progress(PROGRESS_EVERY)])
     best_iter = int(b.best_iteration)
     assert best_iter >= 1, f"best_iteration {best_iter}"
-    pred_es = np.maximum(proxy[es] - b.predict(X[es], num_iteration=best_iter), 1.0)
+    pred_es = np.maximum(proxy[es] - predict_delta(b, X[es], params, num_iteration=best_iter), 1.0)
     es_rmse = _rmse(y[es], pred_es)
     proxy_only = _rmse(y[es], np.maximum(proxy[es] - dlt[fit].mean(), 1.0))
     log(f"best_iter {best_iter:,}   stopping-set RMSE (taxi-time) {es_rmse:.2f}   "
@@ -399,7 +409,7 @@ def main(argv=None) -> int:
     assert booster.num_feature() == len(FEATS), "booster feature count != feature list"
 
     # ---- 5. predict the matched ranking rows ----
-    delta_hat = booster.predict(X[is_rank])
+    delta_hat = predict_delta(booster, X[is_rank], params)
     pred = recover_taxi_time(proxy[is_rank], delta_hat)
     bind = float(((proxy[is_rank] - delta_hat) < 1.0).mean())
     log(f"predicted {len(pred):,} matched rows: median {np.median(pred):.0f}s  mean {pred.mean():.0f}s  "
