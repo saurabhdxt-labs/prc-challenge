@@ -1,7 +1,11 @@
 # ADS-B as a second measurement of the target — the stand-geometry gate
 
-**Status: the strongest lever measured in this project, and the only one with a path to five
-figures of MSE. Measured on ONE day and THREE airports; the ten-airport census is the next step.**
+**Status: CLOSED — NO-GO, 2026-09-08. The ten-airport census (Amendment 6) returned 2 of 10
+airports clearing the bars against a pre-registered threshold of 6.** Worth **2,243 global MSE**
+(8.8% of the remaining gap), and applying it at serve time would require a ~190 GiB / ~20 h 2026
+ingest plus unresolved eligibility. **The 2026 ingest is not justified and is not being run.**
+The mechanism is real and the earlier per-airport numbers stand; the lane fails on receiver
+coverage, not on the idea. Census detail in section "The census" below.
 
 ## Why the previous closure was wrong
 
@@ -99,3 +103,65 @@ against `data/adsb/{pilot_truth,adsb_2025-01-09}.parquet`. Promoting it is part 
 Landmine: `.astype("int64")` on these stamps yields MICROseconds — this bug produced a clean-looking
 0% coverage on the first run. Use `(t - epoch).dt.total_seconds()` with a `tz="UTC"` epoch and
 assert the result is in the 1.7e9 range.
+
+
+## The census — Amendment 6, 2025-01-09, ten airports
+
+4,886 labelled matched departures, 705,380 in-box ADS-B samples, callsign join 85.6%.
+
+| apt | dep | join | R=50 cov/RMSE | R=100 cov/RMSE | R=200 cov/RMSE | verdict |
+|---|---|---|---|---|---|---|
+| EDDF | 505 | 100% | 7% / 603 | 10% / 531 | 11% / 494 | fail |
+| EDDM | 350 | 100% | 65% / 278 | 73% / 270 | 76% / 257 | fail (RMSE) |
+| EGLL | 630 | 100% | 19% / 243 | 21% / 239 | 23% / 242 | fail (coverage) |
+| **EHAM** | 592 | 99% | 59% / 183 | **67% / 127** | 77% / 150 | **PASS, beats model 173** |
+| LEBL | 372 | 99% | 25% / 792 | 30% / 749 | 33% / 687 | fail |
+| LEMD | 518 | 98% | 0% | 0% | 0% | fail |
+| LFPG | 589 | 99% | 0% | 0% | 0% | fail |
+| LIRF | 358 | 99% | 0% | 0% | 0% | fail |
+| **LSZH** | 294 | 100% | 45% / 289 | 51% / 165 | **55% / 157** | **PASS, beats model 188** |
+| LTFM | 678 | 1% | 0% | 0% | 0% | fail (no join) |
+
+**2 of 10 clear coverage ≥ 50% and bias-corrected RMSE ≤ 250 s. Threshold was 6. NO-GO.**
+
+### Why it fails, and why that is not a code defect
+
+Ground-level ADS-B reception is a property of the local community receiver network, not of the
+aircraft. Diagnosed on the same day:
+
+| apt | median samples/dep | median \|t − off-block\| | within 300 s of off-block | **on-ground share** |
+|---|---|---|---|---|
+| EDDM | 163 | 0.8 min | 89% | 51% |
+| EHAM | 161 | 2.1 min | 81% | 50% |
+| LSZH | 145 | 4.8 min | 53% | 31% |
+| LEBL | 140 | 6.3 min | 41% | 43% |
+| EDDF | 97 | 7.9 min | 23% | 16% |
+| EGLL | 73 | 14.0 min | 22% | 10% |
+| LEMD | 42 | 15.8 min | 0% | **0%** |
+| LFPG | 42 | 15.4 min | 0% | **0%** |
+| LIRF | 40 | 16.6 min | 0% | **0%** |
+| LTFM | 2 | 19.1 min | 0% | **0%** |
+
+**Madrid, Paris, Rome and Istanbul contain no on-ground samples at all** — the aircraft first
+appear once airborne, a median 15–17 minutes after off-block. There is nothing to gate. Istanbul
+additionally joins at 1%. This is a sensor-coverage limitation and no amount of gating, radius
+tuning or better centroids can create samples that were never received.
+
+### What it is worth, honestly
+
+Only EHAM and LSZH give a usable channel. Inverse-variance blending the sensor with the model on
+covered rows, at fold-A per-airport weights:
+
+| apt | n | model | sensor | coverage | blended | SSE saved |
+|---|---|---|---|---|---|---|
+| EHAM | 40,141 | 173.2 | 127 | 67% | 130.1 | 524,683,095 |
+| LSZH | 21,811 | 187.7 | 157 | 55% | 154.4 | 248,663,168 |
+
+**GLOBAL MSE REMOVED: 2,243 — 8.8% of the 25,629 needed.** Against that: a ~190 GiB, ~20-hour
+2026 ingest on a volume that is 93% full, plus an unresolved licence question with the organisers.
+**The cost-benefit is not close. Per Amendment 6 §5 the lane is closed.**
+
+The projection previously recorded here (~8,000 MSE if the other seven airports behaved like the
+first three) is **withdrawn**: the three pilot airports were EHAM, EDDM and EGLL, two of which are
+among the best-covered in the network. That was a biased sample and the extrapolation from it was
+wrong.

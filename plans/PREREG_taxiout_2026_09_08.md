@@ -576,3 +576,52 @@ conditioning reduce slack dispersion from ~453 s to **≤ 300 s**; at ≥ 400 s 
 
 **6. Already measured under this amendment, reported whatever it says.** The mechanism gate has
 passed and the incremental-value gate is **open** — see `reports/STAND_OCCUPANCY.md`.
+
+---
+
+# AMENDMENT 6 — the ten-airport ADS-B gate census
+*Appended 2026-09-08 (night). Nothing above this line has been edited.*
+
+**1. Why this exists.** Amendment 4 closed ADS-B as NOT WORKING. That closure is now known to
+rest on two defects (`reports/ADSB_GATE.md`): OPDI's 0.7% is OpenStreetMap polygon coverage rather
+than sensor coverage — the archive joins to 97–99% of departures — and the raw-trace comparison was
+keyed on `FLIGHT_mvt`, which at EHAM is the IATA commercial number and matches 2.2% of ADS-B
+callsigns against 99.5% for `CALLSIGN_flt`. **Amendment 4's ADS-B verdict is retracted.** A
+stand-geometry gate with centroids learned from the data reaches RMSE 127 at EHAM against the
+model's 173, on 65.8% of rows. That is one day and three airports.
+
+**2. The hypothesis.** *A stand-geometry gate on ground ADS-B yields a pushback estimate whose
+bias-corrected RMSE is competitive with the per-airport model, at usable coverage, across all ten
+scored airports and in both scored seasons.*
+
+**3. Design, fixed before any 2025 archive is opened.** Two daily archives — one January, one July,
+both 2025 so labels exist — extracted to the ten airport areas. Stand centroids learned per
+(airport, stand) from aircraft positions at their own recorded off-block, **leave-one-flight-out**.
+Estimate = last ADS-B sample inside radius R of the flight's own stand. R ∈ {50, 100, 200} m,
+reported for each; the operating R is chosen per airport on the JANUARY day only and applied
+unchanged to July, so the July number is out-of-sample in season.
+
+**4. TRUE shape.** Median per-airport gated RMSE ≤ 250 s at coverage ≥ 0.5, holding on **at least
+6 of the 10 airports**, on both days.
+**FALSE shape.** Fewer than 6 airports clear it, or July degrades by more than 50% against January
+at the January-chosen radius.
+
+**5. Kill threshold, fixed in advance.** **GO** at ≥ 6 of 10 airports: the 2026 serving ingest
+(~190 GiB, ~20 h, and its own amendment) becomes justified. **NO-GO** below 6: the ADS-B lane is
+closed for a second and final time, the projection in `reports/ADSB_GATE.md` is withdrawn, and the
+remaining days go to consolidation, the LIRF classification term and LightGBM at a realistic ~285.
+
+**6. What this amendment does NOT authorise.** It does not authorise the 2026 ingest, any
+submission, or any model change. It authorises two daily archives — inside Amendment 4 §8's
+15–25 GiB budget — streamed one at a time, each deleted before the next is fetched, ≤4 GiB of disk
+at any instant, on a volume that is currently 93% full.
+
+**7. Licence.** ADSB.lol publishes under ODbL 1.0 and Amendment 4 §9 already records the
+attribution obligation. **OpenSky's own historical database is NOT used** — its Terms of Use
+restrict it to non-profit research and forbid redistribution, which conflicts with the prize
+condition to open-source added data under GPLv3. The eligibility question for any ADS-B-derived
+feature reaching a submission remains open with the organisers and is not settled by this
+amendment.
+
+**8. Reported whatever it says.** The per-airport table goes into `reports/ADSB_GATE.md` with the
+verdict against §5, including a NO-GO.

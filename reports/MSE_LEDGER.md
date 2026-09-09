@@ -50,7 +50,8 @@ deciding where to spend compute.
 |---|---|---|---|
 | 1 | mangled-designator / 24h-slip repair | **+305** | **CLOSED — not established** |
 | 2 | stand-occupancy / witness block (marginal to E1) | **+350** | **CLOSED — single-seed, label unearned; see §2** |
-| | | | **remaining: 25,629** |
+| 3 | ADS-B stand gate (ten-airport census, Amendment 6) | **+2,243** | **CLOSED — NO-GO, 2 of 10 airports; ingest not justified** |
+| | | | **remaining: 23,386** |
 
 ### 1. Mangled-designator separator — CLOSED (2026-09-08)
 
@@ -148,10 +149,12 @@ scored by expected MSE on the 2026 composition, which has not been run.
 
 ## Open, with a mechanism and enough coverage to matter
 
-**ADS-B with a learned stand gate — see `reports/ADSB_GATE.md`.** The strongest lever measured:
-the gated sensor reaches RMSE 127 at EHAM against the model's 173, on 65.8% of rows. Projection
-≈2,700 global MSE from three airports measured, ≈8,000 if the other seven behave alike. One day,
-three airports; the ten-airport census is the next step.
+**ADS-B — CLOSED NO-GO.** The ten-airport census returned 2 of 10 clearing the bars against a
+pre-registered threshold of 6. Madrid, Paris, Rome and Istanbul have **zero on-ground ADS-B
+samples**; the aircraft are first seen 15-17 minutes after off-block. Worth **2,243 MSE** from EHAM
+and LSZH alone, against a ~190 GiB / ~20 h ingest and an open licence question. See
+`reports/ADSB_GATE.md`. The earlier ~8,000 projection is withdrawn as a biased extrapolation from
+three airports, two of which are the best covered in the network.
 
 **The fold is optimistic by +4.26 s.** Forward (train Jan–Jun, test Jul) against straddle at equal
 training volume: A1 273.65 vs 269.39. Every component number in this ledger was measured on an
