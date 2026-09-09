@@ -86,9 +86,36 @@ def _grouped(keys_d, keys_a, times_a, vals_a=None):
     return idx
 
 
-def build_month(path: pathlib.Path) -> pd.DataFrame:
-    t = pq.read_table(path, columns=COLS).to_pandas()
+def build_month(path: pathlib.Path, serve: bool = False) -> pd.DataFrame:
+    """Feature frame for one calendar-month file. `serve=True` builds the scored rows.
 
+    Serve mode changes exactly two things and is guarded by tests/test_serve_mode.py: the
+    departure filter no longer requires a label (TAXITIME / BLOCK are blank on every scored
+    row), and `delta` / `y` are NaN. Every reference stream is built the same way, so the
+    only rows that differ from training mode are the handful the relaxed filter admits.
+    """
+    return build_features(pq.read_table(path, columns=COLS).to_pandas(), serve=serve)
+
+
+def build_ranking(path: pathlib.Path) -> pd.DataFrame:
+    """Serve-mode features for the evaluation file, built one calendar month at a time.
+
+    Every training cache is one calendar month and `sched_day` counts departures per file;
+    the evaluation file holds January AND July, so building it as one unit would double a
+    training feature at serve time. Split on the movement month, as the training files are.
+    """
+    t = pq.read_table(path, columns=COLS).to_pandas()
+    if t.MVT_TIME_UTC_mvt.isna().any():
+        raise ValueError(f"{t.MVT_TIME_UTC_mvt.isna().sum()} rows without MVT_TIME cannot "
+                         "be assigned to a calendar month")
+    ym = (t.MVT_TIME_UTC_mvt.dt.year * 100 + t.MVT_TIME_UTC_mvt.dt.month).to_numpy()
+    parts = [build_features(t[ym == m], serve=True) for m in np.unique(ym)]
+    o = pd.concat(parts, ignore_index=True)
+    assert o.MVT_ID_mvt.is_unique, "duplicate MVT_ID across the per-month builds"
+    return o
+
+
+def build_features(t: pd.DataFrame, serve: bool = False) -> pd.DataFrame:
     arr = t[(t.PHASE_mvt == "ARR") & t.BLOCK_TIME_UTC_mvt.notna()]
     arr = arr[arr.ADES_mvt.isin(APTS)]
     a_apt = sarr(arr.ADES_mvt)
@@ -100,20 +127,30 @@ def build_month(path: pathlib.Path) -> pd.DataFrame:
     a_type = sarr(arr.AIRCRAFT_TYPE_mvt)
     a_ok = arr.STAND_mvt.notna().to_numpy()
 
-    d = t[(t.PHASE_mvt == "DEP") & t.TAXITIME_SEC_mvt.notna()
-          & t.BLOCK_TIME_UTC_mvt.notna() & (t.TAXITIME_SEC_mvt > 0)
-          & t.AOBT_3_flt.notna()]
+    if serve:
+        # the scored rows carry no TAXITIME and no BLOCK; admit every departure that has
+        # the clocks the features read. Neither hidden column is consulted.
+        d = t[(t.PHASE_mvt == "DEP") & t.AOBT_3_flt.notna()
+              & t.MVT_TIME_UTC_mvt.notna() & t.SCHED_TIME_UTC_mvt.notna()]
+    else:
+        d = t[(t.PHASE_mvt == "DEP") & t.TAXITIME_SEC_mvt.notna()
+              & t.BLOCK_TIME_UTC_mvt.notna() & (t.TAXITIME_SEC_mvt > 0)
+              & t.AOBT_3_flt.notna()]
     d = d[d.ADEP_mvt.isin(APTS)].copy()
     d = d.sort_values("MVT_TIME_UTC_mvt", kind="mergesort").reset_index(drop=True)
 
-    mvt, sch, blk = es(d.MVT_TIME_UTC_mvt), es(d.SCHED_TIME_UTC_mvt), es(d.BLOCK_TIME_UTC_mvt)
+    mvt, sch = es(d.MVT_TIME_UTC_mvt), es(d.SCHED_TIME_UTC_mvt)
     aobt, eobt = es(d.AOBT_3_flt), es(d.EOBT_1_flt)
     lobt, iobt = es(d.LOBT_flt), es(d.IOBT_flt)
     arvt1, arvt3 = es(d.ARVT_1_flt), es(d.ARVT_3_flt)
 
     o = pd.DataFrame(index=d.index)
-    o["delta"] = blk - aobt
-    o["y"] = d.TAXITIME_SEC_mvt.astype(float).to_numpy()
+    if serve:
+        o["delta"] = np.nan
+        o["y"] = np.nan
+    else:
+        o["delta"] = es(d.BLOCK_TIME_UTC_mvt) - aobt
+        o["y"] = d.TAXITIME_SEC_mvt.astype(float).to_numpy()
     o["proxy"] = mvt - aobt
     o["sp"] = mvt - sch
     o["eobt_p"] = mvt - eobt
@@ -237,6 +274,7 @@ def build_month(path: pathlib.Path) -> pd.DataFrame:
                                          - np.searchsorted(st, mvt[j] - 7200, "right"))
 
     o["month"] = d.MVT_TIME_UTC_mvt.dt.month.to_numpy()
+    o["MVT_ID_mvt"] = d.MVT_ID_mvt.to_numpy()      # the splice key; not a feature
     o["ap"] = d_apt
     for k in ("STAND_mvt", "RUNWAY_mvt", "AIRCRAFT_TYPE_mvt", "ADES_mvt",
               "AIRCRAFT_OPERATOR_flt", "MARKET_SEGMENT_flt", "WK_TBL_CAT_flt",
@@ -249,8 +287,18 @@ def build_month(path: pathlib.Path) -> pd.DataFrame:
     return o.reset_index(drop=True)
 
 
-def cmd_cache(smoke: bool):
+def cmd_cache(smoke: bool, ranking: bool = False):
     CACHE.mkdir(parents=True, exist_ok=True)
+    if ranking:
+        if smoke:
+            raise ValueError("--smoke does not apply to --ranking: a partial ranking cache "
+                             "at the real path would be consumed by the full fit")
+        out = CACHE / "ranking.parquet"
+        o = build_ranking(RAW / "ranking.parquet")
+        o.to_parquet(out, index=False)
+        print(f"ranking.parquet -> {out.name}  rows={len(o):,}  cols={o.shape[1]}  "
+              f"months={sorted(o.month.unique().tolist())}", flush=True)
+        return
     paths = sorted(glob.glob(str(RAW / "training_2025-*.parquet")))
     if smoke:
         paths = paths[:1]
@@ -426,8 +474,11 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("cmd", choices=["cache", "fit"])
     ap.add_argument("--smoke", action="store_true")
+    ap.add_argument("--ranking", action="store_true",
+                    help="cache: build data/cache_stand/ranking.parquet (serve mode) instead "
+                         "of the training months")
     a = ap.parse_args()
     if a.cmd == "cache":
-        cmd_cache(a.smoke)
+        cmd_cache(a.smoke, ranking=a.ranking)
     else:
         cmd_fit(a.smoke)
