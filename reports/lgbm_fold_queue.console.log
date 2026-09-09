@@ -1,0 +1,131 @@
+[13:48:39 +      0s] lgbm_fold [queue]  smoke=False  json=/Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_queue.json  log=/Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_queue.log  preds=/Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/fold_preds_queue.parquet
+[13:48:39 +      0s] command: cd ~/Projects/prc-challenge && PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 nice -n 19 /usr/bin/time -l python3.11 -B -u scripts/lgbm_fold.py --queue --baseline A3 --pa-trees es 2>&1 | tee reports/lgbm_fold_queue.console.log
+[13:48:39 +      0s] estimate: ~3.6 h (range 3-4.5 h), peak RSS ~5.5 GB (the v4 footprint + 12 float32 columns), 4 threads; run ALONE. Same per-row/iter rates as the v4 estimate x1.15 for 80 columns: ES ~16 min; 3 refits at ~21.9k trees ~21 min each (64 min); per-airport `es` ~35 min; the control = 22 pooled refits at ~4.4k trees (~4.3 min each incl. predict) ~95 min; bootstrap + 22 parquet rewrites ~3 min. The baseline is READ from the v4 record (no refit). Writes reports/lgbm_fold_queue.{json,log} and data/cache_stand/fold_preds_queue.parquet.
+[13:48:39 +      0s] Amendment 14 arm: baseline A2 over seeds [0, 1, 2]; treatment = baseline + 12 QUEUE_FEATS (80 features), best_iter re-found; per-airport rule [es] per-airport early stopping on the airport's own fit/ES rows (same ES months, seed 0); n_ref_a = max(50, int(best_iter_a * n_all_a / n_fit_a)) (used by A3 only); bootstrap 2,000 draws seed 0; negative control 20 permutations seed 0
+[13:48:39 +      0s] baseline: the v4 record /Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_v4.json (sha a57040724db18cc6fcfe986ca40e58176d023df9, best_iter 17,525, n_ref 21,908, seeds [0, 1, 2], pa_trees 'es', A0 reproduction 'pass'); predictions /Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/fold_v4_preds.parquet
+[13:48:39 +      1s] queue block: 12 columns joined POSITIONALLY onto 12 months from /Users/saurabhdxt/Projects/prc-challenge/data/cache_queue (row counts asserted per month; the order is the v6 builder's, proven on March both ways)
+[13:48:39 +      1s] loaded 12 months (2,062,440 rows): holdout (months (1, 7)) 339,015; training 1,723,425; fit 1,378,585; early-stop 344,840; airports ['EDDF', 'EDDM', 'EGLL', 'EHAM', 'LEBL', 'LEMD', 'LFPG', 'LIRF', 'LSZH', 'LTFM']; peak RSS 2.59 GB
+[13:48:45 +      6s] design matrix 2,062,440 x 80 float32 (0.66 GB); peak RSS 3.09 GB
+[13:48:45 +      6s] [baseline] A2 rebuilt from the v4 predictions over seeds [0, 1, 2] on the identical fold (339,015 rows); seed sd 0.1454 s from the v4 json
+[13:48:45 +      6s] [treatment] early stopping on 80 features
+[13:48:45 +      6s] early-stopping run (seed 0): fit 1,378,585 rows, stop on 344,840 rows (months (3, 9)), lr 0.01, max 50,000 rounds, patience 200
+[13:48:46 +      7s]     iter      0  valid_0 rmse (delta) 374.797
+[13:50:12 +     93s]     iter  1,000  valid_0 rmse (delta) 208.043
+[13:51:21 +    163s]     iter  2,000  valid_0 rmse (delta) 204.306
+[13:52:14 +    216s]     iter  3,000  valid_0 rmse (delta) 202.958
+[13:53:01 +    262s]     iter  4,000  valid_0 rmse (delta) 202.225
+[13:53:45 +    306s]     iter  5,000  valid_0 rmse (delta) 201.748
+[13:54:27 +    348s]     iter  6,000  valid_0 rmse (delta) 201.417
+[13:55:08 +    389s]     iter  7,000  valid_0 rmse (delta) 201.140
+[13:55:49 +    430s]     iter  8,000  valid_0 rmse (delta) 200.919
+[13:56:28 +    470s]     iter  9,000  valid_0 rmse (delta) 200.751
+[13:57:08 +    509s]     iter 10,000  valid_0 rmse (delta) 200.608
+[13:57:49 +    550s]     iter 11,000  valid_0 rmse (delta) 200.512
+[13:58:28 +    589s]     iter 12,000  valid_0 rmse (delta) 200.415
+[13:59:06 +    627s]     iter 13,000  valid_0 rmse (delta) 200.334
+[13:59:44 +    666s]     iter 14,000  valid_0 rmse (delta) 200.262
+[14:00:21 +    703s]     iter 15,000  valid_0 rmse (delta) 200.212
+[14:00:59 +    740s]     iter 16,000  valid_0 rmse (delta) 200.158
+[14:01:36 +    777s]     iter 17,000  valid_0 rmse (delta) 200.113
+[14:02:13 +    815s]     iter 18,000  valid_0 rmse (delta) 200.086
+[14:02:50 +    852s]     iter 19,000  valid_0 rmse (delta) 200.061
+[14:03:27 +    889s]     iter 20,000  valid_0 rmse (delta) 200.039
+[14:04:04 +    926s]     iter 21,000  valid_0 rmse (delta) 200.010
+[14:11:09 +   1351s] best_iter 21,316   stopping-set RMSE (taxi-time) 199.62   proxy-only on the same rows 366.25   ratio 0.545   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 3.70 GB
+[14:11:09 +   1351s] n_ref 26,647: refit on all 1,723,425 training rows (best_iter 21,316 x 1.250), no early stopping
+[14:31:33 +   2575s] refit seed 0 done: 26,647 trees on 1,723,425 rows in 1224s   peak RSS 4.19 GB
+[14:39:46 +   3067s] [treatment] seed 0 alone: matched RMSE 224.7586 on 339,015 holdout rows   [1716s]
+[14:59:47 +   4268s] refit seed 1 done: 26,647 trees on 1,723,425 rows in 1201s   peak RSS 4.69 GB
+[15:08:05 +   4767s] [treatment] seed 1 alone: matched RMSE 224.8847 on 339,015 holdout rows   [1699s]
+[15:28:15 +   5976s] refit seed 2 done: 26,647 trees on 1,723,425 rows in 1210s   peak RSS 4.77 GB
+[15:36:35 +   6476s] [treatment] seed 2 alone: matched RMSE 224.6665 on 339,015 holdout rows   [1710s]
+[15:36:49 +   6490s] negative control - registered deviation: 20 permutations at quarter capacity, paired: Amendment 14.4 registers 100 within-airport row permutations of QUEUE_FEATS at full capacity. A permutation must RETRAIN - re-predicting the trained treatment booster on permuted columns measures nothing about training - and 100 full retrains are infeasible on this machine, so the control is 20 permutations (seed 0; the twelve columns move as whole rows within airport x fold side), each a single-seed pooled refit on all training rows at best_iter // 4 trees, compared like-for-like with the unpermuted treatment AND the baseline refit at the same reduced count; no per-airport blend. To be amended into 14.4 before the run.
+[15:36:49 +   6490s] negative control: 20 permutations (seed 0) of the queue block as whole rows within airport x fold side; reduced tree count 5,329 = best_iter 21,316 // 4; single-seed (seed 0) pooled refits on all 1,723,425 training rows; no per-airport blend
+[15:41:59 +   6800s] refit seed 0 done: 5,329 trees on 1,723,425 rows in 310s   peak RSS 4.77 GB
+[15:49:08 +   7230s] refit seed 0 done: 5,329 trees on 1,723,425 rows in 329s   peak RSS 4.77 GB
+[15:50:42 +   7323s]   at 5,329 trees: baseline 227.6830, treatment 226.3107, gain +1.3722 s
+[15:56:22 +   7664s] refit seed 0 done: 5,329 trees on 1,723,425 rows in 340s   peak RSS 4.77 GB
+[15:57:55 +   7756s]   permutation 1/20: matched RMSE 227.8738   gain vs the baseline at 5,329 trees -0.1908 s
+[16:03:41 +   8102s] refit seed 0 done: 5,329 trees on 1,723,425 rows in 346s   peak RSS 4.77 GB
+[16:05:17 +   8198s]   permutation 2/20: matched RMSE 228.0255   gain vs the baseline at 5,329 trees -0.3425 s
+[16:11:05 +   8546s] refit seed 0 done: 5,329 trees on 1,723,425 rows in 348s   peak RSS 4.77 GB
+[16:12:37 +   8638s]   permutation 3/20: matched RMSE 228.0339   gain vs the baseline at 5,329 trees -0.3509 s
+[16:18:21 +   8982s] refit seed 0 done: 5,329 trees on 1,723,425 rows in 344s   peak RSS 4.77 GB
+[16:19:52 +   9074s]   permutation 4/20: matched RMSE 227.9213   gain vs the baseline at 5,329 trees -0.2384 s
+[16:25:36 +   9418s] refit seed 0 done: 5,329 trees on 1,723,425 rows in 344s   peak RSS 4.77 GB
+[16:27:08 +   9510s]   permutation 5/20: matched RMSE 227.9243   gain vs the baseline at 5,329 trees -0.2413 s
+[16:32:55 +   9857s] refit seed 0 done: 5,329 trees on 1,723,425 rows in 347s   peak RSS 4.77 GB
+[16:34:28 +   9949s]   permutation 6/20: matched RMSE 228.0447   gain vs the baseline at 5,329 trees -0.3618 s
+[16:40:12 +  10294s] refit seed 0 done: 5,329 trees on 1,723,425 rows in 344s   peak RSS 4.77 GB
+[16:41:55 +  10397s]   permutation 7/20: matched RMSE 227.8859   gain vs the baseline at 5,329 trees -0.2029 s
+[16:48:03 +  10764s] refit seed 0 done: 5,329 trees on 1,723,425 rows in 367s   peak RSS 4.77 GB
+[16:49:34 +  10856s]   permutation 8/20: matched RMSE 227.8843   gain vs the baseline at 5,329 trees -0.2013 s
+[16:55:40 +  11221s] refit seed 0 done: 5,329 trees on 1,723,425 rows in 365s   peak RSS 4.77 GB
+[16:57:13 +  11315s]   permutation 9/20: matched RMSE 227.9203   gain vs the baseline at 5,329 trees -0.2373 s
+[17:03:14 +  11675s] refit seed 0 done: 5,329 trees on 1,723,425 rows in 360s   peak RSS 4.77 GB
+[17:04:50 +  11772s]   permutation 10/20: matched RMSE 227.9897   gain vs the baseline at 5,329 trees -0.3068 s
+[17:10:41 +  12122s] refit seed 0 done: 5,329 trees on 1,723,425 rows in 350s   peak RSS 4.77 GB
+[17:12:13 +  12214s]   permutation 11/20: matched RMSE 228.0225   gain vs the baseline at 5,329 trees -0.3396 s
+[17:18:05 +  12566s] refit seed 0 done: 5,329 trees on 1,723,425 rows in 352s   peak RSS 4.77 GB
+[17:19:38 +  12660s]   permutation 12/20: matched RMSE 227.8820   gain vs the baseline at 5,329 trees -0.1990 s
+[17:25:31 +  13012s] refit seed 0 done: 5,329 trees on 1,723,425 rows in 352s   peak RSS 4.77 GB
+[17:27:10 +  13111s]   permutation 13/20: matched RMSE 228.0064   gain vs the baseline at 5,329 trees -0.3234 s
+[17:33:12 +  13473s] refit seed 0 done: 5,329 trees on 1,723,425 rows in 361s   peak RSS 4.77 GB
+[17:34:43 +  13565s]   permutation 14/20: matched RMSE 227.9843   gain vs the baseline at 5,329 trees -0.3013 s
+[17:40:34 +  13915s] refit seed 0 done: 5,329 trees on 1,723,425 rows in 350s   peak RSS 4.77 GB
+[17:42:18 +  14019s]   permutation 15/20: matched RMSE 227.9232   gain vs the baseline at 5,329 trees -0.2403 s
+[17:48:12 +  14373s] refit seed 0 done: 5,329 trees on 1,723,425 rows in 354s   peak RSS 4.77 GB
+[17:49:45 +  14467s]   permutation 16/20: matched RMSE 228.0157   gain vs the baseline at 5,329 trees -0.3327 s
+[17:55:30 +  14812s] refit seed 0 done: 5,329 trees on 1,723,425 rows in 345s   peak RSS 4.77 GB
+[17:57:03 +  14904s]   permutation 17/20: matched RMSE 227.8598   gain vs the baseline at 5,329 trees -0.1769 s
+[18:02:48 +  15249s] refit seed 0 done: 5,329 trees on 1,723,425 rows in 345s   peak RSS 4.77 GB
+[18:04:23 +  15345s]   permutation 18/20: matched RMSE 228.0384   gain vs the baseline at 5,329 trees -0.3555 s
+[18:10:17 +  15698s] refit seed 0 done: 5,329 trees on 1,723,425 rows in 353s   peak RSS 4.77 GB
+[18:11:50 +  15791s]   permutation 19/20: matched RMSE 227.9506   gain vs the baseline at 5,329 trees -0.2676 s
+[18:17:36 +  16137s] refit seed 0 done: 5,329 trees on 1,723,425 rows in 346s   peak RSS 4.77 GB
+[18:19:29 +  16250s]   permutation 20/20: matched RMSE 227.8786   gain vs the baseline at 5,329 trees -0.1957 s
+[18:19:29 +  16250s] ====================================================================================================
+[18:19:29 +  16250s] AMENDMENT 14, fold A matched rows (339,015), holdout months (1, 7)   treatment n_ref 26,647 (best_iter 21,316)
+[18:19:29 +  16250s] ====================================================================================================
+[18:19:29 +  16250s] arm          matched RMSE   definition
+[18:19:29 +  16250s] baseline         225.8254   the v4 arm A2 over seeds [0, 1, 2] (v4 predictions)
+[18:19:29 +  16250s] treatment        224.2576   baseline + QUEUE_FEATS, best_iter 21,316 -> n_ref 26,647
+[18:19:29 +  16250s] seed sd: 0.1454 s (sample sd, ddof=1)   2 x seed sd = 0.2908 s
+[18:19:29 +  16250s] pair                      gain s         95% paired CI  excl 0  gain/sd  >2x sd  airports improving
+[18:19:29 +  16250s] treatment_vs_baseline    +1.5678   [ +1.3161,  +1.8120]    True    10.78    True         9 / 10     
+[18:19:29 +  16250s] airport         n   baseline  treatment  treatment_vs_baseline
+[18:19:29 +  16250s] EDDF       36,231     181.01     177.92             +3.09*    
+[18:19:29 +  16250s] EDDM       26,854     168.47     166.52             +1.95*    
+[18:19:29 +  16250s] EGLL       39,744     230.07     229.07             +1.00*    
+[18:19:29 +  16250s] EHAM       40,141     164.44     163.12             +1.33*    
+[18:19:29 +  16250s] LEBL       28,489     221.49     220.29             +1.19*    
+[18:19:29 +  16250s] LEMD       35,019     176.21     174.71             +1.50*    
+[18:19:29 +  16250s] LFPG       38,713     246.27     244.46             +1.81*    
+[18:19:29 +  16250s] LIRF       26,131     383.32     384.07             -0.74     
+[18:19:29 +  16250s] LSZH       21,811     176.65     174.16             +2.48*    
+[18:19:29 +  16250s] LTFM       45,882     246.92     243.64             +3.28*    
+[18:19:29 +  16250s]    (* = that airport's own paired interval excludes zero)
+[18:19:29 +  16250s] seed sd source: v4 json   treatment's own seed sd: 0.1096 s
+[18:19:29 +  16250s] airports improving 9 / 10 (>= 4: True); named in advance: LEBL improves, LTFM improves, EGLL improves, LSZH improves
+[18:19:29 +  16250s] tail subset [non-fill (|y - sp| > 60 s) AND |delta| > 1200 s]: 4,712 rows (1.39% of rows, 20.8% of the baseline's SSE): baseline 873.61, treatment 873.24, gain +0.37 s, paired CI [-2.83, +3.54]
+[18:19:29 +  16250s] negative control at 5,329 trees: treatment gain +1.3722 s vs the 95th percentile of 20 permuted gains -0.1901 s (max -0.1769, 0 at or above) -> exceeds p95: True   [registered deviation: 20 permutations at quarter capacity, paired]
+[18:19:29 +  16250s]   like-for-like form (the baseline cancels): treatment RMSE 226.3107 vs the 5th percentile of the permuted RMSEs 227.8731 (min 227.8598) -> below p5: True. The permuted gains vs the 68-column baseline carry the column-count effect on LightGBM's feature-sampling stream; see negative_control.note in the json
+[18:19:29 +  16251s] json -> /Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_queue.json   wall 16250s   peak RSS 4.77 GB
+    16251.55 real     51299.71 user      2985.19 sys
+          5120688128  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             6016983  page reclaims
+                  91  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 577  voluntary context switches
+          1041920717  involuntary context switches
+     551652454655309  instructions retired
+     220412296282467  cycles elapsed
+          6966744896  peak memory footprint

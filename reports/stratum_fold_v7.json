@@ -1,0 +1,3074 @@
+{
+  "mode": "stratum_v7",
+  "smoke": false,
+  "synthetic": false,
+  "git_sha": "58b785bb6cb8ff222198d0637f2fc45c8761c656",
+  "git_dirty": true,
+  "started_utc": "2026-09-09T22:25:38.409479+00:00",
+  "command": "cd ~/Projects/prc-challenge && PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 nice -n 19 /usr/bin/time -l python3.11 -B -u scripts/stratum_fold.py 2>&1 | tee reports/stratum_fold_v7.console.log",
+  "estimate": "~5 min end to end, peak RSS ~3-4 GB, single thread; run ALONE (the load beside a 5.5 GB fold is a panic risk on this machine). Load = the shipped recipe derive(admissible(load_movements(12 months))) ~2-3 min (amend11 measured 2.86 GB peak on the same recipe; the frame then drops to 22,219 unmatched + ~159k LIRF matched rows); 12 LOMO folds x (2 cell paths + 2 LIRF logistics + 3 HGR fits of ~18k rows at ~0.1 s each, early stopping on above 10k rows) ~1-3 s per fold; fold A the same; the month-block bootstrap is vectorised (2,000 draws x 4 pairs x (pooled, ex-monster, 10 airports, LIRF) well under a minute). Writes reports/stratum_fold_v7.{json,log} and data/cache_stand/stratum_fold_v7_preds.parquet.",
+  "config": {
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "T_tail_s": 3000.0,
+    "winsor_s": 3000.0,
+    "monster_s": 10800.0,
+    "n_boot": 2000,
+    "boot_seed": 0,
+    "n_blocks": "the months present",
+    "regressor": {
+      "max_leaf_nodes": 15,
+      "max_iter": 200,
+      "min_samples_leaf": 100
+    },
+    "numeric": [
+      "sp",
+      "dayoff",
+      "hr"
+    ],
+    "encoded": [
+      "ADEP_mvt",
+      "RUNWAY_mvt",
+      "stand_pref",
+      "airline",
+      "AIRCRAFT_OPERATOR_flt"
+    ],
+    "smooth": 50.0,
+    "k_shrink": 5.0,
+    "fold_a_holdout": [
+      1,
+      7
+    ],
+    "sklearn_early_stopping": "'auto' -- on above 10,000 rows on a seed-dependent 10% split (Screen B's setting)",
+    "synthetic": null
+  },
+  "judgement_calls": [
+    "stand prefix = derive's `stand_pref` (two characters), as Screen B's B2 code used; the task text said `stand_c1` -- Amendment 18.1 says 'exactly Screen B', so the two-character prefix is what is measured",
+    "the '2 x seed sd' of clause (a) uses the sd of the three per-seed S1 EX-MONSTER LOMO RMSEs (the gain it qualifies is ex-monster); the pooled sd is reported beside it",
+    "clause (b) / the pooled trigger: 'the pooled interval shows S1 worse by more than 20 s' is reported under both readings, the point loss and the interval's loss bound (-lower bound of the gain)",
+    "month-block bootstrap = the months resampled with replacement, RMSE over the concatenated rows (per-month SSE and n summed), 2,000 draws, default_rng(0), one set of block draws for every pair and cut",
+    "fold A additionally carries a paired ROW bootstrap (2,000 draws, seed 0) because RESULT 3.2's [18.6, 169.9] was a row bootstrap and a two-block interval is not a measurement",
+    "the LIRF model is fitted from LIRF's matched rows only; fit_unmatched(all matched) == fit_unmatched(LIRF matched) is asserted bit-exact on the first fold before the full frame is released",
+    "the held-out month's LIRF MATCHED rows are held out too (the L-e propensity table cannot see them)",
+    "nf_fit's HistGradientBoostingRegressor keeps sklearn's early_stopping='auto': ON above 10,000 training rows (the real stratum), OFF below -- identical to Screen B; not a tuning choice"
+  ],
+  "data": {
+    "n_stratum": 22219,
+    "n_lirf_matched": 159216,
+    "months": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "airports": [
+      "EDDF",
+      "EDDM",
+      "EGLL",
+      "EHAM",
+      "LEBL",
+      "LEMD",
+      "LFPG",
+      "LIRF",
+      "LSZH",
+      "LTFM"
+    ],
+    "fill_share": 0.06282911022098205,
+    "n_monsters": 186,
+    "monsters_per_airport": {
+      "LIRF": 180,
+      "LFPG": 2,
+      "LSZH": 2,
+      "EHAM": 1,
+      "EGLL": 1
+    },
+    "n_nonfill": 20823
+  },
+  "fold_a": {
+    "arms": {
+      "S0": {
+        "definition": "incumbent fit_unmatched: p_hat x sp + (1 - p_hat) x nf_cells",
+        "pooled": 1867.904640867504,
+        "exmonster": 995.5974635299707,
+        "n": 5321,
+        "n_monsters": 56,
+        "per_airport": {
+          "EDDF": {
+            "pooled": 418.2552014496059,
+            "exmonster": 418.2552014496059,
+            "n": 599,
+            "n_monsters": 0
+          },
+          "EDDM": {
+            "pooled": 670.8075033091894,
+            "exmonster": 670.8075033091894,
+            "n": 237,
+            "n_monsters": 0
+          },
+          "EGLL": {
+            "pooled": 1174.829019775835,
+            "exmonster": 1089.8791115047795,
+            "n": 466,
+            "n_monsters": 1
+          },
+          "EHAM": {
+            "pooled": 663.7412800405011,
+            "exmonster": 542.9715040216435,
+            "n": 808,
+            "n_monsters": 1
+          },
+          "LEBL": {
+            "pooled": 362.0822038570456,
+            "exmonster": 362.0822038570456,
+            "n": 496,
+            "n_monsters": 0
+          },
+          "LEMD": {
+            "pooled": 339.37851326588157,
+            "exmonster": 339.37851326588157,
+            "n": 309,
+            "n_monsters": 0
+          },
+          "LFPG": {
+            "pooled": 3456.2804040429837,
+            "exmonster": 588.5964050123617,
+            "n": 876,
+            "n_monsters": 2
+          },
+          "LIRF": {
+            "pooled": 3931.3585657810363,
+            "exmonster": 3026.4341407322677,
+            "n": 397,
+            "n_monsters": 52
+          },
+          "LSZH": {
+            "pooled": 690.8098950425782,
+            "exmonster": 690.8098950425782,
+            "n": 476,
+            "n_monsters": 0
+          },
+          "LTFM": {
+            "pooled": 805.7265438636676,
+            "exmonster": 805.7265438636676,
+            "n": 657,
+            "n_monsters": 0
+          }
+        }
+      },
+      "S1": {
+        "definition": "hybrid: p_hat x sp + (1 - p_hat) x nf_hybrid(nf_cells, mean over seeds 0,1,2 of nf_fit)",
+        "pooled": 1855.7692209529941,
+        "exmonster": 960.1263194207482,
+        "n": 5321,
+        "n_monsters": 56,
+        "per_airport": {
+          "EDDF": {
+            "pooled": 380.1335752086208,
+            "exmonster": 380.1335752086208,
+            "n": 599,
+            "n_monsters": 0
+          },
+          "EDDM": {
+            "pooled": 654.4390330774812,
+            "exmonster": 654.4390330774812,
+            "n": 237,
+            "n_monsters": 0
+          },
+          "EGLL": {
+            "pooled": 1157.2289729385877,
+            "exmonster": 1072.7128842987677,
+            "n": 466,
+            "n_monsters": 1
+          },
+          "EHAM": {
+            "pooled": 618.8048339292945,
+            "exmonster": 486.2384408875056,
+            "n": 808,
+            "n_monsters": 1
+          },
+          "LEBL": {
+            "pooled": 327.1750573588994,
+            "exmonster": 327.1750573588994,
+            "n": 496,
+            "n_monsters": 0
+          },
+          "LEMD": {
+            "pooled": 306.8774344123875,
+            "exmonster": 306.8774344123875,
+            "n": 309,
+            "n_monsters": 0
+          },
+          "LFPG": {
+            "pooled": 3462.0406609849433,
+            "exmonster": 552.2448366352311,
+            "n": 876,
+            "n_monsters": 2
+          },
+          "LIRF": {
+            "pooled": 3935.2951403180855,
+            "exmonster": 3005.9379372798953,
+            "n": 397,
+            "n_monsters": 52
+          },
+          "LSZH": {
+            "pooled": 643.1830507752126,
+            "exmonster": 643.1830507752126,
+            "n": 476,
+            "n_monsters": 0
+          },
+          "LTFM": {
+            "pooled": 648.8517516071382,
+            "exmonster": 648.8517516071382,
+            "n": 657,
+            "n_monsters": 0
+          }
+        }
+      },
+      "S1_seed0": {
+        "definition": "hybrid with nf_fit at seed 0 alone",
+        "pooled": 1855.7209084355618,
+        "exmonster": 960.1912968871325,
+        "n": 5321,
+        "n_monsters": 56,
+        "per_airport": {
+          "EDDF": {
+            "pooled": 380.2869954873721,
+            "exmonster": 380.2869954873721,
+            "n": 599,
+            "n_monsters": 0
+          },
+          "EDDM": {
+            "pooled": 652.3349683133498,
+            "exmonster": 652.3349683133498,
+            "n": 237,
+            "n_monsters": 0
+          },
+          "EGLL": {
+            "pooled": 1152.448097402913,
+            "exmonster": 1068.3059253164106,
+            "n": 466,
+            "n_monsters": 1
+          },
+          "EHAM": {
+            "pooled": 620.1512169314503,
+            "exmonster": 487.85985264953536,
+            "n": 808,
+            "n_monsters": 1
+          },
+          "LEBL": {
+            "pooled": 323.4513651176363,
+            "exmonster": 323.4513651176363,
+            "n": 496,
+            "n_monsters": 0
+          },
+          "LEMD": {
+            "pooled": 306.72169728702505,
+            "exmonster": 306.72169728702505,
+            "n": 309,
+            "n_monsters": 0
+          },
+          "LFPG": {
+            "pooled": 3461.486738358493,
+            "exmonster": 552.1813585719458,
+            "n": 876,
+            "n_monsters": 2
+          },
+          "LIRF": {
+            "pooled": 3937.095628206452,
+            "exmonster": 3007.5068502247836,
+            "n": 397,
+            "n_monsters": 52
+          },
+          "LSZH": {
+            "pooled": 645.8852817234073,
+            "exmonster": 645.8852817234073,
+            "n": 476,
+            "n_monsters": 0
+          },
+          "LTFM": {
+            "pooled": 649.7086270573959,
+            "exmonster": 649.7086270573959,
+            "n": 657,
+            "n_monsters": 0
+          }
+        }
+      },
+      "S1_seed1": {
+        "definition": "hybrid with nf_fit at seed 1 alone",
+        "pooled": 1856.3183978250797,
+        "exmonster": 961.2553575899877,
+        "n": 5321,
+        "n_monsters": 56,
+        "per_airport": {
+          "EDDF": {
+            "pooled": 379.1241950318125,
+            "exmonster": 379.1241950318125,
+            "n": 599,
+            "n_monsters": 0
+          },
+          "EDDM": {
+            "pooled": 655.0285732143475,
+            "exmonster": 655.0285732143475,
+            "n": 237,
+            "n_monsters": 0
+          },
+          "EGLL": {
+            "pooled": 1164.065790668514,
+            "exmonster": 1078.2529327144573,
+            "n": 466,
+            "n_monsters": 1
+          },
+          "EHAM": {
+            "pooled": 620.2532133421413,
+            "exmonster": 488.16293696961947,
+            "n": 808,
+            "n_monsters": 1
+          },
+          "LEBL": {
+            "pooled": 333.6209018077197,
+            "exmonster": 333.6209018077197,
+            "n": 496,
+            "n_monsters": 0
+          },
+          "LEMD": {
+            "pooled": 309.928802023563,
+            "exmonster": 309.928802023563,
+            "n": 309,
+            "n_monsters": 0
+          },
+          "LFPG": {
+            "pooled": 3462.92069700018,
+            "exmonster": 554.8241185749763,
+            "n": 876,
+            "n_monsters": 2
+          },
+          "LIRF": {
+            "pooled": 3933.560098147009,
+            "exmonster": 3005.8356926621123,
+            "n": 397,
+            "n_monsters": 52
+          },
+          "LSZH": {
+            "pooled": 641.9959227928232,
+            "exmonster": 641.9959227928232,
+            "n": 476,
+            "n_monsters": 0
+          },
+          "LTFM": {
+            "pooled": 649.3107429867621,
+            "exmonster": 649.3107429867621,
+            "n": 657,
+            "n_monsters": 0
+          }
+        }
+      },
+      "S1_seed2": {
+        "definition": "hybrid with nf_fit at seed 2 alone",
+        "pooled": 1855.9032512068163,
+        "exmonster": 960.166297685706,
+        "n": 5321,
+        "n_monsters": 56,
+        "per_airport": {
+          "EDDF": {
+            "pooled": 382.6811779966367,
+            "exmonster": 382.6811779966367,
+            "n": 599,
+            "n_monsters": 0
+          },
+          "EDDM": {
+            "pooled": 658.055394470889,
+            "exmonster": 658.055394470889,
+            "n": 237,
+            "n_monsters": 0
+          },
+          "EGLL": {
+            "pooled": 1157.0980938037299,
+            "exmonster": 1073.6552135336808,
+            "n": 466,
+            "n_monsters": 1
+          },
+          "EHAM": {
+            "pooled": 616.8225238863737,
+            "exmonster": 483.7227980054238,
+            "n": 808,
+            "n_monsters": 1
+          },
+          "LEBL": {
+            "pooled": 327.56132081156954,
+            "exmonster": 327.56132081156954,
+            "n": 496,
+            "n_monsters": 0
+          },
+          "LEMD": {
+            "pooled": 309.14659264533464,
+            "exmonster": 309.14659264533464,
+            "n": 309,
+            "n_monsters": 0
+          },
+          "LFPG": {
+            "pooled": 3462.17174257599,
+            "exmonster": 552.5956286071593,
+            "n": 876,
+            "n_monsters": 2
+          },
+          "LIRF": {
+            "pooled": 3935.5874309772075,
+            "exmonster": 3004.9904772201567,
+            "n": 397,
+            "n_monsters": 52
+          },
+          "LSZH": {
+            "pooled": 642.7515000198325,
+            "exmonster": 642.7515000198325,
+            "n": 476,
+            "n_monsters": 0
+          },
+          "LTFM": {
+            "pooled": 649.4106469852474,
+            "exmonster": 649.4106469852474,
+            "n": 657,
+            "n_monsters": 0
+          }
+        }
+      }
+    },
+    "pairs": {
+      "S1_vs_S0": {
+        "pooled": {
+          "gain_s": 12.13541991450984,
+          "ci95": [
+            2.5999173937771047,
+            21.635708206996014
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0,
+          "n_blocks": 2
+        },
+        "exmonster": {
+          "gain_s": 35.47114410922245,
+          "ci95": [
+            32.45782018585987,
+            48.472169416724
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0,
+          "n_blocks": 2
+        },
+        "airports_improving_exmonster": 10,
+        "n_airports": 10,
+        "per_airport_exmonster": {
+          "EDDF": {
+            "rmse_ref": 418.2552014496059,
+            "rmse_new": 380.1335752086208,
+            "gain_s": 38.12162624098511,
+            "month_block": {
+              "gain_s": 38.12162624098511,
+              "ci95": [
+                32.69377465265876,
+                40.038771272598126
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "EDDM": {
+            "rmse_ref": 670.8075033091894,
+            "rmse_new": 654.4390330774812,
+            "gain_s": 16.368470231708216,
+            "month_block": {
+              "gain_s": 16.368470231708216,
+              "ci95": [
+                -9.955927190993634,
+                84.3835864354711
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "EGLL": {
+            "rmse_ref": 1089.8791115047795,
+            "rmse_new": 1072.7128842987677,
+            "gain_s": 17.166227206011854,
+            "month_block": {
+              "gain_s": 17.166227206011854,
+              "ci95": [
+                12.561888467315839,
+                36.86566290663416
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "EHAM": {
+            "rmse_ref": 542.9715040216435,
+            "rmse_new": 486.2384408875056,
+            "gain_s": 56.733063134137865,
+            "month_block": {
+              "gain_s": 56.733063134137865,
+              "ci95": [
+                44.016283495578705,
+                91.82882379319835
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "LEBL": {
+            "rmse_ref": 362.0822038570456,
+            "rmse_new": 327.1750573588994,
+            "gain_s": 34.90714649814623,
+            "month_block": {
+              "gain_s": 34.90714649814623,
+              "ci95": [
+                29.99009558947381,
+                67.97764096809402
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "LEMD": {
+            "rmse_ref": 339.37851326588157,
+            "rmse_new": 306.8774344123875,
+            "gain_s": 32.50107885349405,
+            "month_block": {
+              "gain_s": 32.50107885349405,
+              "ci95": [
+                -38.263158084961844,
+                41.37957368202086
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "LFPG": {
+            "rmse_ref": 588.5964050123617,
+            "rmse_new": 552.2448366352311,
+            "gain_s": 36.35156837713066,
+            "month_block": {
+              "gain_s": 36.35156837713066,
+              "ci95": [
+                32.7459323936622,
+                39.506648428670985
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "LIRF": {
+            "rmse_ref": 3026.4341407322677,
+            "rmse_new": 3005.9379372798953,
+            "gain_s": 20.496203452372356,
+            "month_block": {
+              "gain_s": 20.496203452372356,
+              "ci95": [
+                -46.172042415354326,
+                27.705548499197448
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "LSZH": {
+            "rmse_ref": 690.8098950425782,
+            "rmse_new": 643.1830507752126,
+            "gain_s": 47.62684426736564,
+            "month_block": {
+              "gain_s": 47.62684426736564,
+              "ci95": [
+                37.07192083286873,
+                65.18599085238395
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "LTFM": {
+            "rmse_ref": 805.7265438636676,
+            "rmse_new": 648.8517516071382,
+            "gain_s": 156.87479225652942,
+            "month_block": {
+              "gain_s": 156.87479225652942,
+              "ci95": [
+                155.41778751987886,
+                158.98229228700325
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          }
+        },
+        "pooled_row": {
+          "gain_s": 12.13541991450984,
+          "ci95": [
+            3.608048970808278,
+            27.58333840326883
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0,
+          "n_rows": 5321
+        },
+        "exmonster_row": {
+          "gain_s": 35.47114410922245,
+          "ci95": [
+            27.179275344845244,
+            44.813492533799106
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0,
+          "n_rows": 5265
+        }
+      },
+      "S1_seed0_vs_S0": {
+        "pooled": {
+          "gain_s": 12.18373243194219,
+          "ci95": [
+            3.082064046736832,
+            21.33819621488351
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0,
+          "n_blocks": 2
+        },
+        "exmonster": {
+          "gain_s": 35.40616664283823,
+          "ci95": [
+            32.37057719448421,
+            48.49075474571168
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0,
+          "n_blocks": 2
+        },
+        "airports_improving_exmonster": 10,
+        "n_airports": 10,
+        "per_airport_exmonster": {
+          "EDDF": {
+            "rmse_ref": 418.2552014496059,
+            "rmse_new": 380.2869954873721,
+            "gain_s": 37.96820596223381,
+            "month_block": {
+              "gain_s": 37.96820596223381,
+              "ci95": [
+                32.069740053758494,
+                40.04959334090603
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "EDDM": {
+            "rmse_ref": 670.8075033091894,
+            "rmse_new": 652.3349683133498,
+            "gain_s": 18.472534995839624,
+            "month_block": {
+              "gain_s": 18.472534995839624,
+              "ci95": [
+                -5.367956758493733,
+                79.6437284223
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "EGLL": {
+            "rmse_ref": 1089.8791115047795,
+            "rmse_new": 1068.3059253164106,
+            "gain_s": 21.573186188368936,
+            "month_block": {
+              "gain_s": 21.573186188368936,
+              "ci95": [
+                16.677198707431216,
+                42.81647529932059
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "EHAM": {
+            "rmse_ref": 542.9715040216435,
+            "rmse_new": 487.85985264953536,
+            "gain_s": 55.1116513721081,
+            "month_block": {
+              "gain_s": 55.1116513721081,
+              "ci95": [
+                41.06482925964929,
+                91.84136135962035
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "LEBL": {
+            "rmse_ref": 362.0822038570456,
+            "rmse_new": 323.4513651176363,
+            "gain_s": 38.630838739409285,
+            "month_block": {
+              "gain_s": 38.630838739409285,
+              "ci95": [
+                34.34722545631689,
+                67.2224777930088
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "LEMD": {
+            "rmse_ref": 339.37851326588157,
+            "rmse_new": 306.72169728702505,
+            "gain_s": 32.656815978856514,
+            "month_block": {
+              "gain_s": 32.656815978856514,
+              "ci95": [
+                -14.620662497675596,
+                38.34874746567266
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "LFPG": {
+            "rmse_ref": 588.5964050123617,
+            "rmse_new": 552.1813585719458,
+            "gain_s": 36.41504644041595,
+            "month_block": {
+              "gain_s": 36.41504644041595,
+              "ci95": [
+                32.43518058055838,
+                39.767735563160954
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "LIRF": {
+            "rmse_ref": 3026.4341407322677,
+            "rmse_new": 3007.5068502247836,
+            "gain_s": 18.92729050748403,
+            "month_block": {
+              "gain_s": 18.92729050748403,
+              "ci95": [
+                -47.09000352116823,
+                26.045530202055943
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "LSZH": {
+            "rmse_ref": 690.8098950425782,
+            "rmse_new": 645.8852817234073,
+            "gain_s": 44.92461331917093,
+            "month_block": {
+              "gain_s": 44.92461331917093,
+              "ci95": [
+                33.367788855288836,
+                63.929494510406926
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "LTFM": {
+            "rmse_ref": 805.7265438636676,
+            "rmse_new": 649.7086270573959,
+            "gain_s": 156.01791680627173,
+            "month_block": {
+              "gain_s": 156.01791680627173,
+              "ci95": [
+                156.01791680627161,
+                158.30524334942334
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          }
+        },
+        "pooled_row": {
+          "gain_s": 12.18373243194219,
+          "ci95": [
+            3.7906253565445467,
+            27.190792131655623
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0,
+          "n_rows": 5321
+        },
+        "exmonster_row": {
+          "gain_s": 35.40616664283823,
+          "ci95": [
+            27.042023025993075,
+            44.87109076184705
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0,
+          "n_rows": 5265
+        }
+      },
+      "S1_seed1_vs_S0": {
+        "pooled": {
+          "gain_s": 11.586243042424258,
+          "ci95": [
+            1.7956229555520622,
+            21.210894574345502
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0,
+          "n_blocks": 2
+        },
+        "exmonster": {
+          "gain_s": 34.34210593998296,
+          "ci95": [
+            31.435456241911197,
+            46.876502221445435
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0,
+          "n_blocks": 2
+        },
+        "airports_improving_exmonster": 10,
+        "n_airports": 10,
+        "per_airport_exmonster": {
+          "EDDF": {
+            "rmse_ref": 418.2552014496059,
+            "rmse_new": 379.1241950318125,
+            "gain_s": 39.1310064177934,
+            "month_block": {
+              "gain_s": 39.1310064177934,
+              "ci95": [
+                32.64644074771485,
+                41.41830343922828
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "EDDM": {
+            "rmse_ref": 670.8075033091894,
+            "rmse_new": 655.0285732143475,
+            "gain_s": 15.77893009484194,
+            "month_block": {
+              "gain_s": 15.77893009484194,
+              "ci95": [
+                -14.98329432562798,
+                96.2758206178678
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "EGLL": {
+            "rmse_ref": 1089.8791115047795,
+            "rmse_new": 1078.2529327144573,
+            "gain_s": 11.626178790322228,
+            "month_block": {
+              "gain_s": 11.626178790322228,
+              "ci95": [
+                7.424196284595382,
+                29.257206585326344
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "EHAM": {
+            "rmse_ref": 542.9715040216435,
+            "rmse_new": 488.16293696961947,
+            "gain_s": 54.80856705202399,
+            "month_block": {
+              "gain_s": 54.80856705202399,
+              "ci95": [
+                41.009621348842416,
+                90.99248207742878
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "LEBL": {
+            "rmse_ref": 362.0822038570456,
+            "rmse_new": 333.6209018077197,
+            "gain_s": 28.461302049325923,
+            "month_block": {
+              "gain_s": 28.461302049325923,
+              "ci95": [
+                23.403776997988473,
+                62.51182601683638
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "LEMD": {
+            "rmse_ref": 339.37851326588157,
+            "rmse_new": 309.928802023563,
+            "gain_s": 29.449711242318585,
+            "month_block": {
+              "gain_s": 29.449711242318585,
+              "ci95": [
+                -49.0755799641521,
+                39.42611675903936
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "LFPG": {
+            "rmse_ref": 588.5964050123617,
+            "rmse_new": 554.8241185749763,
+            "gain_s": 33.772286437385446,
+            "month_block": {
+              "gain_s": 33.772286437385446,
+              "ci95": [
+                30.194417650802393,
+                36.81087574337778
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "LIRF": {
+            "rmse_ref": 3026.4341407322677,
+            "rmse_new": 3005.8356926621123,
+            "gain_s": 20.598448070155428,
+            "month_block": {
+              "gain_s": 20.598448070155428,
+              "ci95": [
+                -43.18102112320071,
+                27.505425889733033
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "LSZH": {
+            "rmse_ref": 690.8098950425782,
+            "rmse_new": 641.9959227928232,
+            "gain_s": 48.81397224975501,
+            "month_block": {
+              "gain_s": 48.81397224975501,
+              "ci95": [
+                38.29378450957836,
+                66.35833462322569
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "LTFM": {
+            "rmse_ref": 805.7265438636676,
+            "rmse_new": 649.3107429867621,
+            "gain_s": 156.41580087690556,
+            "month_block": {
+              "gain_s": 156.41580087690556,
+              "ci95": [
+                151.30304598021075,
+                160.03310781034315
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          }
+        },
+        "pooled_row": {
+          "gain_s": 11.586243042424258,
+          "ci95": [
+            3.0736915744349176,
+            26.845033049327697
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0,
+          "n_rows": 5321
+        },
+        "exmonster_row": {
+          "gain_s": 34.34210593998296,
+          "ci95": [
+            26.1365817600229,
+            43.7691210384289
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0,
+          "n_rows": 5265
+        }
+      },
+      "S1_seed2_vs_S0": {
+        "pooled": {
+          "gain_s": 12.001389660687664,
+          "ci95": [
+            2.49707969963265,
+            21.45594327947856
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0,
+          "n_blocks": 2
+        },
+        "exmonster": {
+          "gain_s": 35.43116584426468,
+          "ci95": [
+            32.4370273909351,
+            48.35575083974959
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0,
+          "n_blocks": 2
+        },
+        "airports_improving_exmonster": 10,
+        "n_airports": 10,
+        "per_airport_exmonster": {
+          "EDDF": {
+            "rmse_ref": 418.2552014496059,
+            "rmse_new": 382.6811779966367,
+            "gain_s": 35.57402345296924,
+            "month_block": {
+              "gain_s": 35.57402345296924,
+              "ci95": [
+                31.586535184128934,
+                36.98767756877089
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "EDDM": {
+            "rmse_ref": 670.8075033091894,
+            "rmse_new": 658.055394470889,
+            "gain_s": 12.752108838300387,
+            "month_block": {
+              "gain_s": 12.752108838300387,
+              "ci95": [
+                -11.200132649285251,
+                74.22674534993939
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "EGLL": {
+            "rmse_ref": 1089.8791115047795,
+            "rmse_new": 1073.6552135336808,
+            "gain_s": 16.223897971098722,
+            "month_block": {
+              "gain_s": 16.223897971098722,
+              "ci95": [
+                11.70337919437975,
+                35.50721740927111
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "EHAM": {
+            "rmse_ref": 542.9715040216435,
+            "rmse_new": 483.7227980054238,
+            "gain_s": 59.24870601621967,
+            "month_block": {
+              "gain_s": 59.24870601621967,
+              "ci95": [
+                49.23671902673914,
+                90.72888860834905
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "LEBL": {
+            "rmse_ref": 362.0822038570456,
+            "rmse_new": 327.56132081156954,
+            "gain_s": 34.52088304547607,
+            "month_block": {
+              "gain_s": 34.52088304547607,
+              "ci95": [
+                29.256712218498762,
+                70.0814410613641
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "LEMD": {
+            "rmse_ref": 339.37851326588157,
+            "rmse_new": 309.14659264533464,
+            "gain_s": 30.23192062054693,
+            "month_block": {
+              "gain_s": 30.23192062054693,
+              "ci95": [
+                -56.341910259537315,
+                41.38643295846941
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "LFPG": {
+            "rmse_ref": 588.5964050123617,
+            "rmse_new": 552.5956286071593,
+            "gain_s": 36.00077640520249,
+            "month_block": {
+              "gain_s": 36.00077640520249,
+              "ci95": [
+                33.32304094372262,
+                38.659148060133305
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "LIRF": {
+            "rmse_ref": 3026.4341407322677,
+            "rmse_new": 3004.9904772201567,
+            "gain_s": 21.443663512111016,
+            "month_block": {
+              "gain_s": 21.443663512111016,
+              "ci95": [
+                -49.3253584573913,
+                29.098753198078157
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "LSZH": {
+            "rmse_ref": 690.8098950425782,
+            "rmse_new": 642.7515000198325,
+            "gain_s": 48.058395022745685,
+            "month_block": {
+              "gain_s": 48.058395022745685,
+              "ci95": [
+                38.50480516136486,
+                64.10797503834624
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          },
+          "LTFM": {
+            "rmse_ref": 805.7265438636676,
+            "rmse_new": 649.4106469852474,
+            "gain_s": 156.3158968784203,
+            "month_block": {
+              "gain_s": 156.3158968784203,
+              "ci95": [
+                154.54973489365432,
+                158.54458460557555
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 2
+            }
+          }
+        },
+        "pooled_row": {
+          "gain_s": 12.001389660687664,
+          "ci95": [
+            3.418936780909513,
+            27.116084647005252
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0,
+          "n_rows": 5321
+        },
+        "exmonster_row": {
+          "gain_s": 35.43116584426468,
+          "ci95": [
+            27.291193122400795,
+            44.65223702380206
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0,
+          "n_rows": 5265
+        }
+      }
+    },
+    "seed_sd": {
+      "pooled": 0.3062104862864851,
+      "exmonster": 0.6216780536776971,
+      "values_pooled": {
+        "0": 1855.7209084355618,
+        "1": 1856.3183978250797,
+        "2": 1855.9032512068163
+      },
+      "values_exmonster": {
+        "0": 960.1912968871325,
+        "1": 961.2553575899877,
+        "2": 960.166297685706
+      }
+    },
+    "routing": {
+      "n_nf_fit": 5290,
+      "n_nf_cells": 31,
+      "T_tail": 3000.0,
+      "share_nf_fit": 0.9941740274384514,
+      "n_nf_fit_exmonster": 5248,
+      "n_nf_cells_monsters": 14
+    },
+    "lirf_cut": {
+      "n": 397,
+      "n_monsters": 52,
+      "pooled": {
+        "S0": 3931.3585657810363,
+        "S1": 3935.2951403180855,
+        "S1_seed0": 3937.095628206452,
+        "S1_seed1": 3933.560098147009,
+        "S1_seed2": 3935.5874309772075
+      },
+      "exmonster": {
+        "S0": 3026.4341407322677,
+        "S1": 3005.9379372798953,
+        "S1_seed0": 3007.5068502247836,
+        "S1_seed1": 3005.8356926621123,
+        "S1_seed2": 3004.9904772201567
+      },
+      "S1_vs_S0": {
+        "pooled": {
+          "S1_vs_S0": {
+            "gain_s": -3.9365745370491823,
+            "ci95": [
+              -38.852614188810094,
+              2.347646000023815
+            ],
+            "excludes_zero": false,
+            "improving": false,
+            "n_draws": 2000,
+            "seed": 0,
+            "n_blocks": 2
+          }
+        },
+        "exmonster": {
+          "S1_vs_S0": {
+            "gain_s": 20.496203452372356,
+            "ci95": [
+              -46.172042415354326,
+              27.705548499197448
+            ],
+            "excludes_zero": false,
+            "improving": false,
+            "n_draws": 2000,
+            "seed": 0,
+            "n_blocks": 2
+          }
+        }
+      }
+    },
+    "per_month": {
+      "1": {
+        "n": 1408,
+        "n_monsters": 10,
+        "S0": {
+          "pooled": 2907.050755827532,
+          "exmonster": 781.2747276163064
+        },
+        "S1": {
+          "pooled": 2904.4508384337582,
+          "exmonster": 732.8025581995821
+        },
+        "S1_seed0": {
+          "pooled": 2903.968691780798,
+          "exmonster": 732.7839728705953
+        },
+        "S1_seed1": {
+          "pooled": 2905.255132871981,
+          "exmonster": 734.3982253948612
+        },
+        "S1_seed2": {
+          "pooled": 2904.553676127902,
+          "exmonster": 732.9189767765569
+        }
+      },
+      "7": {
+        "n": 3913,
+        "n_monsters": 46,
+        "S0": {
+          "pooled": 1305.2411788443194,
+          "exmonster": 1062.4923783851752
+        },
+        "S1": {
+          "pooled": 1283.6054706373243,
+          "exmonster": 1030.0345581993158
+        },
+        "S1_seed0": {
+          "pooled": 1283.902982629438,
+          "exmonster": 1030.1218011906901
+        },
+        "S1_seed1": {
+          "pooled": 1284.0302842699746,
+          "exmonster": 1031.0569221432645
+        },
+        "S1_seed2": {
+          "pooled": 1283.7852355648424,
+          "exmonster": 1030.0553509942397
+        }
+      }
+    },
+    "clauses_18_3": {
+      "a_exmonster": {
+        "gain_s": 35.47114410922245,
+        "ci95": [
+          32.45782018585987,
+          48.472169416724
+        ],
+        "excludes_zero_improving": true,
+        "gain_ge_20_s": true,
+        "seed_sd_s": 0.6216780536776971,
+        "gain_gt_2x_seed_sd": true,
+        "holds": true
+      },
+      "b_pooled_tail_preserved": {
+        "gain_s": 12.13541991450984,
+        "ci95": [
+          2.5999173937771047,
+          21.635708206996014
+        ],
+        "loss_upper_bound_s": -2.5999173937771047,
+        "loss_upper_bound_lt_20_s": true,
+        "holds": true
+      },
+      "c_airports": {
+        "airports_improving_exmonster": 10,
+        "n_airports": 10,
+        "at_least_6": true
+      },
+      "all_three_hold": true,
+      "not_working_triggers": {
+        "exmonster_interval_includes_zero": false,
+        "pooled_point_worse_by_more_than_20_s": false,
+        "pooled_interval_worse_by_more_than_20_s": false,
+        "any": false
+      }
+    },
+    "r3_2_reference": {
+      "pooled": 1867.9,
+      "exmonster": 995.6,
+      "n": 5321,
+      "n_monsters": 56,
+      "tolerance_s": 0.05
+    }
+  },
+  "reproduction": {
+    "status": "reproduced",
+    "reference": {
+      "pooled": 1867.9,
+      "exmonster": 995.6,
+      "n": 5321,
+      "n_monsters": 56,
+      "tolerance_s": 0.05
+    },
+    "measured": {
+      "pooled": 1867.904640867504,
+      "exmonster": 995.5974635299707,
+      "n": 5321,
+      "n_monsters": 56
+    }
+  },
+  "lomo": {
+    "arms": {
+      "S0": {
+        "definition": "incumbent fit_unmatched: p_hat x sp + (1 - p_hat) x nf_cells",
+        "pooled": 1610.6845228756692,
+        "exmonster": 958.9627268895557,
+        "n": 22219,
+        "n_monsters": 186,
+        "per_airport": {
+          "EDDF": {
+            "pooled": 396.6735906127205,
+            "exmonster": 396.6735906127205,
+            "n": 1956,
+            "n_monsters": 0
+          },
+          "EDDM": {
+            "pooled": 667.2398341345249,
+            "exmonster": 667.2398341345249,
+            "n": 1010,
+            "n_monsters": 0
+          },
+          "EGLL": {
+            "pooled": 957.7607542896118,
+            "exmonster": 923.9178828260818,
+            "n": 1414,
+            "n_monsters": 1
+          },
+          "EHAM": {
+            "pooled": 424.5158634067343,
+            "exmonster": 388.97364806339453,
+            "n": 4083,
+            "n_monsters": 1
+          },
+          "LEBL": {
+            "pooled": 371.47649528623145,
+            "exmonster": 371.47649528623145,
+            "n": 1862,
+            "n_monsters": 0
+          },
+          "LEMD": {
+            "pooled": 347.9234051041835,
+            "exmonster": 347.9234051041835,
+            "n": 947,
+            "n_monsters": 0
+          },
+          "LFPG": {
+            "pooled": 1764.8033813279699,
+            "exmonster": 643.4512283641833,
+            "n": 3762,
+            "n_monsters": 2
+          },
+          "LIRF": {
+            "pooled": 4448.305416608317,
+            "exmonster": 2794.7961137570874,
+            "n": 1488,
+            "n_monsters": 180
+          },
+          "LSZH": {
+            "pooled": 2003.4596647790236,
+            "exmonster": 473.2685108501787,
+            "n": 2054,
+            "n_monsters": 2
+          },
+          "LTFM": {
+            "pooled": 1180.400334966173,
+            "exmonster": 1180.400334966173,
+            "n": 3643,
+            "n_monsters": 0
+          }
+        }
+      },
+      "S1": {
+        "definition": "hybrid: p_hat x sp + (1 - p_hat) x nf_hybrid(nf_cells, mean over seeds 0,1,2 of nf_fit)",
+        "pooled": 1594.482354535981,
+        "exmonster": 925.7974273306982,
+        "n": 22219,
+        "n_monsters": 186,
+        "per_airport": {
+          "EDDF": {
+            "pooled": 353.9981028535638,
+            "exmonster": 353.9981028535638,
+            "n": 1956,
+            "n_monsters": 0
+          },
+          "EDDM": {
+            "pooled": 651.688283844856,
+            "exmonster": 651.688283844856,
+            "n": 1010,
+            "n_monsters": 0
+          },
+          "EGLL": {
+            "pooled": 925.7943675975945,
+            "exmonster": 890.4384720455914,
+            "n": 1414,
+            "n_monsters": 1
+          },
+          "EHAM": {
+            "pooled": 367.13901584466487,
+            "exmonster": 325.1824166269907,
+            "n": 4083,
+            "n_monsters": 1
+          },
+          "LEBL": {
+            "pooled": 331.63161415702797,
+            "exmonster": 331.63161415702797,
+            "n": 1862,
+            "n_monsters": 0
+          },
+          "LEMD": {
+            "pooled": 325.578650178623,
+            "exmonster": 325.578650178623,
+            "n": 947,
+            "n_monsters": 0
+          },
+          "LFPG": {
+            "pooled": 1752.694522637988,
+            "exmonster": 591.9450665361899,
+            "n": 3762,
+            "n_monsters": 2
+          },
+          "LIRF": {
+            "pooled": 4450.736510850874,
+            "exmonster": 2785.2336502833496,
+            "n": 1488,
+            "n_monsters": 180
+          },
+          "LSZH": {
+            "pooled": 1993.0571947526632,
+            "exmonster": 402.84849868350017,
+            "n": 2054,
+            "n_monsters": 2
+          },
+          "LTFM": {
+            "pooled": 1118.302188730414,
+            "exmonster": 1118.302188730414,
+            "n": 3643,
+            "n_monsters": 0
+          }
+        }
+      },
+      "S1_seed0": {
+        "definition": "hybrid with nf_fit at seed 0 alone",
+        "pooled": 1595.1085562642425,
+        "exmonster": 926.9197871229693,
+        "n": 22219,
+        "n_monsters": 186,
+        "per_airport": {
+          "EDDF": {
+            "pooled": 353.32362957011986,
+            "exmonster": 353.32362957011986,
+            "n": 1956,
+            "n_monsters": 0
+          },
+          "EDDM": {
+            "pooled": 651.8569350481981,
+            "exmonster": 651.8569350481981,
+            "n": 1010,
+            "n_monsters": 0
+          },
+          "EGLL": {
+            "pooled": 927.724951293084,
+            "exmonster": 892.1931318893131,
+            "n": 1414,
+            "n_monsters": 1
+          },
+          "EHAM": {
+            "pooled": 367.4354285542931,
+            "exmonster": 325.50472098750816,
+            "n": 4083,
+            "n_monsters": 1
+          },
+          "LEBL": {
+            "pooled": 332.2758932284066,
+            "exmonster": 332.2758932284066,
+            "n": 1862,
+            "n_monsters": 0
+          },
+          "LEMD": {
+            "pooled": 325.9138969330584,
+            "exmonster": 325.9138969330584,
+            "n": 947,
+            "n_monsters": 0
+          },
+          "LFPG": {
+            "pooled": 1752.7305041795823,
+            "exmonster": 591.5892545549881,
+            "n": 3762,
+            "n_monsters": 2
+          },
+          "LIRF": {
+            "pooled": 4450.634234039475,
+            "exmonster": 2786.1841597029634,
+            "n": 1488,
+            "n_monsters": 180
+          },
+          "LSZH": {
+            "pooled": 1993.6793174147324,
+            "exmonster": 403.44144987256277,
+            "n": 2054,
+            "n_monsters": 2
+          },
+          "LTFM": {
+            "pooled": 1122.457889572897,
+            "exmonster": 1122.457889572897,
+            "n": 3643,
+            "n_monsters": 0
+          }
+        }
+      },
+      "S1_seed1": {
+        "definition": "hybrid with nf_fit at seed 1 alone",
+        "pooled": 1594.4954482586181,
+        "exmonster": 926.1183870513513,
+        "n": 22219,
+        "n_monsters": 186,
+        "per_airport": {
+          "EDDF": {
+            "pooled": 354.93299455284205,
+            "exmonster": 354.93299455284205,
+            "n": 1956,
+            "n_monsters": 0
+          },
+          "EDDM": {
+            "pooled": 651.7698669047372,
+            "exmonster": 651.7698669047372,
+            "n": 1010,
+            "n_monsters": 0
+          },
+          "EGLL": {
+            "pooled": 924.5827970945194,
+            "exmonster": 889.3844608031679,
+            "n": 1414,
+            "n_monsters": 1
+          },
+          "EHAM": {
+            "pooled": 367.350525531664,
+            "exmonster": 325.44028985163544,
+            "n": 4083,
+            "n_monsters": 1
+          },
+          "LEBL": {
+            "pooled": 332.9403180953876,
+            "exmonster": 332.9403180953876,
+            "n": 1862,
+            "n_monsters": 0
+          },
+          "LEMD": {
+            "pooled": 327.1345234045204,
+            "exmonster": 327.1345234045204,
+            "n": 947,
+            "n_monsters": 0
+          },
+          "LFPG": {
+            "pooled": 1752.6254191490211,
+            "exmonster": 593.1845002971324,
+            "n": 3762,
+            "n_monsters": 2
+          },
+          "LIRF": {
+            "pooled": 4450.859204884574,
+            "exmonster": 2785.3836930164684,
+            "n": 1488,
+            "n_monsters": 180
+          },
+          "LSZH": {
+            "pooled": 1992.361455324045,
+            "exmonster": 402.8490007493624,
+            "n": 2054,
+            "n_monsters": 2
+          },
+          "LTFM": {
+            "pooled": 1118.8494312674309,
+            "exmonster": 1118.8494312674309,
+            "n": 3643,
+            "n_monsters": 0
+          }
+        }
+      },
+      "S1_seed2": {
+        "definition": "hybrid with nf_fit at seed 2 alone",
+        "pooled": 1594.48496329205,
+        "exmonster": 925.4651185952024,
+        "n": 22219,
+        "n_monsters": 186,
+        "per_airport": {
+          "EDDF": {
+            "pooled": 355.5460554069038,
+            "exmonster": 355.5460554069038,
+            "n": 1956,
+            "n_monsters": 0
+          },
+          "EDDM": {
+            "pooled": 653.1509210453137,
+            "exmonster": 653.1509210453137,
+            "n": 1010,
+            "n_monsters": 0
+          },
+          "EGLL": {
+            "pooled": 927.6274597969265,
+            "exmonster": 892.3926997861684,
+            "n": 1414,
+            "n_monsters": 1
+          },
+          "EHAM": {
+            "pooled": 368.02563541819706,
+            "exmonster": 326.1767249027079,
+            "n": 4083,
+            "n_monsters": 1
+          },
+          "LEBL": {
+            "pooled": 332.3432572427283,
+            "exmonster": 332.3432572427283,
+            "n": 1862,
+            "n_monsters": 0
+          },
+          "LEMD": {
+            "pooled": 327.37879477696634,
+            "exmonster": 327.37879477696634,
+            "n": 947,
+            "n_monsters": 0
+          },
+          "LFPG": {
+            "pooled": 1753.5260063577232,
+            "exmonster": 593.4233378630624,
+            "n": 3762,
+            "n_monsters": 2
+          },
+          "LIRF": {
+            "pooled": 4450.916590444686,
+            "exmonster": 2784.480068960051,
+            "n": 1488,
+            "n_monsters": 180
+          },
+          "LSZH": {
+            "pooled": 1993.4226493249741,
+            "exmonster": 403.6980402069909,
+            "n": 2054,
+            "n_monsters": 2
+          },
+          "LTFM": {
+            "pooled": 1114.651787032439,
+            "exmonster": 1114.651787032439,
+            "n": 3643,
+            "n_monsters": 0
+          }
+        }
+      }
+    },
+    "pairs": {
+      "S1_vs_S0": {
+        "pooled": {
+          "gain_s": 16.202168339688342,
+          "ci95": [
+            9.729460831146316,
+            24.532545247293363
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0,
+          "n_blocks": 12
+        },
+        "exmonster": {
+          "gain_s": 33.165299558857555,
+          "ci95": [
+            27.703233561004417,
+            40.2224618742811
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0,
+          "n_blocks": 12
+        },
+        "airports_improving_exmonster": 10,
+        "n_airports": 10,
+        "per_airport_exmonster": {
+          "EDDF": {
+            "rmse_ref": 396.6735906127205,
+            "rmse_new": 353.9981028535638,
+            "gain_s": 42.67548775915668,
+            "month_block": {
+              "gain_s": 42.67548775915668,
+              "ci95": [
+                35.110143158235765,
+                52.21734830296021
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "EDDM": {
+            "rmse_ref": 667.2398341345249,
+            "rmse_new": 651.688283844856,
+            "gain_s": 15.551550289668967,
+            "month_block": {
+              "gain_s": 15.551550289668967,
+              "ci95": [
+                0.961333215049348,
+                41.02507462801758
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "EGLL": {
+            "rmse_ref": 923.9178828260818,
+            "rmse_new": 890.4384720455914,
+            "gain_s": 33.47941078049041,
+            "month_block": {
+              "gain_s": 33.47941078049041,
+              "ci95": [
+                18.895269018589026,
+                56.254919362219596
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "EHAM": {
+            "rmse_ref": 388.97364806339453,
+            "rmse_new": 325.1824166269907,
+            "gain_s": 63.79123143640385,
+            "month_block": {
+              "gain_s": 63.79123143640385,
+              "ci95": [
+                50.69177381164176,
+                79.61597131851326
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "LEBL": {
+            "rmse_ref": 371.47649528623145,
+            "rmse_new": 331.63161415702797,
+            "gain_s": 39.844881129203486,
+            "month_block": {
+              "gain_s": 39.844881129203486,
+              "ci95": [
+                31.455125447353588,
+                50.34261796608174
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "LEMD": {
+            "rmse_ref": 347.9234051041835,
+            "rmse_new": 325.578650178623,
+            "gain_s": 22.344754925560494,
+            "month_block": {
+              "gain_s": 22.344754925560494,
+              "ci95": [
+                11.445720079488495,
+                29.914600174731984
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "LFPG": {
+            "rmse_ref": 643.4512283641833,
+            "rmse_new": 591.9450665361899,
+            "gain_s": 51.506161827993424,
+            "month_block": {
+              "gain_s": 51.506161827993424,
+              "ci95": [
+                42.92045423032896,
+                64.26919247629725
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "LIRF": {
+            "rmse_ref": 2794.7961137570874,
+            "rmse_new": 2785.2336502833496,
+            "gain_s": 9.562463473737807,
+            "month_block": {
+              "gain_s": 9.562463473737807,
+              "ci95": [
+                -12.741101293925828,
+                23.532747220519536
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "LSZH": {
+            "rmse_ref": 473.2685108501787,
+            "rmse_new": 402.84849868350017,
+            "gain_s": 70.42001216667853,
+            "month_block": {
+              "gain_s": 70.42001216667853,
+              "ci95": [
+                52.97376121984997,
+                102.77339657278618
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "LTFM": {
+            "rmse_ref": 1180.400334966173,
+            "rmse_new": 1118.302188730414,
+            "gain_s": 62.09814623575903,
+            "month_block": {
+              "gain_s": 62.09814623575903,
+              "ci95": [
+                35.482135929730255,
+                149.23935166957156
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          }
+        }
+      },
+      "S1_seed0_vs_S0": {
+        "pooled": {
+          "gain_s": 15.575966611426793,
+          "ci95": [
+            9.07140335597794,
+            23.99139039025361
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0,
+          "n_blocks": 12
+        },
+        "exmonster": {
+          "gain_s": 32.042939766586414,
+          "ci95": [
+            25.355589365936606,
+            39.97863838998929
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0,
+          "n_blocks": 12
+        },
+        "airports_improving_exmonster": 10,
+        "n_airports": 10,
+        "per_airport_exmonster": {
+          "EDDF": {
+            "rmse_ref": 396.6735906127205,
+            "rmse_new": 353.32362957011986,
+            "gain_s": 43.349961042600626,
+            "month_block": {
+              "gain_s": 43.349961042600626,
+              "ci95": [
+                36.440833107071185,
+                51.95505769122756
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "EDDM": {
+            "rmse_ref": 667.2398341345249,
+            "rmse_new": 651.8569350481981,
+            "gain_s": 15.382899086326802,
+            "month_block": {
+              "gain_s": 15.382899086326802,
+              "ci95": [
+                0.4931384523794407,
+                40.296587300846305
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "EGLL": {
+            "rmse_ref": 923.9178828260818,
+            "rmse_new": 892.1931318893131,
+            "gain_s": 31.724750936768714,
+            "month_block": {
+              "gain_s": 31.724750936768714,
+              "ci95": [
+                17.332504706117856,
+                54.790306743461024
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "EHAM": {
+            "rmse_ref": 388.97364806339453,
+            "rmse_new": 325.50472098750816,
+            "gain_s": 63.46892707588637,
+            "month_block": {
+              "gain_s": 63.46892707588637,
+              "ci95": [
+                50.45458125873749,
+                79.32728476459879
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "LEBL": {
+            "rmse_ref": 371.47649528623145,
+            "rmse_new": 332.2758932284066,
+            "gain_s": 39.20060205782488,
+            "month_block": {
+              "gain_s": 39.20060205782488,
+              "ci95": [
+                30.90945659591105,
+                49.42629850919179
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "LEMD": {
+            "rmse_ref": 347.9234051041835,
+            "rmse_new": 325.9138969330584,
+            "gain_s": 22.00950817112505,
+            "month_block": {
+              "gain_s": 22.00950817112505,
+              "ci95": [
+                10.635937684151193,
+                30.265882903320545
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "LFPG": {
+            "rmse_ref": 643.4512283641833,
+            "rmse_new": 591.5892545549881,
+            "gain_s": 51.861973809195206,
+            "month_block": {
+              "gain_s": 51.861973809195206,
+              "ci95": [
+                43.897945508173414,
+                63.99689260341613
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "LIRF": {
+            "rmse_ref": 2794.7961137570874,
+            "rmse_new": 2786.1841597029634,
+            "gain_s": 8.611954054123999,
+            "month_block": {
+              "gain_s": 8.611954054123999,
+              "ci95": [
+                -13.620118816003298,
+                23.051649924132935
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "LSZH": {
+            "rmse_ref": 473.2685108501787,
+            "rmse_new": 403.44144987256277,
+            "gain_s": 69.82706097761593,
+            "month_block": {
+              "gain_s": 69.82706097761593,
+              "ci95": [
+                52.02102405694537,
+                103.02812170295431
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "LTFM": {
+            "rmse_ref": 1180.400334966173,
+            "rmse_new": 1122.457889572897,
+            "gain_s": 57.942445393275875,
+            "month_block": {
+              "gain_s": 57.942445393275875,
+              "ci95": [
+                27.843127892431017,
+                149.4119688515482
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          }
+        }
+      },
+      "S1_seed1_vs_S0": {
+        "pooled": {
+          "gain_s": 16.18907461705112,
+          "ci95": [
+            9.76858106737888,
+            24.297948686235532
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0,
+          "n_blocks": 12
+        },
+        "exmonster": {
+          "gain_s": 32.844339838204405,
+          "ci95": [
+            27.327542544167613,
+            39.7120494555493
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0,
+          "n_blocks": 12
+        },
+        "airports_improving_exmonster": 10,
+        "n_airports": 10,
+        "per_airport_exmonster": {
+          "EDDF": {
+            "rmse_ref": 396.6735906127205,
+            "rmse_new": 354.93299455284205,
+            "gain_s": 41.74059605987844,
+            "month_block": {
+              "gain_s": 41.74059605987844,
+              "ci95": [
+                33.60543317865973,
+                51.84084871614748
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "EDDM": {
+            "rmse_ref": 667.2398341345249,
+            "rmse_new": 651.7698669047372,
+            "gain_s": 15.469967229787699,
+            "month_block": {
+              "gain_s": 15.469967229787699,
+              "ci95": [
+                -0.31933265893929386,
+                43.29098126425038
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "EGLL": {
+            "rmse_ref": 923.9178828260818,
+            "rmse_new": 889.3844608031679,
+            "gain_s": 34.533422022913896,
+            "month_block": {
+              "gain_s": 34.533422022913896,
+              "ci95": [
+                23.275070294564994,
+                53.86820905946808
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "EHAM": {
+            "rmse_ref": 388.97364806339453,
+            "rmse_new": 325.44028985163544,
+            "gain_s": 63.533358211759094,
+            "month_block": {
+              "gain_s": 63.533358211759094,
+              "ci95": [
+                50.11631687861815,
+                79.7062666189275
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "LEBL": {
+            "rmse_ref": 371.47649528623145,
+            "rmse_new": 332.9403180953876,
+            "gain_s": 38.53617719084383,
+            "month_block": {
+              "gain_s": 38.53617719084383,
+              "ci95": [
+                30.41280137212898,
+                48.78201543996455
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "LEMD": {
+            "rmse_ref": 347.9234051041835,
+            "rmse_new": 327.1345234045204,
+            "gain_s": 20.78888169966308,
+            "month_block": {
+              "gain_s": 20.78888169966308,
+              "ci95": [
+                9.75753535173618,
+                28.654458861197856
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "LFPG": {
+            "rmse_ref": 643.4512283641833,
+            "rmse_new": 593.1845002971324,
+            "gain_s": 50.26672806705085,
+            "month_block": {
+              "gain_s": 50.26672806705085,
+              "ci95": [
+                41.373511940352714,
+                63.062883978399675
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "LIRF": {
+            "rmse_ref": 2794.7961137570874,
+            "rmse_new": 2785.3836930164684,
+            "gain_s": 9.412420740618927,
+            "month_block": {
+              "gain_s": 9.412420740618927,
+              "ci95": [
+                -13.571116757113316,
+                23.681144767032105
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "LSZH": {
+            "rmse_ref": 473.2685108501787,
+            "rmse_new": 402.8490007493624,
+            "gain_s": 70.4195101008163,
+            "month_block": {
+              "gain_s": 70.4195101008163,
+              "ci95": [
+                53.48554568665678,
+                102.51656727404445
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "LTFM": {
+            "rmse_ref": 1180.400334966173,
+            "rmse_new": 1118.8494312674309,
+            "gain_s": 61.550903698742104,
+            "month_block": {
+              "gain_s": 61.550903698742104,
+              "ci95": [
+                34.90008140735847,
+                148.16776267237455
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          }
+        }
+      },
+      "S1_seed2_vs_S0": {
+        "pooled": {
+          "gain_s": 16.199559583619248,
+          "ci95": [
+            9.589719218773292,
+            24.740901790520198
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0,
+          "n_blocks": 12
+        },
+        "exmonster": {
+          "gain_s": 33.49760829435331,
+          "ci95": [
+            29.102649671606173,
+            39.92242626873704
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0,
+          "n_blocks": 12
+        },
+        "airports_improving_exmonster": 10,
+        "n_airports": 10,
+        "per_airport_exmonster": {
+          "EDDF": {
+            "rmse_ref": 396.6735906127205,
+            "rmse_new": 355.5460554069038,
+            "gain_s": 41.127535205816685,
+            "month_block": {
+              "gain_s": 41.127535205816685,
+              "ci95": [
+                33.130537317158485,
+                51.34675039575081
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "EDDM": {
+            "rmse_ref": 667.2398341345249,
+            "rmse_new": 653.1509210453137,
+            "gain_s": 14.088913089211246,
+            "month_block": {
+              "gain_s": 14.088913089211246,
+              "ci95": [
+                -0.5132638143140582,
+                37.1744648381905
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "EGLL": {
+            "rmse_ref": 923.9178828260818,
+            "rmse_new": 892.3926997861684,
+            "gain_s": 31.525183039913486,
+            "month_block": {
+              "gain_s": 31.525183039913486,
+              "ci95": [
+                12.606543221893057,
+                58.449969193236335
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "EHAM": {
+            "rmse_ref": 388.97364806339453,
+            "rmse_new": 326.1767249027079,
+            "gain_s": 62.79692316068662,
+            "month_block": {
+              "gain_s": 62.79692316068662,
+              "ci95": [
+                50.24020735169005,
+                77.77905434966661
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "LEBL": {
+            "rmse_ref": 371.47649528623145,
+            "rmse_new": 332.3432572427283,
+            "gain_s": 39.13323804350313,
+            "month_block": {
+              "gain_s": 39.13323804350313,
+              "ci95": [
+                30.249400183752194,
+                50.20879039874
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "LEMD": {
+            "rmse_ref": 347.9234051041835,
+            "rmse_new": 327.37879477696634,
+            "gain_s": 20.54461032721713,
+            "month_block": {
+              "gain_s": 20.54461032721713,
+              "ci95": [
+                9.836486610709983,
+                27.92235914529903
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "LFPG": {
+            "rmse_ref": 643.4512283641833,
+            "rmse_new": 593.4233378630624,
+            "gain_s": 50.02789050112085,
+            "month_block": {
+              "gain_s": 50.02789050112085,
+              "ci95": [
+                41.244887261904346,
+                62.78834365303805
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "LIRF": {
+            "rmse_ref": 2794.7961137570874,
+            "rmse_new": 2784.480068960051,
+            "gain_s": 10.316044797036284,
+            "month_block": {
+              "gain_s": 10.316044797036284,
+              "ci95": [
+                -11.556483630254888,
+                23.95108342672933
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "LSZH": {
+            "rmse_ref": 473.2685108501787,
+            "rmse_new": 403.6980402069909,
+            "gain_s": 69.57047064318778,
+            "month_block": {
+              "gain_s": 69.57047064318778,
+              "ci95": [
+                52.82490608519368,
+                101.36707313244479
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          },
+          "LTFM": {
+            "rmse_ref": 1180.400334966173,
+            "rmse_new": 1114.651787032439,
+            "gain_s": 65.74854793373402,
+            "month_block": {
+              "gain_s": 65.74854793373402,
+              "ci95": [
+                42.424477097951986,
+                147.31658939356655
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0,
+              "n_blocks": 12
+            }
+          }
+        }
+      }
+    },
+    "seed_sd": {
+      "pooled": 0.35704331111047616,
+      "exmonster": 0.7285902227663154,
+      "values_pooled": {
+        "0": 1595.1085562642425,
+        "1": 1594.4954482586181,
+        "2": 1594.48496329205
+      },
+      "values_exmonster": {
+        "0": 926.9197871229693,
+        "1": 926.1183870513513,
+        "2": 925.4651185952024
+      }
+    },
+    "routing": {
+      "n_nf_fit": 22082,
+      "n_nf_cells": 137,
+      "T_tail": 3000.0,
+      "share_nf_fit": 0.993834105945362,
+      "n_nf_fit_exmonster": 21941,
+      "n_nf_cells_monsters": 45
+    },
+    "lirf_cut": {
+      "n": 1488,
+      "n_monsters": 180,
+      "pooled": {
+        "S0": 4448.305416608317,
+        "S1": 4450.736510850874,
+        "S1_seed0": 4450.634234039475,
+        "S1_seed1": 4450.859204884574,
+        "S1_seed2": 4450.916590444686
+      },
+      "exmonster": {
+        "S0": 2794.7961137570874,
+        "S1": 2785.2336502833496,
+        "S1_seed0": 2786.1841597029634,
+        "S1_seed1": 2785.3836930164684,
+        "S1_seed2": 2784.480068960051
+      },
+      "S1_vs_S0": {
+        "pooled": {
+          "S1_vs_S0": {
+            "gain_s": -2.431094242557265,
+            "ci95": [
+              -16.36487689145175,
+              8.49582832189851
+            ],
+            "excludes_zero": false,
+            "improving": false,
+            "n_draws": 2000,
+            "seed": 0,
+            "n_blocks": 12
+          }
+        },
+        "exmonster": {
+          "S1_vs_S0": {
+            "gain_s": 9.562463473737807,
+            "ci95": [
+              -12.741101293925828,
+              23.532747220519536
+            ],
+            "excludes_zero": false,
+            "improving": false,
+            "n_draws": 2000,
+            "seed": 0,
+            "n_blocks": 12
+          }
+        }
+      }
+    },
+    "per_month": {
+      "1": {
+        "n": 1408,
+        "n_monsters": 10,
+        "S0": {
+          "pooled": 2903.3666930682207,
+          "exmonster": 770.5159860622845
+        },
+        "S1": {
+          "pooled": 2902.9163807735,
+          "exmonster": 727.8022820445808
+        },
+        "S1_seed0": {
+          "pooled": 2903.037372862993,
+          "exmonster": 727.0443088739213
+        },
+        "S1_seed1": {
+          "pooled": 2902.66502415106,
+          "exmonster": 730.2615093979538
+        },
+        "S1_seed2": {
+          "pooled": 2903.4100444612864,
+          "exmonster": 727.5540071211793
+        }
+      },
+      "2": {
+        "n": 1083,
+        "n_monsters": 11,
+        "S0": {
+          "pooled": 2058.0655098007032,
+          "exmonster": 1985.0537276018326
+        },
+        "S1": {
+          "pooled": 2038.2792199446064,
+          "exmonster": 1962.3822297281874
+        },
+        "S1_seed0": {
+          "pooled": 2045.3454403244689,
+          "exmonster": 1969.9054058653983
+        },
+        "S1_seed1": {
+          "pooled": 2038.7042323595736,
+          "exmonster": 1962.6987276403036
+        },
+        "S1_seed2": {
+          "pooled": 2031.2918187347154,
+          "exmonster": 1955.067734731806
+        }
+      },
+      "3": {
+        "n": 1060,
+        "n_monsters": 6,
+        "S0": {
+          "pooled": 1136.4678280888763,
+          "exmonster": 748.3885821294323
+        },
+        "S1": {
+          "pooled": 1124.4774728093862,
+          "exmonster": 718.4616751423368
+        },
+        "S1_seed0": {
+          "pooled": 1125.3000275053448,
+          "exmonster": 719.4822708097156
+        },
+        "S1_seed1": {
+          "pooled": 1125.450908292381,
+          "exmonster": 719.1328372794617
+        },
+        "S1_seed2": {
+          "pooled": 1123.4968818557268,
+          "exmonster": 718.0481356035743
+        }
+      },
+      "4": {
+        "n": 1064,
+        "n_monsters": 10,
+        "S0": {
+          "pooled": 1360.5600126235483,
+          "exmonster": 827.5423897566975
+        },
+        "S1": {
+          "pooled": 1335.4503289461231,
+          "exmonster": 779.5750410290706
+        },
+        "S1_seed0": {
+          "pooled": 1333.8494341633043,
+          "exmonster": 780.0607790980425
+        },
+        "S1_seed1": {
+          "pooled": 1334.824649330911,
+          "exmonster": 779.5678653277554
+        },
+        "S1_seed2": {
+          "pooled": 1338.2736531245087,
+          "exmonster": 780.1248487903491
+        }
+      },
+      "5": {
+        "n": 1591,
+        "n_monsters": 16,
+        "S0": {
+          "pooled": 2401.4560199704533,
+          "exmonster": 634.7418223614758
+        },
+        "S1": {
+          "pooled": 2400.9360698008854,
+          "exmonster": 600.3386625761995
+        },
+        "S1_seed0": {
+          "pooled": 2401.4803196792336,
+          "exmonster": 601.2071196778455
+        },
+        "S1_seed1": {
+          "pooled": 2400.317089166955,
+          "exmonster": 601.7440869462214
+        },
+        "S1_seed2": {
+          "pooled": 2401.3962348641508,
+          "exmonster": 599.6096236177599
+        }
+      },
+      "6": {
+        "n": 2470,
+        "n_monsters": 17,
+        "S0": {
+          "pooled": 2095.3299733369618,
+          "exmonster": 900.813617733434
+        },
+        "S1": {
+          "pooled": 2083.6997249365836,
+          "exmonster": 872.82917916764
+        },
+        "S1_seed0": {
+          "pooled": 2084.261455025034,
+          "exmonster": 873.4863825863175
+        },
+        "S1_seed1": {
+          "pooled": 2083.645411630078,
+          "exmonster": 872.7081591203497
+        },
+        "S1_seed2": {
+          "pooled": 2083.665480168279,
+          "exmonster": 873.4264665263964
+        }
+      },
+      "7": {
+        "n": 3913,
+        "n_monsters": 46,
+        "S0": {
+          "pooled": 1306.3556993229827,
+          "exmonster": 1063.844180251424
+        },
+        "S1": {
+          "pooled": 1286.1785705043128,
+          "exmonster": 1033.7697163035946
+        },
+        "S1_seed0": {
+          "pooled": 1286.4678494867035,
+          "exmonster": 1034.2735739598788
+        },
+        "S1_seed1": {
+          "pooled": 1285.168331934953,
+          "exmonster": 1032.555064031783
+        },
+        "S1_seed2": {
+          "pooled": 1287.7877627193602,
+          "exmonster": 1035.5949700283181
+        }
+      },
+      "8": {
+        "n": 2297,
+        "n_monsters": 24,
+        "S0": {
+          "pooled": 1195.0839942909442,
+          "exmonster": 951.6075396401187
+        },
+        "S1": {
+          "pooled": 1164.3792705485791,
+          "exmonster": 909.1002414486941
+        },
+        "S1_seed0": {
+          "pooled": 1164.349000471807,
+          "exmonster": 909.17278976599
+        },
+        "S1_seed1": {
+          "pooled": 1165.0718627027954,
+          "exmonster": 910.1611817052814
+        },
+        "S1_seed2": {
+          "pooled": 1164.5250945584196,
+          "exmonster": 909.0104311121038
+        }
+      },
+      "9": {
+        "n": 2453,
+        "n_monsters": 20,
+        "S0": {
+          "pooled": 1124.7133484375724,
+          "exmonster": 822.1705176381056
+        },
+        "S1": {
+          "pooled": 1085.6527804050538,
+          "exmonster": 770.2459126391768
+        },
+        "S1_seed0": {
+          "pooled": 1085.8016402659503,
+          "exmonster": 770.7218644237879
+        },
+        "S1_seed1": {
+          "pooled": 1086.3231006750739,
+          "exmonster": 770.2440360741384
+        },
+        "S1_seed2": {
+          "pooled": 1085.7615776758203,
+          "exmonster": 771.0843102284026
+        }
+      },
+      "10": {
+        "n": 1902,
+        "n_monsters": 9,
+        "S0": {
+          "pooled": 861.1882298734888,
+          "exmonster": 806.831112667599
+        },
+        "S1": {
+          "pooled": 840.4790642586393,
+          "exmonster": 783.9358763143882
+        },
+        "S1_seed0": {
+          "pooled": 842.0152448859312,
+          "exmonster": 785.9647330861775
+        },
+        "S1_seed1": {
+          "pooled": 840.8952919323671,
+          "exmonster": 784.2011736101003
+        },
+        "S1_seed2": {
+          "pooled": 839.8756082744704,
+          "exmonster": 783.0915108322808
+        }
+      },
+      "11": {
+        "n": 1347,
+        "n_monsters": 6,
+        "S0": {
+          "pooled": 976.242571825244,
+          "exmonster": 717.3246633056956
+        },
+        "S1": {
+          "pooled": 944.4741621333229,
+          "exmonster": 671.3514120298885
+        },
+        "S1_seed0": {
+          "pooled": 943.9159481048408,
+          "exmonster": 670.981342434533
+        },
+        "S1_seed1": {
+          "pooled": 944.2486264227591,
+          "exmonster": 671.1222060368452
+        },
+        "S1_seed2": {
+          "pooled": 946.2205605556973,
+          "exmonster": 673.3092928215045
+        }
+      },
+      "12": {
+        "n": 1631,
+        "n_monsters": 11,
+        "S0": {
+          "pooled": 1127.3448887144048,
+          "exmonster": 884.9200818408984
+        },
+        "S1": {
+          "pooled": 1098.2827071586753,
+          "exmonster": 850.710151705767
+        },
+        "S1_seed0": {
+          "pooled": 1097.6526435282376,
+          "exmonster": 849.7529343895968
+        },
+        "S1_seed1": {
+          "pooled": 1100.507719733304,
+          "exmonster": 853.808095558533
+        },
+        "S1_seed2": {
+          "pooled": 1097.7242859253856,
+          "exmonster": 849.9133440562894
+        }
+      }
+    },
+    "clauses_18_3": {
+      "a_exmonster": {
+        "gain_s": 33.165299558857555,
+        "ci95": [
+          27.703233561004417,
+          40.2224618742811
+        ],
+        "excludes_zero_improving": true,
+        "gain_ge_20_s": true,
+        "seed_sd_s": 0.7285902227663154,
+        "gain_gt_2x_seed_sd": true,
+        "holds": true
+      },
+      "b_pooled_tail_preserved": {
+        "gain_s": 16.202168339688342,
+        "ci95": [
+          9.729460831146316,
+          24.532545247293363
+        ],
+        "loss_upper_bound_s": -9.729460831146316,
+        "loss_upper_bound_lt_20_s": true,
+        "holds": true
+      },
+      "c_airports": {
+        "airports_improving_exmonster": 10,
+        "n_airports": 10,
+        "at_least_6": true
+      },
+      "all_three_hold": true,
+      "not_working_triggers": {
+        "exmonster_interval_includes_zero": false,
+        "pooled_point_worse_by_more_than_20_s": false,
+        "pooled_interval_worse_by_more_than_20_s": false,
+        "any": false
+      }
+    }
+  },
+  "finished_utc": "2026-09-09T22:25:49.067140+00:00",
+  "wall_s": 10.7,
+  "peak_rss_gb": 2.8
+}

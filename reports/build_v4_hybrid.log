@@ -1,0 +1,21 @@
+splice into merry-quicksand_v3.parquet: replaced 5290 unmatched rows (5229 values differ from the base); matched rows copied verbatim
+hybrid stratum: routed 5247 rows -> nf_fit, 43 rows -> nf_cells (T_tail 3000 s), seeds (0, 1, 2)
+wrote /Users/saurabhdxt/Projects/prc-challenge/submissions/merry-quicksand_v4.parquet  rows=344841  median=958s  mean=1034s
+        4.54 real         4.15 user         0.37 sys
+          3105292288  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              341851  page reclaims
+                  71  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                 714  involuntary context switches
+         69770114169  instructions retired
+         19591443445  cycles elapsed
+          2714946488  peak memory footprint

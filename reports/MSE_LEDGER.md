@@ -12,6 +12,12 @@ This file is the running ledger. Nothing enters it as a gain without a paired bo
 that excludes zero. Seconds are not the unit of account — **MSE removed** is, because seconds are
 not additive and MSE is.
 
+## MEASURED 2026-09-09 22:33Z — v4: 289.67, rank 19 of 92 — the stratum hybrid (Amendment 18 / RESULT 10)
+
+v4 = v3 with only the 5,290 unmatched rows re-predicted by the hybrid non-fill regressor (fitted body,
+cell-estimator tail preserved). **289.6732, −1.96 s / −1,138 MSE.** LOMO pooled stratum gain +16.2 s
+(~800 MSE at 1:1); realised 1,138. v5 = seeds + queue block on top of v4 is fitting (RESULT 7 + 9).
+
 ## MEASURED 2026-09-09 14:19Z — v3: 291.63, rank 20 of 87, and matched-side fold gains TRANSFER
 
 `merry-quicksand_v3.parquet` = v2 with the 339,551 matched rows re-predicted by the config measured

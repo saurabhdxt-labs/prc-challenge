@@ -1651,3 +1651,135 @@ Regime shifts a day's base rate; it does not identify rows. Expect arms D and Y 
 single-digit seconds each if they work. The 23,979-MSE mode budget is only capturable by a per-row
 identifier, and none has been found in this data. **That budget is the leader's edge, and the
 search for the identifier continues under Amendment 13's rule: never by reading the scorer.**
+
+
+---
+
+# AMENDMENT 20 — the standard approach, end to end: one model, all rows, taxi time as the target
+
+**2026-09-09 17:35 local. Owner, verbatim: "people are continuously moving towards 245 and you are
+saying this is the ceiling ... this is seriously nonsense." Correct. Five teams are under 270 and
+one is at 246 on the same data. Amendment 19.4's "mode budget" was the ceiling of THIS pipeline's
+decomposition, not of the problem. Written before the arm runs. Nothing above this line has been
+edited.**
+
+## 20.1 What has never been tested
+
+Every structural decision in this pipeline — predict the clock difference `delta` rather than taxi
+time; split matched from unmatched; a hand-built mixture for the unmatched rows — was made on the
+26-feature HGB months ago (delta 252.66 vs y 285.24; "a booster in place of the cell estimator
+scored worse, 1793.6 vs 1648.4") and never re-tested at capacity with the 80-feature design. A
+strong first submission by a competitor is, with high probability, the standard approach: **one
+gradient-boosted model over all rows, taxi time as the target, every column in, missing anchors
+left missing, tuned, seed-averaged, blended.** H-20: that approach, on our features, beats our
+two-part pipeline on the fold.
+
+## 20.2 Arm U (unified)
+
+One LightGBM regressor, target `y`, trained on ALL training rows (matched and unmatched), design =
+BASELINE_FEATS + QUEUE_FEATS (+ DAY_FEATS when Arm D exists), every `AOBT_3`-derived column NaN on
+unmatched rows, plus `is_unmatched`; prediction `max(pred, 1)` on every row, no proxy subtraction,
+no mixture. Same lr/leaves/ES procedure, seeds 0,1,2. Unmatched sample weight W in {1, 10}.
+Baseline = the current pipeline's per-row predictions (matched from the v4/queue record; unmatched
+from `fit_unmatched` as shipped).
+
+## 20.3 Thresholds, locked
+
+Reported three ways, each with a paired row bootstrap (2,000 draws, seed 0), pooled and per airport:
+- **(i) matched rows:** Arm U ADOPTED for matched rows iff its interval vs the pipeline excludes
+  zero in U's favour; the 0.5 blend likewise reported and adopted iff its interval excludes zero
+  and it beats U alone.
+- **(ii) unmatched rows:** decisional on EX-MONSTER RMSE (Amendment 9 rule 4); pooled reported with
+  the monster rows named. Arm U ADOPTED for unmatched rows iff ex-monster interval excludes zero in
+  U's favour AND pooled is not worse by more than 20 s.
+- **(iii) fold TOTAL at the 2026 weights** — reported for scale only, never as a board prediction.
+- The adoption decisions are made per subset, so the shipped pipeline may end up unified on
+  matched rows and mixture on unmatched, or any combination the intervals support.
+- **Point-gain bars: none.** Any paired gain with an interval excluding zero on matched rows is
+  bankable by the transfer rule of RESULT 5. Below-bar decisions are the owner's, not the agent's.
+
+## 20.4 What follows a positive result
+
+If U beats the pipeline on matched rows, the delta formulation is retired for that subset and every
+later arm (sweep, CatBoost, D) is re-run on U's design. The sweep (15.2) and the CatBoost blend
+(15.1) run regardless — they are the rest of "the standard approach" and have never been run here.
+
+
+---
+
+# RESULT 9 · 2026-09-09 18:19 local · Amendment 14 (queue block) — real, below its own bar; SHIPS by owner decision
+
+`lgbm_fold.py --queue --baseline A2 --pa-trees es`, fold A, 339,015 matched holdout rows, 4 h 31 min
+(the 20-permutation control at quarter capacity took 3 h of it), peak ~5 GB. Log
+`reports/lgbm_fold_queue.console.log`, JSON `reports/lgbm_fold_queue.json`, per-row predictions
+`data/cache_stand/fold_preds_queue.parquet`. Treatment best_iter 21,316 → n_ref 26,647 (80 features).
+
+| arm | matched RMSE |
+|---|---|
+| baseline A2 (v4 record, 3 seeds) | 225.825 |
+| treatment = A2 + 12 QUEUE_FEATS (3 seeds) | **224.258** |
+
+| clause (14.3 / 14.4 ii) | measured | passes |
+|---|---|---|
+| paired interval excludes zero | **+1.568 [+1.316, +1.812]** | yes |
+| point gain >= +2.0 s | +1.568 | **no** |
+| gain > 2 × seed sd (0.145) | 10.8× | yes |
+| >= 4 of 10 airports improve | **9 / 10** (LIRF −0.74) | yes |
+| tail subset (non-fill, |delta| > 20 min) improves >= +5 s | +0.37 [−2.83, +3.54] | **no — not the named mechanism** |
+| control: treatment vs 20 within-airport permutations at equal columns, quarter capacity | treatment gain +1.372 vs p95 of permuted −0.190 (max −0.177; 0 at or above) | **yes, decisively** |
+
+**Verdict by the letter: INCONCLUSIVE** — the +2.0 s point bar fails; the mechanism clause fails and
+is reported as 14.3 requires: **the gain is in the body (+1.75 s), not the holding tail (+0.37 s) the
+block was named for.** Queue state helps the model generally; it does not identify the mode rows.
+
+**Owner decision (16:45 local, "work towards it"):** the +2.0 s bar was a compute-economy threshold
+written before the experiment was spent; the gain is replicated on three seeds, its interval excludes
+zero by a wide margin, and the permutation control is unambiguous. **The block ships in v4 together
+with the established seed averaging (RESULT 7), one submission differing from v3 by those two
+changes** (seeds' +0.48 s is established and small; attribution of the board delta is not materially
+confounded). Expected board effect by the RESULT 5 transfer rule: about −2 s.
+
+Per airport (treatment − baseline, * = own interval excludes zero): EDDF +3.09*, EDDM +1.95*,
+EGLL +1.00*, EHAM +1.33*, LEBL +1.19*, LEMD +1.50*, LFPG +1.81*, LIRF −0.74, LSZH +2.48*, LTFM +3.28*.
+
+
+---
+
+# RESULT 10 · 2026-09-09 18:26 local · Amendment 18 (stratum hybrid) — ESTABLISHED, all three clauses
+
+`scripts/stratum_fold.py`, 12-fold LOMO over 2025 on the 22,219 unmatched rows (+ fold A alongside),
+3 seeds of `nf_fit`, month-block paired bootstrap 2,000 draws; 11 s of fitting after the 3 GB load;
+peak RSS 3.0 GB. Log `reports/stratum_fold_v7.console.log`, JSON `reports/stratum_fold_v7.json`,
+per-row predictions `data/cache_stand/stratum_fold_v7_preds.parquet`. Fold-A S0 reproduced R3.2.
+
+| (12-fold LOMO) | S0 incumbent | S1 hybrid (3-seed mean) | gain | month-block 95% |
+|---|---|---|---|---|
+| **ex-monster stratum RMSE** (decisional) | — | — | **+33.17 s** | **[+27.70, +40.22]** |
+| pooled stratum RMSE | — | — | **+16.20 s** | [+9.73, +24.53] |
+
+Seed sd (ex-monster, 3 seeds): 0.729 s → gain is 45 × seed sd. Per seed: +32.0 / +32.8 / +33.5.
+
+**Clauses (18.3):** (a) ex-monster interval excludes zero, gain >= 20 s, > 2 × seed sd — **holds**;
+(b) pooled not worse (it improves by 16 s; the tail load is preserved, the hybrid routing works) —
+**holds**; (c) airports improving ex-monster: **10 of 10** — holds. Per airport ex-monster gain:
+EDDF +42.7, EDDM +15.6, EGLL +33.5, EHAM +63.8, LEBL +39.8, LEMD +22.3, LFPG +51.5, LIRF +9.6,
+LSZH +70.4, LTFM +62.1. Per month: 12 of 12 improve on both metrics.
+
+**VERDICT: ESTABLISHED.** Ships as its own version, differing from its predecessor only on the
+5,290 unmatched rows (`build_submission.py --hybrid --base <prev> --version N`). Board effect is not
+projected (Amendment 9: stratum totals do not transfer; the board is the instrument). The LOMO
+pooled gain is ~16 s of stratum RMSE ≈ ~800 MSE at the 2026 weight if it transferred 1:1 — stated
+for scale only.
+
+Sequencing decision: this ships FIRST as v4 (5 minutes, no matched refit), and RESULT 9's
+seeds + queue block ships as v5 on top of it (~2 h fit), so both lanes are on the board tonight
+and each board delta attributes to one lane.
+
+
+### R10 board · 2026-09-09 18:35 local · v4 = 289.6732, rank 19 of 92
+
+v4 (v3 + hybrid stratum; matched rows byte-identical to v3) scored **289.6732**: **−1.96 s / −1,138
+MSE vs v3's 291.6317**, from the 5,290 unmatched rows alone. The LOMO pooled stratum gain of +16.2 s
+would be ~800 MSE at a 1:1 transfer; realised 1,138 — the stratum lane transferred at ~1.4×, the
+opposite sign of Amendment 9's warning about fold TOTALS (which remain untrustworthy; this is a
+paired relative gain, like RESULT 5's). First board improvement from the stratum in this project.

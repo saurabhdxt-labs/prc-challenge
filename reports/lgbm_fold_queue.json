@@ -1,0 +1,504 @@
+{
+  "mode": "queue",
+  "smoke": false,
+  "git_sha": "58b785bb6cb8ff222198d0637f2fc45c8761c656",
+  "git_dirty": true,
+  "started_utc": "2026-09-09T17:48:39.079839+00:00",
+  "finished_utc": "2026-09-09T22:19:29.546341+00:00",
+  "wall_s": 16250.5,
+  "peak_rss_gb": 4.77,
+  "command": "cd ~/Projects/prc-challenge && PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 nice -n 19 /usr/bin/time -l python3.11 -B -u scripts/lgbm_fold.py --queue --baseline A3 --pa-trees es 2>&1 | tee reports/lgbm_fold_queue.console.log",
+  "estimate": "~3.6 h (range 3-4.5 h), peak RSS ~5.5 GB (the v4 footprint + 12 float32 columns), 4 threads; run ALONE. Same per-row/iter rates as the v4 estimate x1.15 for 80 columns: ES ~16 min; 3 refits at ~21.9k trees ~21 min each (64 min); per-airport `es` ~35 min; the control = 22 pooled refits at ~4.4k trees (~4.3 min each incl. predict) ~95 min; bootstrap + 22 parquet rewrites ~3 min. The baseline is READ from the v4 record (no refit). Writes reports/lgbm_fold_queue.{json,log} and data/cache_stand/fold_preds_queue.parquet.",
+  "fold": {
+    "holdout_months": [
+      1,
+      7
+    ],
+    "es_months": [
+      3,
+      9
+    ],
+    "months": "all twelve",
+    "n_test": 339015,
+    "n_fit": 1378585,
+    "n_es": 344840,
+    "n_all": 1723425,
+    "airports": [
+      "EDDF",
+      "EDDM",
+      "EGLL",
+      "EHAM",
+      "LEBL",
+      "LEMD",
+      "LFPG",
+      "LIRF",
+      "LSZH",
+      "LTFM"
+    ]
+  },
+  "amendment": "14",
+  "config": {
+    "params": {
+      "objective": "regression",
+      "metric": "rmse",
+      "learning_rate": 0.01,
+      "num_leaves": 255,
+      "min_data_in_leaf": 40,
+      "feature_fraction": 0.8,
+      "bagging_fraction": 0.8,
+      "bagging_freq": 1,
+      "cat_smooth": 20,
+      "min_data_per_group": 100,
+      "max_cat_threshold": 64,
+      "num_threads": 4,
+      "verbosity": -1,
+      "seed": 0
+    },
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "es_seed": 0,
+    "max_rounds": 50000,
+    "patience": 200,
+    "baseline_arm": "A2",
+    "pa_trees": "es",
+    "pa_tree_rule": "per-airport early stopping on the airport's own fit/ES rows (same ES months, seed 0); n_ref_a = max(50, int(best_iter_a * n_all_a / n_fit_a))",
+    "pa_min_rows": 20000,
+    "pa_tree_floor": 200,
+    "blend": 0.5,
+    "n_boot": 2000,
+    "boot_seed": 0,
+    "features": [
+      "proxy",
+      "sp",
+      "eobt_p",
+      "lobt_p",
+      "iobt_p",
+      "aobt_sched",
+      "eobt_sched",
+      "aobt_eobt",
+      "lobt_sched",
+      "eobt_lobt",
+      "iobt_lobt",
+      "airborne3",
+      "airborne1",
+      "arvt_diff",
+      "aobt_sec",
+      "mvt_sec",
+      "sched_sec",
+      "hr",
+      "tmin",
+      "dow",
+      "doy",
+      "actype_null",
+      "f_callsign",
+      "f_ades",
+      "f_type",
+      "f_rule",
+      "n_push",
+      "rwy_b30",
+      "apt_b30",
+      "arr_b30",
+      "sched_prev60",
+      "sched_next60",
+      "sched_day",
+      "rwy_rate",
+      "dep_dur",
+      "rwy_dur",
+      "arr_dur",
+      "arr_ob60_taxiin",
+      "arr_ob60_cdiff",
+      "arr_ob180_cdiff",
+      "prev_arr_gap",
+      "prev_arr_taxiin",
+      "prev_arr_cdiff",
+      "prev_dep_gap",
+      "te_ADEP_mvt",
+      "de_ADEP_mvt",
+      "te_STAND_mvt",
+      "de_STAND_mvt",
+      "te_stand_pref",
+      "de_stand_pref",
+      "te_airline",
+      "de_airline",
+      "te_ADES_mvt",
+      "de_ADES_mvt",
+      "te_AIRCRAFT_TYPE_mvt",
+      "de_AIRCRAFT_TYPE_mvt",
+      "te_RUNWAY_mvt",
+      "de_RUNWAY_mvt",
+      "te_AIRCRAFT_OPERATOR_flt",
+      "de_AIRCRAFT_OPERATOR_flt",
+      "te_MARKET_SEGMENT_flt",
+      "de_MARKET_SEGMENT_flt",
+      "te_WK_TBL_CAT_flt",
+      "de_WK_TBL_CAT_flt",
+      "te_FLIGHT_TYPE_flt",
+      "de_FLIGHT_TYPE_flt",
+      "te_ars",
+      "de_ars",
+      "q_apt_at_push",
+      "q_rwy_at_push",
+      "q_pushed_after_me",
+      "q_rwy_tko_in_taxi",
+      "q_rwy_push_pre20",
+      "q_dep_tko_sym15",
+      "q_rwy_tko_sym10",
+      "q_arr_taxiing_at_push",
+      "q_arr_taxiin_sym30_push",
+      "q_arr_taxiin_sym30_tko",
+      "q_rwy_ambient_proxy",
+      "q_next_arr_onblock_gap"
+    ],
+    "n_features": 80,
+    "queue_feats": [
+      "q_apt_at_push",
+      "q_rwy_at_push",
+      "q_pushed_after_me",
+      "q_rwy_tko_in_taxi",
+      "q_rwy_push_pre20",
+      "q_dep_tko_sym15",
+      "q_rwy_tko_sym10",
+      "q_arr_taxiing_at_push",
+      "q_arr_taxiin_sym30_push",
+      "q_arr_taxiin_sym30_tko",
+      "q_rwy_ambient_proxy",
+      "q_next_arr_onblock_gap"
+    ],
+    "queue_cache": "/Users/saurabhdxt/Projects/prc-challenge/data/cache_queue",
+    "n_perm": 20,
+    "perm_seed": 0,
+    "reduced_trees": 5329,
+    "control_deviation": "20 permutations at quarter capacity, paired: Amendment 14.4 registers 100 within-airport row permutations of QUEUE_FEATS at full capacity. A permutation must RETRAIN - re-predicting the trained treatment booster on permuted columns measures nothing about training - and 100 full retrains are infeasible on this machine, so the control is 20 permutations (seed 0; the twelve columns move as whole rows within airport x fold side), each a single-seed pooled refit on all training rows at best_iter // 4 trees, compared like-for-like with the unpermuted treatment AND the baseline refit at the same reduced count; no per-airport blend. To be amended into 14.4 before the run.",
+    "named_airports": [
+      "LEBL",
+      "LTFM",
+      "EGLL",
+      "LSZH"
+    ],
+    "tail_definition": "non-fill (|y - sp| > 60 s) AND |delta| > 1200 s"
+  },
+  "baseline": {
+    "source": "v4 predictions",
+    "preds": "/Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/fold_v4_preds.parquet",
+    "json": "/Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_v4.json",
+    "arm": "A2",
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "v4_git_sha": "a57040724db18cc6fcfe986ca40e58176d023df9",
+    "v4_best_iter": 17525,
+    "v4_n_ref": 21908,
+    "v4_pa_trees": "es",
+    "v4_a0_reproduction": {
+      "status": "pass",
+      "expected_rmse": 226.24494650121161,
+      "got_rmse": 226.3091726288936,
+      "diff_s": 0.06422612768199087,
+      "tol_s": 0.5,
+      "expected_best_iter": 17557,
+      "got_best_iter": 17525,
+      "expected_n_ref": 21948,
+      "got_n_ref": 21908,
+      "note": "LightGBM at num_threads=4 is not bit-deterministic run to run on this machine; a few hundredths of a second is expected, seconds are a bug"
+    }
+  },
+  "treatment": {
+    "best_iter": 21316,
+    "n_ref": 26647,
+    "es_rmse_taxi_time_NOT_A_RESULT": 199.61847915332413,
+    "es_proxy_only_rmse": 366.24960618281534,
+    "single_seed_rmses": {
+      "0": 224.7586139164583,
+      "1": 224.88474549265942,
+      "2": 224.66646776876547
+    },
+    "per_airport_models": null,
+    "timing_s": {
+      "seed0_s": 1716.4,
+      "seed1_s": 1699.4,
+      "seed2_s": 1709.7
+    }
+  },
+  "arms": {
+    "baseline": {
+      "definition": "the v4 arm A2 over seeds [0, 1, 2] (v4 predictions)",
+      "rmse": 225.82541309692027,
+      "per_airport": {
+        "EDDF": 181.01153106075586,
+        "EDDM": 168.46978117404905,
+        "EGLL": 230.0663221763099,
+        "EHAM": 164.4448460199952,
+        "LEBL": 221.4874750362154,
+        "LEMD": 176.20826409837554,
+        "LFPG": 246.27190500467063,
+        "LIRF": 383.3229604684914,
+        "LSZH": 176.64750377849086,
+        "LTFM": 246.9157828292018
+      },
+      "floor_bind_rate": 6.7843605740159e-05
+    },
+    "treatment": {
+      "definition": "baseline + QUEUE_FEATS, best_iter 21,316 -> n_ref 26,647",
+      "rmse": 224.25762647868322,
+      "per_airport": {
+        "EDDF": 177.91877411532215,
+        "EDDM": 166.51724603458035,
+        "EGLL": 229.0671035705999,
+        "EHAM": 163.11576384179327,
+        "LEBL": 220.29320708734454,
+        "LEMD": 174.70589534550064,
+        "LFPG": 244.46367157714883,
+        "LIRF": 384.06601284171705,
+        "LSZH": 174.1629127894265,
+        "LTFM": 243.63817110942952
+      },
+      "floor_bind_rate": 7.079332772886156e-05
+    }
+  },
+  "seed_sd": {
+    "sd": 0.14537539376166125,
+    "source": "v4 json",
+    "treatment_values": {
+      "0": 224.7586139164583,
+      "1": 224.88474549265942,
+      "2": 224.66646776876547
+    },
+    "treatment_sd": 0.10957893030287183,
+    "baseline_values": null,
+    "ddof": 1
+  },
+  "pairs": {
+    "treatment_vs_baseline": {
+      "gain_s": 1.5677866182370508,
+      "ci95": [
+        1.3160711902993831,
+        1.8119979523043988
+      ],
+      "excludes_zero": true,
+      "improving": true,
+      "n_draws": 2000,
+      "seed": 0,
+      "gain_over_seed_sd": 10.78440152538738,
+      "exceeds_2x_seed_sd": true,
+      "airports_improving": 9,
+      "n_airports": 10,
+      "per_airport": {
+        "EDDF": {
+          "gain_s": 3.092756945433706,
+          "ci95": [
+            2.524200611995196,
+            3.675180237988048
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "EDDM": {
+          "gain_s": 1.9525351394686936,
+          "ci95": [
+            1.2638600390478856,
+            2.6140034556826395
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "EGLL": {
+          "gain_s": 0.9992186057100128,
+          "ci95": [
+            0.10075635147225982,
+            1.931929312133652
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "EHAM": {
+          "gain_s": 1.3290821782019293,
+          "ci95": [
+            0.671845086954022,
+            2.0028956038774792
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "LEBL": {
+          "gain_s": 1.194267948870845,
+          "ci95": [
+            0.6153285592506045,
+            1.7565634956109726
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "LEMD": {
+          "gain_s": 1.5023687528749008,
+          "ci95": [
+            1.046515490160062,
+            1.969588884990069
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "LFPG": {
+          "gain_s": 1.8082334275217988,
+          "ci95": [
+            1.0092543065867026,
+            2.5795863099813943
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "LIRF": {
+          "gain_s": -0.7430523732256802,
+          "ci95": [
+            -1.715709202200769,
+            0.22655010221423938
+          ],
+          "excludes_zero": false,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "LSZH": {
+          "gain_s": 2.484590989064344,
+          "ci95": [
+            1.9268226135262814,
+            3.050267656420985
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "LTFM": {
+          "gain_s": 3.277611719772267,
+          "ci95": [
+            2.596154668505485,
+            3.941639371514186
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0
+        }
+      },
+      "at_least_4_airports": true,
+      "named_airports": {
+        "LEBL": true,
+        "LTFM": true,
+        "EGLL": true,
+        "LSZH": true
+      }
+    }
+  },
+  "tail_subset": {
+    "definition": "non-fill (|y - sp| > 60 s) AND |delta| > 1200 s",
+    "n_rows": 4712,
+    "share_of_holdout_rows": 0.013899090010766486,
+    "share_of_baseline_sse": 0.20800528343484148,
+    "rmse": {
+      "baseline": 873.608423296436,
+      "treatment": 873.2428061651226
+    },
+    "pair": {
+      "gain_s": 0.3656171313133427,
+      "ci95": [
+        -2.828288633668532,
+        3.5420401101191756
+      ],
+      "excludes_zero": false,
+      "improving": false,
+      "n_draws": 2000,
+      "seed": 0
+    }
+  },
+  "negative_control": {
+    "baseline_reduced_rmse": 227.68295704976302,
+    "treatment_reduced_rmse": 226.31073309330858,
+    "gain_reduced_s": 1.3722239564544338,
+    "permuted_rmses": [
+      227.8737654925548,
+      228.02547855319688,
+      228.03390454730115,
+      227.92133985123658,
+      227.92426272950948,
+      228.04471603376598,
+      227.88588040536288,
+      227.88429255976877,
+      227.92026614340617,
+      227.9897115747165,
+      228.02254386443818,
+      227.8819926095467,
+      228.00639657115516,
+      227.98426509456553,
+      227.9232217505904,
+      228.01567811234855,
+      227.85983760271847,
+      228.03841063307144,
+      227.95058897755266,
+      227.8786172331738
+    ],
+    "permuted_gains_s": [
+      -0.19080844279179132,
+      -0.3425215034338578,
+      -0.3509474975381295,
+      -0.23838280147356272,
+      -0.24130567974646056,
+      -0.3617589840029609,
+      -0.2029233555998644,
+      -0.20133551000574812,
+      -0.23730909364314812,
+      -0.306754524953476,
+      -0.33958681467515817,
+      -0.19903555978368104,
+      -0.32343952139214593,
+      -0.3013080448025107,
+      -0.2402647008273675,
+      -0.33272106258553436,
+      -0.17688055295545269,
+      -0.35545358330841736,
+      -0.26763192778963685,
+      -0.19566018341078006
+    ],
+    "n_perm": 20,
+    "p95_permuted_gain_s": -0.19011204829997438,
+    "exceeds_p95": true,
+    "p5_permuted_rmse": 227.87306909806298,
+    "treatment_below_p5": true,
+    "permuted_gain_mean_s": -0.2703014672359842,
+    "permuted_gain_max_s": -0.17688055295545269,
+    "n_permuted_at_or_above": 0,
+    "note": "Every gain subtracts the same baseline_reduced_rmse, so 'gain exceeds the 95th percentile of the permuted gains' is identically 'the treatment's reduced-capacity RMSE is below the 5th percentile of the permuted RMSEs'. The second form is the like-for-like one: the baseline is fitted on 68 columns and LightGBM's feature-sampling (feature_fraction) stream depends on the column count, so every 80-column run - permuted or not - shares an offset against it that is luck, not information; that offset cancels between the treatment and the permuted runs. The gains vs the baseline are reported for 14.4's wording; the verdict rests on the treatment-vs-permuted comparison.",
+    "seed": 0,
+    "reduced_trees": 5329,
+    "best_iter": 21316,
+    "deviation": "20 permutations at quarter capacity, paired: Amendment 14.4 registers 100 within-airport row permutations of QUEUE_FEATS at full capacity. A permutation must RETRAIN - re-predicting the trained treatment booster on permuted columns measures nothing about training - and 100 full retrains are infeasible on this machine, so the control is 20 permutations (seed 0; the twelve columns move as whole rows within airport x fold side), each a single-seed pooled refit on all training rows at best_iter // 4 trees, compared like-for-like with the unpermuted treatment AND the baseline refit at the same reduced count; no per-airport blend. To be amended into 14.4 before the run.",
+    "groups": "airport x fold side",
+    "registered_text": "Amendment 14.4: 100 within-airport row permutations at full capacity; the treatment's gain must exceed the 95th percentile of the permuted gains"
+  },
+  "timing_s": {
+    "baseline_s": 0.1,
+    "treatment_s": 6470.1,
+    "scoring_s": 13.7,
+    "control_s": 9760.3
+  },
+  "preds_parquet": "/Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/fold_preds_queue.parquet",
+  "log": "/Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_queue.log"
+}

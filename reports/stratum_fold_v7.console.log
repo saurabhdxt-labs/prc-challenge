@@ -1,0 +1,141 @@
+[18:25:38 +      0s] stratum_fold  smoke=False  synthetic=False  json=/Users/saurabhdxt/Projects/prc-challenge/reports/stratum_fold_v7.json  log=/Users/saurabhdxt/Projects/prc-challenge/reports/stratum_fold_v7.log  preds=/Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/stratum_fold_v7_preds.parquet
+[18:25:38 +      0s] command: cd ~/Projects/prc-challenge && PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 nice -n 19 /usr/bin/time -l python3.11 -B -u scripts/stratum_fold.py 2>&1 | tee reports/stratum_fold_v7.console.log
+[18:25:38 +      0s] estimate: ~5 min end to end, peak RSS ~3-4 GB, single thread; run ALONE (the load beside a 5.5 GB fold is a panic risk on this machine). Load = the shipped recipe derive(admissible(load_movements(12 months))) ~2-3 min (amend11 measured 2.86 GB peak on the same recipe; the frame then drops to 22,219 unmatched + ~159k LIRF matched rows); 12 LOMO folds x (2 cell paths + 2 LIRF logistics + 3 HGR fits of ~18k rows at ~0.1 s each, early stopping on above 10k rows) ~1-3 s per fold; fold A the same; the month-block bootstrap is vectorised (2,000 draws x 4 pairs x (pooled, ex-monster, 10 airports, LIRF) well under a minute). Writes reports/stratum_fold_v7.{json,log} and data/cache_stand/stratum_fold_v7_preds.parquet.
+[18:25:40 +      2s] frame: 2,084,659 admissible DEP rows from 12 files in 2s; peak RSS 2.39 GB
+[18:25:41 +      3s] fold 1: fit_unmatched(all matched) == fit_unmatched(LIRF matched) bit-exact; releasing the full frame
+[18:25:41 +      3s] stratum: 22,219 rows, fill share 6.3%, non-fill 20,823, monsters 186 {'LIRF': 180, 'LFPG': 2, 'LSZH': 2, 'EHAM': 1, 'EGLL': 1}; LIRF matched 159,216; bootstrap 2,000 draws seed 0
+[18:25:41 +      3s] --- 12-fold LOMO ---
+[18:25:41 +      3s]   fold  1: test 1,408  train 20,811  routed 1,405 -> nf_fit,    3 -> nf_cells  (0.5s)
+[18:25:42 +      4s]   fold  2: test 1,083  train 21,136  routed 1,079 -> nf_fit,    4 -> nf_cells  (0.5s)
+[18:25:42 +      4s]   fold  3: test 1,060  train 21,159  routed 1,055 -> nf_fit,    5 -> nf_cells  (0.5s)
+[18:25:43 +      5s]   fold  4: test 1,064  train 21,155  routed 1,053 -> nf_fit,   11 -> nf_cells  (0.5s)
+[18:25:43 +      5s]   fold  5: test 1,591  train 20,628  routed 1,584 -> nf_fit,    7 -> nf_cells  (0.5s)
+[18:25:44 +      6s]   fold  6: test 2,470  train 19,749  routed 2,456 -> nf_fit,   14 -> nf_cells  (0.5s)
+[18:25:44 +      6s]   fold  7: test 3,913  train 18,306  routed 3,886 -> nf_fit,   27 -> nf_cells  (0.5s)
+[18:25:45 +      7s]   fold  8: test 2,297  train 19,922  routed 2,274 -> nf_fit,   23 -> nf_cells  (0.5s)
+[18:25:45 +      8s]   fold  9: test 2,453  train 19,766  routed 2,440 -> nf_fit,   13 -> nf_cells  (0.5s)
+[18:25:46 +      8s]   fold 10: test 1,902  train 20,317  routed 1,892 -> nf_fit,   10 -> nf_cells  (0.5s)
+[18:25:47 +      9s]   fold 11: test 1,347  train 20,872  routed 1,339 -> nf_fit,    8 -> nf_cells  (0.5s)
+[18:25:47 +      9s]   fold 12: test 1,631  train 20,588  routed 1,619 -> nf_fit,   12 -> nf_cells  (0.5s)
+[18:25:47 +      9s] LOMO scored 22,219 rows in 6s; peak RSS 2.80 GB
+[18:25:47 +      9s] --- fold A ---
+[18:25:48 +     10s]   fold A (1, 7): test 5,321  train 16,898  routed 5,290 -> nf_fit,   31 -> nf_cells  (0.5s)
+[18:25:48 +     10s] predictions -> /Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/stratum_fold_v7_preds.parquet (27,540 rows: 22,219 lomo + 5,321 fold A)
+[18:25:49 +     11s] === fold A (holdout 1, 7): stratum RMSE, n=5,321, monsters 56 ===
+[18:25:49 +     11s]   arm            pooled  ex-monster
+[18:25:49 +     11s]   S0            1867.90      995.60
+[18:25:49 +     11s]   S1            1855.77      960.13
+[18:25:49 +     11s]   S1_seed0      1855.72      960.19
+[18:25:49 +     11s]   S1_seed1      1856.32      961.26
+[18:25:49 +     11s]   S1_seed2      1855.90      960.17
+[18:25:49 +     11s]   seed sd over S1_seed0..2: pooled 0.306 s, ex-monster 0.622 s
+[18:25:49 +     11s]   S1_vs_S0         pooled     gain   +12.14 s  month-block 95% [+2.60, +21.64]  excludes zero True  improving True
+[18:25:49 +     11s]   S1_vs_S0         exmonster  gain   +35.47 s  month-block 95% [+32.46, +48.47]  excludes zero True  improving True
+[18:25:49 +     11s]   S1_vs_S0         exm (row)  gain   +35.47 s  row 95% [+27.18, +44.81]  (R3.2-comparable)
+[18:25:49 +     11s]   S1_vs_S0         airports improving ex-monster: 10 of 10
+[18:25:49 +     11s]   S1_seed0_vs_S0   pooled     gain   +12.18 s  month-block 95% [+3.08, +21.34]  excludes zero True  improving True
+[18:25:49 +     11s]   S1_seed0_vs_S0   exmonster  gain   +35.41 s  month-block 95% [+32.37, +48.49]  excludes zero True  improving True
+[18:25:49 +     11s]   S1_seed0_vs_S0   exm (row)  gain   +35.41 s  row 95% [+27.04, +44.87]  (R3.2-comparable)
+[18:25:49 +     11s]   S1_seed0_vs_S0   airports improving ex-monster: 10 of 10
+[18:25:49 +     11s]   S1_seed1_vs_S0   pooled     gain   +11.59 s  month-block 95% [+1.80, +21.21]  excludes zero True  improving True
+[18:25:49 +     11s]   S1_seed1_vs_S0   exmonster  gain   +34.34 s  month-block 95% [+31.44, +46.88]  excludes zero True  improving True
+[18:25:49 +     11s]   S1_seed1_vs_S0   exm (row)  gain   +34.34 s  row 95% [+26.14, +43.77]  (R3.2-comparable)
+[18:25:49 +     11s]   S1_seed1_vs_S0   airports improving ex-monster: 10 of 10
+[18:25:49 +     11s]   S1_seed2_vs_S0   pooled     gain   +12.00 s  month-block 95% [+2.50, +21.46]  excludes zero True  improving True
+[18:25:49 +     11s]   S1_seed2_vs_S0   exmonster  gain   +35.43 s  month-block 95% [+32.44, +48.36]  excludes zero True  improving True
+[18:25:49 +     11s]   S1_seed2_vs_S0   exm (row)  gain   +35.43 s  row 95% [+27.29, +44.65]  (R3.2-comparable)
+[18:25:49 +     11s]   S1_seed2_vs_S0   airports improving ex-monster: 10 of 10
+[18:25:49 +     11s]   routed 5,290 rows -> nf_fit (99.4%), 31 -> nf_cells (of which 14 monsters); T_tail 3000 s
+[18:25:49 +     11s]   --- per airport: ex-monster RMSE [pooled], S0 vs S1 ---
+[18:25:49 +     11s]   EDDF   n   599 mon   0  S0    418.3 [   418.3]  S1    380.1 [   380.1]  gain   +38.1
+[18:25:49 +     11s]   EDDM   n   237 mon   0  S0    670.8 [   670.8]  S1    654.4 [   654.4]  gain   +16.4
+[18:25:49 +     11s]   EGLL   n   466 mon   1  S0   1089.9 [  1174.8]  S1   1072.7 [  1157.2]  gain   +17.2
+[18:25:49 +     11s]   EHAM   n   808 mon   1  S0    543.0 [   663.7]  S1    486.2 [   618.8]  gain   +56.7
+[18:25:49 +     11s]   LEBL   n   496 mon   0  S0    362.1 [   362.1]  S1    327.2 [   327.2]  gain   +34.9
+[18:25:49 +     11s]   LEMD   n   309 mon   0  S0    339.4 [   339.4]  S1    306.9 [   306.9]  gain   +32.5
+[18:25:49 +     11s]   LFPG   n   876 mon   2  S0    588.6 [  3456.3]  S1    552.2 [  3462.0]  gain   +36.4
+[18:25:49 +     11s]   LIRF   n   397 mon  52  S0   3026.4 [  3931.4]  S1   3005.9 [  3935.3]  gain   +20.5
+[18:25:49 +     11s]   LSZH   n   476 mon   0  S0    690.8 [   690.8]  S1    643.2 [   643.2]  gain   +47.6
+[18:25:49 +     11s]   LTFM   n   657 mon   0  S0    805.7 [   805.7]  S1    648.9 [   648.9]  gain  +156.9
+[18:25:49 +     11s]   --- per month: ex-monster RMSE [pooled], S0 vs S1 ---
+[18:25:49 +     11s]    1     n 1,408 mon  10  S0    781.3 [  2907.1]  S1    732.8 [  2904.5]
+[18:25:49 +     11s]    7     n 3,913 mon  46  S0   1062.5 [  1305.2]  S1   1030.0 [  1283.6]
+[18:25:49 +     11s]   --- LIRF only: n 397 (monsters 52): S0 3026.4341407322677 ex-monster [3931.3585657810363 pooled]  S1 3005.9379372798953 [3935.2951403180855] ---
+[18:25:49 +     11s]   --- Amendment 18.3 clauses (fold A (holdout 1, 7)) ---
+[18:25:49 +     11s]   (a) ex-monster S1 - S0: gain +35.47 s, month-block 95% [+32.46, +48.47]; excludes zero improving: True; gain >= 20 s: True; seed sd 0.622 s, gain > 2 x seed sd: True; clause holds: True
+[18:25:49 +     11s]   (b) pooled S1 - S0: gain +12.14 s, month-block 95% [+2.60, +21.64]; loss upper bound -2.60 s (< 20 s: True); clause holds: True
+[18:25:49 +     11s]   (c) airports improving ex-monster: 10 of 10 (>= 6: True)
+[18:25:49 +     11s]   all three 18.3 clauses hold: True
+[18:25:49 +     11s]   18.3 triggers -- ex-monster interval includes zero: False; pooled point worse by > 20 s: False; pooled interval worse by > 20 s: False; any: False
+[18:25:49 +     11s] reproduction of RESULT 3.2's B0 on fold A: {'status': 'reproduced', 'reference': {'pooled': 1867.9, 'exmonster': 995.6, 'n': 5321, 'n_monsters': 56, 'tolerance_s': 0.05}, 'measured': {'pooled': 1867.904640867504, 'exmonster': 995.5974635299707, 'n': 5321, 'n_monsters': 56}}
+[18:25:49 +     11s] === 12-fold LOMO: stratum RMSE, n=22,219, monsters 186 ===
+[18:25:49 +     11s]   arm            pooled  ex-monster
+[18:25:49 +     11s]   S0            1610.68      958.96
+[18:25:49 +     11s]   S1            1594.48      925.80
+[18:25:49 +     11s]   S1_seed0      1595.11      926.92
+[18:25:49 +     11s]   S1_seed1      1594.50      926.12
+[18:25:49 +     11s]   S1_seed2      1594.48      925.47
+[18:25:49 +     11s]   seed sd over S1_seed0..2: pooled 0.357 s, ex-monster 0.729 s
+[18:25:49 +     11s]   S1_vs_S0         pooled     gain   +16.20 s  month-block 95% [+9.73, +24.53]  excludes zero True  improving True
+[18:25:49 +     11s]   S1_vs_S0         exmonster  gain   +33.17 s  month-block 95% [+27.70, +40.22]  excludes zero True  improving True
+[18:25:49 +     11s]   S1_vs_S0         airports improving ex-monster: 10 of 10
+[18:25:49 +     11s]   S1_seed0_vs_S0   pooled     gain   +15.58 s  month-block 95% [+9.07, +23.99]  excludes zero True  improving True
+[18:25:49 +     11s]   S1_seed0_vs_S0   exmonster  gain   +32.04 s  month-block 95% [+25.36, +39.98]  excludes zero True  improving True
+[18:25:49 +     11s]   S1_seed0_vs_S0   airports improving ex-monster: 10 of 10
+[18:25:49 +     11s]   S1_seed1_vs_S0   pooled     gain   +16.19 s  month-block 95% [+9.77, +24.30]  excludes zero True  improving True
+[18:25:49 +     11s]   S1_seed1_vs_S0   exmonster  gain   +32.84 s  month-block 95% [+27.33, +39.71]  excludes zero True  improving True
+[18:25:49 +     11s]   S1_seed1_vs_S0   airports improving ex-monster: 10 of 10
+[18:25:49 +     11s]   S1_seed2_vs_S0   pooled     gain   +16.20 s  month-block 95% [+9.59, +24.74]  excludes zero True  improving True
+[18:25:49 +     11s]   S1_seed2_vs_S0   exmonster  gain   +33.50 s  month-block 95% [+29.10, +39.92]  excludes zero True  improving True
+[18:25:49 +     11s]   S1_seed2_vs_S0   airports improving ex-monster: 10 of 10
+[18:25:49 +     11s]   routed 22,082 rows -> nf_fit (99.4%), 137 -> nf_cells (of which 45 monsters); T_tail 3000 s
+[18:25:49 +     11s]   --- per airport: ex-monster RMSE [pooled], S0 vs S1 ---
+[18:25:49 +     11s]   EDDF   n 1,956 mon   0  S0    396.7 [   396.7]  S1    354.0 [   354.0]  gain   +42.7
+[18:25:49 +     11s]   EDDM   n 1,010 mon   0  S0    667.2 [   667.2]  S1    651.7 [   651.7]  gain   +15.6
+[18:25:49 +     11s]   EGLL   n 1,414 mon   1  S0    923.9 [   957.8]  S1    890.4 [   925.8]  gain   +33.5
+[18:25:49 +     11s]   EHAM   n 4,083 mon   1  S0    389.0 [   424.5]  S1    325.2 [   367.1]  gain   +63.8
+[18:25:49 +     11s]   LEBL   n 1,862 mon   0  S0    371.5 [   371.5]  S1    331.6 [   331.6]  gain   +39.8
+[18:25:49 +     11s]   LEMD   n   947 mon   0  S0    347.9 [   347.9]  S1    325.6 [   325.6]  gain   +22.3
+[18:25:49 +     11s]   LFPG   n 3,762 mon   2  S0    643.5 [  1764.8]  S1    591.9 [  1752.7]  gain   +51.5
+[18:25:49 +     11s]   LIRF   n 1,488 mon 180  S0   2794.8 [  4448.3]  S1   2785.2 [  4450.7]  gain    +9.6
+[18:25:49 +     11s]   LSZH   n 2,054 mon   2  S0    473.3 [  2003.5]  S1    402.8 [  1993.1]  gain   +70.4
+[18:25:49 +     11s]   LTFM   n 3,643 mon   0  S0   1180.4 [  1180.4]  S1   1118.3 [  1118.3]  gain   +62.1
+[18:25:49 +     11s]   --- per month: ex-monster RMSE [pooled], S0 vs S1 ---
+[18:25:49 +     11s]    1     n 1,408 mon  10  S0    770.5 [  2903.4]  S1    727.8 [  2902.9]
+[18:25:49 +     11s]    2     n 1,083 mon  11  S0   1985.1 [  2058.1]  S1   1962.4 [  2038.3]
+[18:25:49 +     11s]    3     n 1,060 mon   6  S0    748.4 [  1136.5]  S1    718.5 [  1124.5]
+[18:25:49 +     11s]    4     n 1,064 mon  10  S0    827.5 [  1360.6]  S1    779.6 [  1335.5]
+[18:25:49 +     11s]    5     n 1,591 mon  16  S0    634.7 [  2401.5]  S1    600.3 [  2400.9]
+[18:25:49 +     11s]    6     n 2,470 mon  17  S0    900.8 [  2095.3]  S1    872.8 [  2083.7]
+[18:25:49 +     11s]    7     n 3,913 mon  46  S0   1063.8 [  1306.4]  S1   1033.8 [  1286.2]
+[18:25:49 +     11s]    8     n 2,297 mon  24  S0    951.6 [  1195.1]  S1    909.1 [  1164.4]
+[18:25:49 +     11s]    9     n 2,453 mon  20  S0    822.2 [  1124.7]  S1    770.2 [  1085.7]
+[18:25:49 +     11s]   10     n 1,902 mon   9  S0    806.8 [   861.2]  S1    783.9 [   840.5]
+[18:25:49 +     11s]   11     n 1,347 mon   6  S0    717.3 [   976.2]  S1    671.4 [   944.5]
+[18:25:49 +     11s]   12     n 1,631 mon  11  S0    884.9 [  1127.3]  S1    850.7 [  1098.3]
+[18:25:49 +     11s]   --- LIRF only: n 1,488 (monsters 180): S0 2794.7961137570874 ex-monster [4448.305416608317 pooled]  S1 2785.2336502833496 [4450.736510850874] ---
+[18:25:49 +     11s]   --- Amendment 18.3 clauses (12-fold LOMO) ---
+[18:25:49 +     11s]   (a) ex-monster S1 - S0: gain +33.17 s, month-block 95% [+27.70, +40.22]; excludes zero improving: True; gain >= 20 s: True; seed sd 0.729 s, gain > 2 x seed sd: True; clause holds: True
+[18:25:49 +     11s]   (b) pooled S1 - S0: gain +16.20 s, month-block 95% [+9.73, +24.53]; loss upper bound -9.73 s (< 20 s: True); clause holds: True
+[18:25:49 +     11s]   (c) airports improving ex-monster: 10 of 10 (>= 6: True)
+[18:25:49 +     11s]   all three 18.3 clauses hold: True
+[18:25:49 +     11s]   18.3 triggers -- ex-monster interval includes zero: False; pooled point worse by > 20 s: False; pooled interval worse by > 20 s: False; any: False
+[18:25:49 +     11s] json -> /Users/saurabhdxt/Projects/prc-challenge/reports/stratum_fold_v7.json   wall 11s   peak RSS 2.80 GB
+       11.51 real        11.06 user         0.42 sys
+          3011788800  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              329408  page reclaims
+                  87  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   7  voluntary context switches
+                1427  involuntary context switches
+        177846603186  instructions retired
+         49531597732  cycles elapsed
+          2781334336  peak memory footprint
