@@ -688,3 +688,74 @@ and expand to 5–10 only if the ensemble moves materially. The 2024 evidence is
 `OMP_NUM_THREADS=1`, because 50,000 trees single-threaded is hours rather than minutes. Swap is
 2.7 GB of 4.1 GB with ~5.4 GB reclaimable; the run aborts if swap passes 3.5 GB. Three
 `com.phantom.*` jobs are running and are not touched.
+
+---
+
+# AMENDMENT 8 — the first board score, and two lanes probed WITHOUT pre-registration
+
+**2026-09-09.** Nothing above this line has been edited.
+
+## 8.0 An honesty note about this amendment's status
+
+Amendments 5-7 each pre-registered a threshold BEFORE measuring. **The two probes recorded in
+§8.2 and §8.3 did not** — they were exploratory diagnostics run during a build wait, and they are
+being written down after the fact. That is a deviation from this document's own discipline and is
+named rather than hidden.
+
+Mitigating, and the reason they are recorded at all rather than discarded: both returned
+NOT WORKING / negative, and a post-hoc write-up of a negative result cannot have been
+goal-post-moved in our favour. Neither is used to support any claim we make. **Neither may be
+cited as a pre-registered closure**, and §8.3 in particular is explicitly left OPEN.
+
+## 8.1 RESULT — the first real submission, and the fold's absolute bias
+
+`merry-quicksand_v2.parquet`, the shipped pipeline with the consolidated stratum, scored
+**301.7019** on 344,841 rows at 2026-09-09 02:10:51Z — **rank 26 of 80 teams**. (`v1`, at
+689.6901, was the constant-predictor probe of 09-08; the version number was already taken and the
+build had to be issued as v2.)
+
+The same artifact's `--validate` fold total is 330.22. **The fold is +28.52 s (+18,021 MSE)
+PESSIMISTIC as an absolute instrument at this model class.** Probable mechanism: `--validate`
+holds out Jan+Jul 2025, denying the validation model precisely the seasonality the scored months
+carry, while the submitted artifact fits all twelve months.
+
+**Binding consequence for every later amendment:** `--validate` remains the correct instrument for
+A/B comparisons and is NOT a predictor of board position. No fold total may be quoted as an
+expected score. The offset is one measurement at one model class and must not be assumed constant.
+
+## 8.2 PROBE (not pre-registered) — is there a better off-block clock in the unread columns?
+
+Motivation: on matched rows the target reduces to the exact identity
+`y = MVT_TIME - BLOCK_TIME`, so the entire matched problem is the disagreement between two
+off-block clocks, and `build_submission.py` reads only 22 of the file's 30 columns.
+
+**Measured:** the schema is 30 columns; the eight unread are `FLIGHT_ID_mvt`, `CALLSIGN_flt`,
+`ADEP_flt`, `ADES_flt`, `ADES_FILED_flt`, `AIRCRAFT_TYPE_flt`, `ARVT_1_flt`, `ARVT_3_flt`. There is
+no `AOBT_1` or `AOBT_2`. **Verdict: NOT WORKING — no second off-block clock exists.** This is a
+structural read of the schema, not a threshold comparison, so the lack of pre-registration costs
+nothing here.
+
+## 8.3 PROBE (not pre-registered, and LEFT OPEN) — is the stratum a hidden fill-classification?
+
+Motivation: `fit_unmatched` predicts a mixture `p*sp + (1-p)*nf` because it cannot tell which
+unmatched rows had the scheduled push stamped into the off-block field.
+
+**Measured on the fold's 5,321 unmatched rows:** shipped mixture 1867.9; ORACLE fill-flag paired
+with a CONSTANT non-fill predictor 3080.5; oracle restricted to fill rows 24.5; constant on
+non-fill rows 3156.5; fill share 4.8%.
+
+**Verdict: the CHEAP version is refuted — a perfect classifier alone loses badly to the mixture,
+so work that improves only the classifier is not worth doing. The LANE IS NOT CLOSED.** The oracle
+arm conflates the classifier with the non-fill regressor by pairing a perfect flag with the weakest
+possible regressor. The arm that actually bounds the lane — **oracle flag + a fitted non-fill
+model** — has not been run. A first write-up of this said "lane closed"; a review the same night
+judged that beyond the evidence, and it is withdrawn. That arm is cheap and should be
+pre-registered properly before any further stratum work.
+
+## 8.4 NAMED, NOT MEASURED — the arrival stream
+
+`ranking.parquet` is 689,534 rows: the 344,841 scored departures **plus 344,693 arrivals**, and on
+those arrival rows `BLOCK_TIME_UTC_mvt` and `TAXITIME_SEC_mvt` are fully populated (taxi-in, mean
+537 s). Every scored departure's take-off time is also known. `derive()` currently builds no count
+or congestion feature of any kind. This is not one of the four closed lanes, it is unmeasured, and
+it requires a proper pre-registration before it is probed.

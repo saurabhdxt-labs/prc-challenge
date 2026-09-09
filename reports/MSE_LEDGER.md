@@ -31,8 +31,22 @@ on. The submitted artifact fits all twelve months and has seen January and July.
 quote a fold total as a predicted board score without this offset, and do not assume the offset
 is constant across model classes -- it is one measurement.
 
-**The gap to the leader is therefore 30,158 MSE, not the ~43,000 projected below.**
-Board 301.70 (MSE 91,024) against `youthful-giraffe` 246.71 (MSE 60,866).
+**The gap to the leader, measured like-for-like.** A review on 09-09 caught that the first
+version of this block compared 30,158 against ~43,000 — which is itself a configuration mix, the
+very error this file exists to correct. The ~43,000 is a **LightGBM-inclusive fold** number
+(322.37^2 - 246.71^2 = 43,056); the 30,158 is the **shipped, non-LightGBM board** artifact. Stated
+without mixing:
+
+| artifact | instrument | total | gap to 246.71 |
+|---|---|---|---|
+| shipped + consolidated stratum | fold | 330.22 | 48,179 MSE |
+| shipped + consolidated stratum | **BOARD (measured)** | **301.70** | **30,158 MSE** |
+| + LightGBM matched | fold | 322.37 | 43,056 MSE |
+| + LightGBM matched | board | **not measured** | — |
+
+The like-for-like statement is the first two rows: **for one artifact, the fold overstates the gap
+by 18,021 MSE.** Any board figure for the LightGBM configuration is a projection until submitted,
+and projecting it requires assuming the offset carries across model classes, which is unevidenced.
 
 A claim made earlier on 09-09 and now RETRACTED: "a perfect matched model still scores 231.35, so
 the leader is unreachable through the matched lane alone." That was fold-derived. Board-anchored,
