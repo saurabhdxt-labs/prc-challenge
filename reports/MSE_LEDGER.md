@@ -12,6 +12,38 @@ This file is the running ledger. Nothing enters it as a gain without a paired bo
 that excludes zero. Seconds are not the unit of account — **MSE removed** is, because seconds are
 not additive and MSE is.
 
+## CORRECTION 2026-09-09 — every "best measured total" in this file was fold-mixed
+
+**Read this before any number below.** The totals quoted as 296.7 and 293.57 paired a **fold-A
+matched** number with a **twelve-month LOMO stratum** number (1527.2). Those come from different
+validation schemes over different row sets, and the error is not small.
+
+It matters because **the scored months are January and July**, and those are the stratum's two
+worst months — per-fold 2,904 (Jan) and 1,317 (Jul) against a 1,527 twelve-month average. For a
+Jan+Jul evaluation the fold-A stratum is the correct estimate and the LOMO average is not.
+
+Measured on one consistent fold (`scripts/build_submission.py --validate`, held-out Jan+Jul 2025,
+n=344,336):
+
+```
+shipped artifact                matched 237.46   stratum 1946.23   TOTAL 337.71
++ consolidated stratum          matched 237.46   stratum 1867.90   TOTAL 330.81
++ LightGBM matched (arithmetic) matched 226.24   stratum 1867.90   TOTAL ~323
+```
+
+**Honest position is ~323 on the fold, not ~294.** Gap to the leader's 246.71 is roughly
+**43,000 MSE, not 24,431.** Board median is 292.7, so we are currently BELOW median.
+
+Two things support the pessimistic reading: the 2026 stratum's expected MSE is 42,257 against
+the fold's 42,289 (ratio 1.00, so the fold is representative in composition), and the
+constant-predictor anchor is 686.07 on our fold against 689.69 observed on the board. One thing
+pulls the other way: `FAMILY_B.md` §8 puts our fold ~25 s unluckier than average on the Family B
+draw. **Honest range for what we would score today: ~315-325.**
+
+**Rule added:** no total is quoted unless every component came from the same fold and the same
+run. This is the third instance tonight of pairing numbers from different settings (the ADS-B
+projection, the LightGBM smoke, and this), and it is the error class that most misleads.
+
 ## Positions
 
 | position | matched | unmatched | MSE | RMSE |
@@ -52,7 +84,8 @@ deciding where to spend compute.
 | 2 | stand-occupancy / witness block (marginal to E1) | **+350** | **CLOSED — single-seed, label unearned; see §2** |
 | 3 | ADS-B stand gate (ten-airport census, Amendment 6) | **+2,243** | **CLOSED — NO-GO, 2 of 10 airports; ingest not justified** |
 | 4 | LightGBM at proper capacity (Amendment 7) | **+4,251** | **BANKED — USEFUL band (+4.0%), not the pivot** |
-| | | | **remaining: 19,135** |
+| 5 | stratum consolidation (hierarchical cells + LIRF logistic) | **+4,613** | **BANKED — measured on the fold, 337.71 -> 330.81** |
+| | | | see the CORRECTION above: honest fold position ~323, gap ~43,000 |
 
 *(Levers 1-3 are closed and bank nothing; only lever 4 moves the position. Measured total:
 296.7 -> 293.57.)*

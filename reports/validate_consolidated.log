@@ -1,0 +1,22 @@
+held-out (1, 7): n=344336
+  TOTAL        330.81   95% [276.6, 392.2]
+  matched      237.46   n=339015
+  unmatched   1867.90   n=5321
+      632.45 real       628.61 user         3.20 sys
+          5672091648  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             1068313  page reclaims
+                  71  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   1  voluntary context switches
+               65040  involuntary context switches
+       5564141380102  instructions retired
+       2793477499978  cycles elapsed
+          5462315952  peak memory footprint
