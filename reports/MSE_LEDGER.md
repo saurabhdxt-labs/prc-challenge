@@ -12,6 +12,34 @@ This file is the running ledger. Nothing enters it as a gain without a paired bo
 that excludes zero. Seconds are not the unit of account — **MSE removed** is, because seconds are
 not additive and MSE is.
 
+## MEASURED 2026-09-09 — the first real score, and the fold is PESSIMISTIC
+
+**`merry-quicksand_v2.parquet` scored 301.7019 on 344,841 rows at 2026-09-09 02:10:51Z — rank 26
+of 80 teams.** (Our only prior submission, `v1` at 689.6901, was the constant-predictor probe.)
+The artifact is the shipped pipeline including the consolidated stratum: no LightGBM, no new
+features. It is the model whose `--validate` fold number is 330.22.
+
+**The fold is +28.52 s pessimistic at this model class (+18,021 MSE).** This is the first
+model-level calibration point the project has; `HARNESS_CALIBRATION.md` established fold/board
+agreement to within +/-5 s at the NAIVE-predictor level only, and that agreement does not carry
+to a fitted model.
+
+The probable cause is structural rather than luck: `--validate` holds out Jan+Jul 2025, which
+removes from the training fold exactly the two months whose seasonality the evaluation is scored
+on. The submitted artifact fits all twelve months and has seen January and July. **Treat
+`--validate` as a sound RELATIVE instrument for A/B work and a biased ABSOLUTE one.** Do not
+quote a fold total as a predicted board score without this offset, and do not assume the offset
+is constant across model classes -- it is one measurement.
+
+**The gap to the leader is therefore 30,158 MSE, not the ~43,000 projected below.**
+Board 301.70 (MSE 91,024) against `youthful-giraffe` 246.71 (MSE 60,866).
+
+A claim made earlier on 09-09 and now RETRACTED: "a perfect matched model still scores 231.35, so
+the leader is unreachable through the matched lane alone." That was fold-derived. Board-anchored,
+under the fold's matched/stratum split ratio (an assumption, not a measurement), perfect matched
+implies 211.37, which would beat the leader. The robust surviving claim is only that the stratum
+is roughly half of our squared error and remains a large lever. See `reports/GAP_STRUCTURE.md`.
+
 ## CORRECTION 2026-09-09 — every "best measured total" in this file was fold-mixed
 
 **Read this before any number below.** The totals quoted as 296.7 and 293.57 paired a **fold-A

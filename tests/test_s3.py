@@ -12,6 +12,7 @@ Mutation rehearsals at write time, each restored immediately:
 """
 from __future__ import annotations
 
+import hashlib
 import sys
 from pathlib import Path
 
@@ -128,3 +129,73 @@ def test_list_objects_parses_namespaced_xml():
     assert [o["key"] for o in got] == ["ranking.parquet", "submitting.parquet"]
     assert got[0]["bytes"] == 43541234 and got[0]["etag"] == "abc123"
     assert got[1]["last_modified"].startswith("2026-09-04")
+
+
+class _CapturingOpener:
+    """Records the Request it was handed so the test can assert on the wire form."""
+    def __init__(self, status: int = 200):
+        self.request = None
+        self._status = status
+    def __call__(self, req):
+        self.request = req
+        return _FakeResponse(b"", status=self._status)
+
+
+def test_upload_puts_the_exact_file_bytes_under_the_bucket_and_key(tmp_path):
+    """The submission upload path had NO test until 2026-09-09, and it is the call that
+    carries the competition entry. Asserts method, key and body on the wire.
+
+    Fails when `upload` sends `method="POST"`, drops the body, or builds the key as
+    `key` instead of `f"{bucket}/{key}"` (prc/s3.py:154-157)."""
+    src = tmp_path / "merry-quicksand_v2.parquet"
+    payload = bytes(range(256)) * 400              # 102,400 bytes, not valid UTF-8
+    src.write_bytes(payload)
+    opener = _CapturingOpener(status=200)
+    client = s3.S3(s3.Credentials("AK", "SK"), endpoint="https://example.org", opener=opener)
+
+    status = client.upload("prc-2026-merry-quicksand", "merry-quicksand_v2.parquet", src)
+
+    assert status == 200
+    req = opener.request
+    assert req.get_method() == "PUT"
+    assert req.full_url == (
+        "https://example.org/prc-2026-merry-quicksand/merry-quicksand_v2.parquet")
+    assert req.data == payload, "the object body must be the file's bytes, unmodified"
+
+
+def test_upload_signs_the_payload_rather_than_declaring_it_unsigned(tmp_path):
+    """MinIO verifies x-amz-content-sha256 against the body. A stale or UNSIGNED hash is
+    accepted by the signer and rejected by the server, which surfaces as a 403 — the
+    failure mode that already cost this project a day (see build_submission.py:291).
+
+    Fails when `_signed_request` passes `_UNSIGNED` or `_sha256(b"")` as the payload hash
+    for a PUT with a body (prc/s3.py:100)."""
+    src = tmp_path / "merry-quicksand_v2.parquet"
+    src.write_bytes(b"the bytes that get signed")
+    opener = _CapturingOpener()
+    client = s3.S3(s3.Credentials("AK", "SK"), endpoint="https://example.org", opener=opener)
+
+    client.upload("bucket", "merry-quicksand_v2.parquet", src)
+
+    sent = opener.request.headers["X-amz-content-sha256"]
+    assert sent == hashlib.sha256(b"the bytes that get signed").hexdigest()
+    assert sent != s3._UNSIGNED
+    assert sent != hashlib.sha256(b"").hexdigest(), "the empty-body hash means the body is unsigned"
+
+
+def test_upload_signature_changes_when_the_body_changes(tmp_path):
+    """Two different submissions must not produce the same Authorization signature; if they
+    do, the payload hash is not actually inside the string-to-sign and a corrupted upload
+    would still authenticate.
+
+    Fails when the payload hash is hard-coded (e.g. always `_sha256(b"")`) in
+    `_signed_request` (prc/s3.py:100-107)."""
+    import datetime as dt
+    frozen = dt.datetime(2026, 9, 9, 12, 0, 0, tzinfo=dt.timezone.utc)
+    client = s3.S3(s3.Credentials("AK", "SK"), endpoint="https://example.org")
+    a = client._signed_request("PUT", "bucket/k.parquet", body=b"AAA", now=frozen)
+    b = client._signed_request("PUT", "bucket/k.parquet", body=b"BBB", now=frozen)
+    sig_a = a.headers["Authorization"].split("Signature=")[1]
+    sig_b = b.headers["Authorization"].split("Signature=")[1]
+    assert sig_a != sig_b, "same signature for different bodies means the payload is not signed"
+    assert len(sig_a) == 64 and set(sig_a) <= set("0123456789abcdef")
