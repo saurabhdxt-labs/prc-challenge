@@ -287,8 +287,29 @@ def predict(train: pd.DataFrame, test: pd.DataFrame) -> np.ndarray:
     return out
 
 
+TEAM = "merry-quicksand"
+#: the scorer keys on the filename. Every scored row on the public leaderboard matches
+#: `<team>_v<N>.parquet` exactly; anything else is rejected at the bucket with a 403 that
+#: looks like a permissions problem. That misdiagnosis cost this project a day.
+SUBMISSION_RE = __import__("re").compile(r"^[a-z]+-[a-z]+_v[1-9][0-9]*\.parquet$")
+
+
+def submission_name(version: int, team: str = TEAM) -> str:
+    """`<team>_v<N>.parquet`, validated against the convention the leaderboard shows."""
+    if not isinstance(version, int) or version < 1:
+        raise ValueError(f"version must be a positive integer, got {version!r}")
+    name = f"{team}_v{version}.parquet"
+    if not SUBMISSION_RE.match(name):
+        raise ValueError(f"{name!r} does not match the submission convention")
+    return name
+
+
 def check_submission(frame: pd.DataFrame, template: pd.DataFrame) -> None:
     """Run before every upload. A malformed file wastes a submission slot."""
+    # shape first: every check below reads a column by name, so a renamed or reordered
+    # frame must fail here with a clear message rather than an AttributeError three lines on
+    if list(frame.columns) != ["MVT_ID_mvt", "TAXITIME_SEC_mvt"]:
+        raise ValueError(f"columns {list(frame.columns)} != ['MVT_ID_mvt', 'TAXITIME_SEC_mvt']")
     if len(frame) != len(template):
         raise ValueError(f"row count {len(frame)} != template {len(template)}")
     if set(frame.MVT_ID_mvt) != set(template.MVT_ID_mvt):
@@ -306,7 +327,10 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--validate", action="store_true",
                     help="hold out Jan+Jul 2025 and print RMSE instead of writing a submission")
-    ap.add_argument("--out", default="submissions/merry-quicksand.parquet")
+    ap.add_argument("--version", type=int, default=None,
+                    help="submission version N; the file is written as <team>_vN.parquet")
+    ap.add_argument("--out", default=None,
+                    help="explicit output path; overrides --version, still name-validated")
     args = ap.parse_args()
 
     training_files = sorted(glob.glob(str(RAW / "training_*.parquet")))
@@ -345,7 +369,16 @@ def main() -> int:
     out = template[["MVT_ID_mvt"]].merge(out, on="MVT_ID_mvt", how="left")
     check_submission(out, template)
 
-    dest = ROOT / args.out
+    if args.out:
+        dest = ROOT / args.out
+    else:
+        if args.version is None:
+            raise SystemExit("a real submission needs --version N (writes <team>_vN.parquet); "
+                             "use --validate to score a held-out fold instead")
+        dest = ROOT / "submissions" / submission_name(args.version)
+    if not SUBMISSION_RE.match(dest.name):
+        raise SystemExit(f"refusing to write {dest.name!r}: the scorer requires "
+                         f"<team>_vN.parquet and rejects anything else with a 403")
     dest.parent.mkdir(parents=True, exist_ok=True)
     out.to_parquet(dest, index=False)
     reread = pq.read_table(dest).to_pandas()      # verify what actually landed on disk
