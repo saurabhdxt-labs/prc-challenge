@@ -885,3 +885,97 @@ unmatched fold rows with `y > 3h`.
 **What no result here licenses.** No board projection. Per Amendment 9, stratum and total fold
 numbers do not translate to the board; these thresholds are stated in fold ex-monster RMSE and are
 decisional only for whether to spend a full experiment.
+
+---
+
+# RESULT 3 · 2026-09-09 · both Amendment 10 screens, run and verdicted
+
+Thresholds were locked in Amendment 10 and committed (ba1b132) BEFORE either screen ran. Neither
+threshold was moved. Implemented by a delegated agent; both decisional numbers were then reproduced
+independently before being written here.
+
+## R3.1 SCREEN A — H-A NOT WORKING. Lane closed.
+
+Tail = matched fold rows with `|delta - median(delta)| > 900 s`: 10,272 of 339,015 (3.03%),
+carrying 62.5% of a model-free proxy for matched SSE (squared deviation of `delta` from its
+per-airport median — a proxy, not model SSE).
+
+| signature | rate in tail | rate in body | enrichment |
+|---|---|---|---|
+| `AOBT_3` == `EOBT_1` exact | 0.94% | 4.90% | **0.19x** |
+| `AOBT_3` == `LOBT` exact | 0.72% | 4.13% | 0.17x |
+| `AOBT_3` == `IOBT` exact | 0.71% | 4.14% | 0.17x |
+| within 60 s of `EOBT_1` | 3.24% | 14.41% | 0.22x |
+| within 60 s of `LOBT` / `IOBT` | 2.35% / 2.27% | 12.26% / 12.27% | 0.19x / 0.18x |
+| whole minute / 5-min grid | 95.8% / 19.7% | 97.7% / 19.9% | 0.98x / 0.99x |
+
+Per-airport, best signature: EHAM 1.17x, then 0.21x down to 0.02x. **Zero airports at 3.0x, zero at
+2.0x.**
+
+**Threshold was >= 3.0x at >= 4 of 10 airports AND >= 20% of matched SSE; kill at < 2.0x
+everywhere. Measured max 1.17x, zero airports at 2.0x. VERDICT: FAIL — H-A NOT WORKING.**
+
+The finding is the opposite of the hypothesis: every filed-time signature is **depleted** in the
+tail at all ten airports. The tail is where `AOBT_3` *disagrees* with the filed times, not where it
+copies them. So the tail is not a fallback-provenance artefact and carries no serve-time-visible
+signature of that kind. **Lane closed; do not revisit without genuinely new information.**
+
+**Strategic consequence, stated plainly: this was the only named candidate of the magnitude
+required to reach 248** (its ceiling, had it passed, was ~16,500 MSE). With it dead, no identified
+mechanism closes the remaining gap.
+
+## R3.2 SCREEN B — regressor lane clears the amendment's bar; classifier headroom is LIRF-only
+
+Arms fitted on the ten non-holdout months, scored on the fold's 5,321 unmatched rows. The
+reconstruction of `p_hat x nf_cells` reproduces `bs.fit_unmatched` to atol 1e-9. Monsters
+(`y > 3h`) = 56, of which 52 are LIRF.
+
+| arm | pooled | **ex-monster (n=5,265, decisional)** |
+|---|---|---|
+| B0 `p_hat x nf_cells` (incumbent) | 1867.90 | **995.60** |
+| B1 oracle x `nf_cells` | 1601.26 | 747.29 |
+| B2 `p_hat x nf_fit` (shippable) | 2190.81 | **927.57** |
+| B3 oracle x `nf_fit` (the bound) | 3054.33 | **633.10** |
+
+- **Regressor:** threshold `B0 - B2 >= 20 s` ex-monster; measured **+68.0 s**, row-bootstrap 95%
+  [18.6, 169.9]. **Clears the Amendment 10 bar.** B2 beats B0 at 9 of 10 airports.
+- **Classifier:** measured headroom **294.5 s** [217, 377], threshold >= 100 s. **ALIVE** — but see
+  the qualifications below, which matter more than the verdict.
+
+### Three qualifications, none of which the verdict alone conveys
+
+**(a) A sign error in Amendment 10.2, mine.** It reads "classifier lane ALIVE iff `B3 - B2 >= 100 s`".
+B3 is the oracle and therefore has the LOWER RMSE, so `B3 - B2` is negative and the literal reading
+returns DEAD. The intent is unambiguous from the same amendment ("B3 ... the bound", "classifier
+headroom"), and the delegated agent flagged the contradiction and asked rather than silently taking
+the favourable reading. The verdict above uses the headroom reading `B2 - B3`. **The threshold was
+written wrong; it is corrected here rather than quietly reinterpreted.**
+
+**(b) "Clears the bar" is NOT "ESTABLISHED" by this project's standing rule.** The global rule
+requires a paired bootstrap over >= 3 seeds with the gain exceeding 2x the measured seed sd. This
+was a single fit with a row bootstrap and no seed replication, and the interval's lower bound
+(18.6 s) sits *below* the 20 s threshold the point estimate clears. **Status: promising, not
+established.** Seed replication is required before any promotion.
+
+**(c) The pooled numbers run the other way, and this blocks shipping as-is.** B2 pooled is **+323 s
+WORSE** than B0. The cause is mechanical: winsorising `nf_fit`'s target at 3,000 s caps its output
+near 2,952 s, while `nf_cells` reaches 80,989 s on LIRF's fine cells, so on non-fill monsters the
+fitted arm abandons tail load the cell estimator was carrying. Per Amendment 9 rule 4 the
+ex-monster figure is decisional for *whether the mechanism works* — but **the monsters exist on the
+board too**. Wiring `nf_fit` as-is would trade a 68 s ex-monster gain for a heavier monster load.
+A full experiment must test an un-winsorised or hybrid variant (body from `nf_fit`, tail load from
+`nf_cells`) before anything ships.
+
+**(d) The classifier headroom is a LIRF problem, not a general one.** B2 -> B3 moves LIRF from 2,863
+to 1,097 and moves every other airport by under 10 s. LIRF is the airport whose schedule-fill rate
+is 48.5% against 0.2-9.4% elsewhere. Any work here is LIRF work and should be scoped and named as
+such.
+
+## R3.3 Where this leaves the target
+
+Screen A closed the only named mechanism of the right size. Screen B's surviving gains are real but
+small and lane-local: an ex-monster stratum improvement worth roughly 1,000 MSE at the fold's
+weights, against a board gap to the leader of 30,158 MSE. **The pre-committed stop condition from
+the 09-09 planning review therefore fires: with both screens' large-magnitude candidates dead, the
+honest target is a top-10 finish, not 248.** Consolidating the already-measured but never-assembled
+matched components remains the largest single available gain and is unaffected by either screen.
