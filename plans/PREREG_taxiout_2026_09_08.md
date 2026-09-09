@@ -979,3 +979,85 @@ weights, against a board gap to the leader of 30,158 MSE. **The pre-committed st
 the 09-09 planning review therefore fires: with both screens' large-magnitude candidates dead, the
 honest target is a top-10 finish, not 248.** Consolidating the already-measured but never-assembled
 matched components remains the largest single available gain and is unaffected by either screen.
+
+---
+
+# AMENDMENT 11 — the LIRF fill regime is observable in the arrival stream; thresholds locked
+
+**2026-09-09. Written and committed BEFORE the experiment runs. Nothing above this line has been
+edited.**
+
+## 11.0 Why this lane, and why now
+
+Three measurements this session, all on `data/raw/`, reframe the competition:
+
+1. **The board is quantized.** Team trajectories plateau at ~284, ~277, ~265 and 248. `youthful-giraffe`
+   sat at 263-266 for ten submissions before a single 15 s step; `quick-boat` at 265-269 for fifteen.
+   Plateaus that many teams cannot tune past are discrete modelling decisions, each ~5-9k MSE.
+2. **The stake at LIRF is 228,371 MSE — 2.5x our entire score.** The 383 unmatched LIRF rows in the
+   scored file carry `sp` up to 111,654 s; on 2025 data a LIRF fill has `|y - sp|` p50 = 3 s, p90 = 5 s,
+   and a non-fill has y p50 = 1,070 s. Every one of these rows is a bet on P(fill); the 12h+ band alone
+   is 127k MSE on 11 rows. The leader's 7,290-MSE step at v13 is the size of one such bet flipping.
+3. **P(fill) at LIRF is non-stationary and a 2026 observable tracks it.** The unmatched-departure fill
+   rate swings from 28.3% (Jul 2025) to 77.0% (Dec 2025) by month and from 8% to 100% by airline. The
+   L-e logistic (STRATUM_MONSTERS §3b) is calibrated within 2025 and its own verdict names as NOT
+   COVERED "any change in LIRF's handling-agent mix in 2026". The LIRF **arrival** stream — 160,504
+   rows/yr whose `BLOCK_TIME_UTC_mvt` is populated in `ranking.parquet` — shows the same
+   `BLOCK == SCHED` stamping, and its rate tracks the departure-unmatched fill rate at **corr 0.79
+   across months and 0.72 across airlines** (day-level corr 0.15: it is a regime signal, not a daily
+   one). In 2026 it reads Jan 10.8% / Jul 12.3%, against 2025's Jan 11.0% / Jul 10.5%.
+
+Screen A closed the tail-provenance lane; Screen B found the classifier headroom is LIRF-only. This
+amendment is what "LIRF-only" turns out to mean.
+
+## 11.1 Hypothesis H-11, precisely
+
+Adding regime features computed from the LIRF **arrival** rows of the same file — the fraction of
+arrivals with `|BLOCK_TIME - SCHED_TIME| <= 60 s`, by calendar month, by airline (3-letter prefix)
+shrunk toward the month rate with k = 20, and by airline x month shrunk toward the airline rate —
+to the L-e logistic's design matrix improves the calibration of P(fill) on LIRF unmatched departures
+under month-to-month regime shift, and reduces stratum RMSE.
+
+Serve-time legitimacy, verified: every feature reads only ARR rows' `BLOCK_TIME` (100% populated on
+`ranking.parquet` ARR rows) and `SCHED_TIME`; no DEP `BLOCK_TIME` or `TAXITIME` is touched. The
+existing `test_serve_time_contract` guards the latter.
+
+## 11.2 Harness — identical in shape to STRATUM_MONSTERS §3b so the result is comparable
+
+12-fold leave-one-month-out over 2025. For held-out month m: fit on the other eleven; the
+arrival-stamping features for month m's rows are computed from **month m's arrivals only** — this
+mirrors serve time exactly, where `ranking.parquet` supplies Jan+Jul 2026 arrivals and nothing else
+from 2026. Training rows' features are computed from their own month's arrivals.
+
+Control arm = L-e exactly as shipped in `build_submission.py::_lirf_fill_model`. Treatment arm =
+L-e + the three regime features. Both inside the shipped mixture; cells elsewhere unchanged. Only
+LIRF rows change, so the stratum comparison is over all ten airports' unmatched rows.
+
+Report, for both arms: stratum RMSE pooled and **ex-monster (y > 3h)**; AUC and reliability deciles on
+LIRF unmatched; and the **regime-tracking error** — for each of the 12 held-out months, the absolute
+gap between the mean predicted P(fill) and the realised fill rate on LIRF unmatched rows, averaged
+over months. Paired month-block bootstrap (12 blocks, 2,000 draws) on the stratum RMSE difference.
+
+Negative control: the same treatment arm with the three regime features permuted across months.
+The gain must vanish; if it does not, the gain is not the mechanism.
+
+## 11.3 TRUE / FALSE shapes, locked
+
+- **ESTABLISHED** iff the month-block paired interval on stratum RMSE (treatment minus control)
+  excludes zero on **ex-monster** rows, AND the regime-tracking error falls by **>= 30%** relative
+  to L-e, AND the permuted control's gain is inside its own noise. All three.
+- **NOT WORKING** iff the ex-monster interval includes zero, OR the regime-tracking error does not
+  fall by >= 15%, OR the permuted control retains >= half the gain.
+- Between: **inconclusive**; do not ship; report and stop spending on it.
+
+Additionally reported, not decisional: the pooled-with-monsters interval (Amendment 9 rule 4 makes
+ex-monster decisional, but the monsters are where the money is on the board, so the pooled number is
+stated alongside it in every table).
+
+## 11.4 What a WORKING result licenses, and what it does not
+
+Licenses: wiring the three features into `_lirf_fill_model`, a `--validate` A/B, and a v3
+submission that differs from v2 ONLY in this. That makes v3 a clean board measurement of the lane.
+
+Does not license: any board projection from the fold (Amendment 9), any claim about the 2026 fill
+rate itself (the 2026 arrival stamping is an input, not a verdict), or any change outside LIRF.
