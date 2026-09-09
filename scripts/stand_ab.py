@@ -4,6 +4,10 @@ Pre-registered in plans/PREREG_taxiout_2026_09_08.md Amendment 5.
 
     python3.11 scripts/stand_ab.py cache [--smoke]   # build per-month feature caches
     python3.11 scripts/stand_ab.py fit   [--smoke]   # fold A, baseline vs +stand, paired bootstrap
+    python3.11 scripts/stand_ab.py queue-cache [--ranking] [--smoke]
+                                  # v6 push-anchored queue block -> data/cache_queue/ (Amendment 14)
+    python3.11 scripts/stand_ab.py day-cache   [--ranking] [--smoke]
+                                  # airport-day regime block -> data/cache_day/ (Amendment 19, arm D)
 
 Design. Fold A holds out Jan+Jul 2025; encodings are fitted on the ten training months only.
 Target is `delta = BLOCK_TIME - AOBT_3`; the prediction is `y_hat = max(proxy - delta_hat, 1)`.
@@ -25,6 +29,9 @@ import argparse
 import gc
 import glob
 import pathlib
+import resource
+import sys
+import time
 
 import numpy as np
 import pandas as pd
@@ -64,6 +71,38 @@ ENC_KEYS = ["ADEP_mvt", "STAND_mvt", "stand_pref", "airline", "ADES_mvt",
 ENC = [f"{p}_{k}" for k in ENC_KEYS for p in ("te", "de")]
 BASELINE_FEATS = BASE + SURF + STANDHIST + ENC
 VARIANT_FEATS = BASELINE_FEATS + STAND_BLOCK
+
+# ---- v6 queue block (PREREG Amendment 14): push-anchored surface congestion ----------------
+QCACHE = ROOT / "data" / "cache_queue"
+#: the raw columns the queue block reads - a subset of COLS. A departure's own BLOCK_TIME and
+#: TAXITIME appear only in the training-mode row filter (label present and positive), never in
+#: a feature; both are blank on every scored row.
+QCOLS = ["PHASE_mvt", "MVT_ID_mvt", "ADEP_mvt", "ADES_mvt", "STAND_mvt", "RUNWAY_mvt",
+         "MVT_TIME_UTC_mvt", "SCHED_TIME_UTC_mvt", "BLOCK_TIME_UTC_mvt", "TAXITIME_SEC_mvt",
+         "AOBT_3_flt"]
+#: per matched departure i (a = AOBT_3 push, t = MVT_TIME take-off), j = other departures of the
+#: same reference stream, arr = arrivals (land = MVT_TIME, onblock = BLOCK_TIME):
+#:   q_apt_at_push          #{j: a_j < a_i < t_j}            airport   pushed, not yet airborne
+#:   q_rwy_at_push          same                              runway
+#:   q_pushed_after_me      #{j: a_i < a_j < t_i}            airport
+#:   q_rwy_tko_in_taxi      #{j: a_i < t_j < t_i}            runway    take-offs during my taxi
+#:   q_rwy_push_pre20       #{j: a_i - 1200 <= a_j < a_i}    runway
+#:   q_dep_tko_sym15        #{j: |t_j - t_i| <= 900} - 1     airport
+#:   q_rwy_tko_sym10        #{j: |t_j - t_i| <= 600} - 1     runway
+#:   q_arr_taxiing_at_push  #{arr: land < a_i < onblock}     airport
+#:   q_arr_taxiin_sym30_push  mean arr taxi-in, onblock in [a_i - 1800, a_i + 1800]; NaN if none
+#:   q_arr_taxiin_sym30_tko   same around t_i
+#:   q_rwy_ambient_proxy    median proxy_j, runway, t_j in [t_i - 3600, t_i + 3600], self excluded
+#:   q_next_arr_onblock_gap (first arr onblock at my stand after a_i, within 24 h) - t_i
+QUEUE_FEATS = ["q_apt_at_push", "q_rwy_at_push", "q_pushed_after_me", "q_rwy_tko_in_taxi",
+               "q_rwy_push_pre20", "q_dep_tko_sym15", "q_rwy_tko_sym10", "q_arr_taxiing_at_push",
+               "q_arr_taxiin_sym30_push", "q_arr_taxiin_sym30_tko", "q_rwy_ambient_proxy",
+               "q_next_arr_onblock_gap"]
+#: NaN when the window is empty; every other queue feature is a count and is 0 when empty
+QUEUE_VALUE_FEATS = ["q_arr_taxiin_sym30_push", "q_arr_taxiin_sym30_tko", "q_rwy_ambient_proxy",
+                     "q_next_arr_onblock_gap"]
+QUEUE_WINDOWS = dict(push_pre=1200, tko_sym_apt=900, tko_sym_rwy=600, arr_sym=1800,
+                     ambient=3600, next_arr=86400)
 
 es = lambda s: (s - EPOCH).dt.total_seconds().to_numpy()
 # pandas 3: .astype(str) on an Arrow string column leaves NA as float nan, which then
@@ -470,15 +509,408 @@ def cmd_fit(smoke: bool):
         print(f"{a_:28s}{m.sum():9,d}{x:11.1f}{z:10.1f}{x - z:+9.2f}")
 
 
+# =============================================================================================
+# v6 queue block: push-anchored surface congestion for the matched rows (Amendment 14)
+# =============================================================================================
+
+def _count_lt(sorted_vals, x):
+    """#{v in sorted_vals: v < x}, vectorised over x."""
+    return np.searchsorted(sorted_vals, x, "left")
+
+
+def _count_le(sorted_vals, x):
+    """#{v in sorted_vals: v <= x}, vectorised over x."""
+    return np.searchsorted(sorted_vals, x, "right")
+
+
+def _count_open(sorted_vals, lo, hi):
+    """#{v in sorted_vals: lo < v < hi}, vectorised over (lo, hi); 0 when hi <= lo.
+
+    The difference #{v < hi} - #{v <= lo} is the count only for a non-empty interval; for an
+    empty one it goes negative. The intervals here are (push, take-off), and 177 evaluation
+    rows (64 in January 2025) have take-off at or before push, so the clamp is the definition
+    ("nothing lies in an empty interval"), not a patch - surfaced 2026-09-09 by the count-sign
+    guard in tests/test_queue_features.py.
+    """
+    return np.maximum(_count_lt(sorted_vals, hi) - _count_le(sorted_vals, lo), 0)
+
+
+def _groups(keys):
+    """Row indices per key, in order of first appearance, rows ascending within each group.
+
+    Keys are numpy object arrays joined with "|" (see `sarr`); the caller checks the group count
+    against the coarser key, which is what catches a collapsed separator - the historical NUL
+    bug truncated "EGLL|27L" to "EGLL" in pandas Arrow strings and every join went empty.
+    """
+    return {k: g.to_numpy() for k, g in pd.Series(np.arange(len(keys))).groupby(keys, sort=False)}
+
+
+def _dep_stream(t: pd.DataFrame, serve: bool) -> pd.DataFrame:
+    """build_features's departure filter and take-off order, verbatim.
+
+    A copy rather than a refactor of build_features, because the v4 fold consumes those caches
+    while this ships; tests/test_queue_features.py pins the MVT_ID sequence of both modes to
+    build_month's, so any drift between the two copies is caught there.
+    """
+    if serve:
+        d = t[(t.PHASE_mvt == "DEP") & t.AOBT_3_flt.notna()
+              & t.MVT_TIME_UTC_mvt.notna() & t.SCHED_TIME_UTC_mvt.notna()]
+    else:
+        d = t[(t.PHASE_mvt == "DEP") & t.TAXITIME_SEC_mvt.notna()
+              & t.BLOCK_TIME_UTC_mvt.notna() & (t.TAXITIME_SEC_mvt > 0)
+              & t.AOBT_3_flt.notna()]
+    d = d[d.ADEP_mvt.isin(APTS)]
+    return d.sort_values("MVT_TIME_UTC_mvt", kind="mergesort").reset_index(drop=True)
+
+
+def _arr_stream(t: pd.DataFrame) -> pd.DataFrame:
+    """build_features's arrival filter, verbatim: arrivals at the ten airports with an on-block."""
+    arr = t[(t.PHASE_mvt == "ARR") & t.BLOCK_TIME_UTC_mvt.notna()]
+    return arr[arr.ADES_mvt.isin(APTS)]
+
+
+def _on_ground(start, end, x):
+    """#{j: start_j < x < end_j} for every x - movements between two events when x happens.
+
+    Exact through two one-dimensional counts: an interval can contain x only if start_j < end_j,
+    and on that subset {end_j <= x} is nested inside {start_j < x}, so the count is
+    #{start_j < x} - #{end_j <= x}. Intervals with end <= start (proxy <= 0, taxi-in <= 0) can
+    never contain x and are dropped - that is the definition, not an approximation.
+    """
+    m = end > start
+    return _count_lt(np.sort(start[m]), x) - _count_le(np.sort(end[m]), x)
+
+
+def _window_mean(sorted_t, vals, x, w):
+    """Mean of vals over rows with sorted_t in [x - w, x + w]; NaN where the window is empty.
+
+    `vals` is aligned with `sorted_t`; NaN values are skipped. The sums are exact: every input
+    is integer-valued seconds.
+    """
+    lo, hi = _count_lt(sorted_t, x - w), _count_le(sorted_t, x + w)
+    fin = np.isfinite(vals)
+    cs = np.concatenate([[0.0], np.cumsum(np.where(fin, vals, 0.0))])
+    cn = np.concatenate([[0], np.cumsum(fin)])
+    n = cn[hi] - cn[lo]
+    return np.where(n > 0, (cs[hi] - cs[lo]) / np.maximum(n, 1), np.nan)
+
+
+def _excluded_median(sorted_t, vals, w):
+    """Median of vals over the OTHER rows with sorted_t in [t_i - w, t_i + w]; NaN if none.
+
+    A windowed median with the row itself removed has no cumulative form; the window is a
+    contiguous slice of the sorted group, so this is one np.median per row on a short slice.
+    """
+    lo, hi = _count_lt(sorted_t, sorted_t - w), _count_le(sorted_t, sorted_t + w)
+    out = np.full(len(vals), np.nan)
+    for i in range(len(vals)):
+        if hi[i] - lo[i] > 1:
+            out[i] = np.median(np.delete(vals[lo[i]:hi[i]], i - lo[i]))
+    return out
+
+
+def build_queue(t: pd.DataFrame, serve: bool = False) -> pd.DataFrame:
+    """`MVT_ID_mvt` + QUEUE_FEATS (float32) for exactly the rows build_features(t, serve) returns,
+    in the same take-off order.
+
+    Per departure i: push a_i = AOBT_3, take-off t_i = MVT_TIME. Other departures j come from
+    the same reference stream as build_features - never a different filter, because mixing
+    streams once made a cumulative count drift between modes and killed the signal. Arrivals
+    land at MVT_TIME and go on-block at BLOCK_TIME; both, and their taxi-in, are populated on
+    the evaluation file. Later events of OTHER movements are legitimate inputs (Amendment 5).
+    Counts are 0 when nothing qualifies; the taxi-in levels, the ambient median and the stand
+    gap are NaN when their window is empty. Nothing reads a departure's own BLOCK or TAXITIME
+    (guarded by the hidden-clock test).
+    """
+    d, arr = _dep_stream(t, serve), _arr_stream(t)
+    n = len(d)
+    if n == 0:
+        raise ValueError(f"no admissible departures (serve={serve}) - nothing to build")
+    a, tk = es(d.AOBT_3_flt), es(d.MVT_TIME_UTC_mvt)
+    px = tk - a
+    d_apt = sarr(d.ADEP_mvt)
+    d_rwy = d_apt + "|" + sarr(d.RUNWAY_mvt)
+    d_stand = d_apt + "|" + sarr(d.STAND_mvt)
+    g_apt, g_rwy, g_stand = _groups(d_apt), _groups(d_rwy), _groups(d_stand)
+    assert len(g_rwy) > len(g_apt) and len(g_stand) > len(g_apt), (
+        f"composite keys collapsed: {len(g_apt)} airports, {len(g_rwy)} runways, "
+        f"{len(g_stand)} stands - separator?")
+
+    W = QUEUE_WINDOWS
+    out = {c: np.zeros(n) for c in QUEUE_FEATS if c not in QUEUE_VALUE_FEATS}
+    out.update({c: np.full(n, np.nan) for c in QUEUE_VALUE_FEATS})
+
+    # ---- other departures at my airport ----
+    for j in g_apt.values():
+        aj, tj = a[j], tk[j]                        # tj ascending: d is in take-off order
+        assert np.all(np.diff(tj) >= 0), "reference stream is not in take-off order"
+        a_s = np.sort(aj)
+        out["q_apt_at_push"][j] = _on_ground(aj, tj, aj)
+        out["q_pushed_after_me"][j] = _count_open(a_s, aj, tj)
+        out["q_dep_tko_sym15"][j] = (_count_le(tj, tj + W["tko_sym_apt"])
+                                     - _count_lt(tj, tj - W["tko_sym_apt"]) - 1)
+    # ---- other departures on my runway ----
+    for j in g_rwy.values():
+        aj, tj = a[j], tk[j]
+        a_s = np.sort(aj)
+        out["q_rwy_at_push"][j] = _on_ground(aj, tj, aj)
+        out["q_rwy_tko_in_taxi"][j] = _count_open(tj, aj, tj)
+        out["q_rwy_push_pre20"][j] = _count_lt(a_s, aj) - _count_lt(a_s, aj - W["push_pre"])
+        out["q_rwy_tko_sym10"][j] = (_count_le(tj, tj + W["tko_sym_rwy"])
+                                     - _count_lt(tj, tj - W["tko_sym_rwy"]) - 1)
+        out["q_rwy_ambient_proxy"][j] = _excluded_median(tj, px[j], W["ambient"])
+
+    # ---- arrivals at my airport ----
+    land, onb = es(arr.MVT_TIME_UTC_mvt), es(arr.BLOCK_TIME_UTC_mvt)
+    taxi_in = arr.TAXITIME_SEC_mvt.astype(float).to_numpy()
+    a_apt = sarr(arr.ADES_mvt)
+    g_arr = _groups(a_apt)
+    for k, j in g_apt.items():
+        pos = g_arr.get(k)
+        if pos is None:
+            continue                                # counts stay 0, levels stay NaN
+        so = np.argsort(onb[pos], kind="mergesort")
+        onb_s, taxi_s = onb[pos][so], taxi_in[pos][so]
+        out["q_arr_taxiing_at_push"][j] = _on_ground(land[pos], onb[pos], a[j])
+        out["q_arr_taxiin_sym30_push"][j] = _window_mean(onb_s, taxi_s, a[j], W["arr_sym"])
+        out["q_arr_taxiin_sym30_tko"][j] = _window_mean(onb_s, taxi_s, tk[j], W["arr_sym"])
+    # ---- arrivals at my stand: the first on-block after my push, within 24 h ----
+    ok = arr.STAND_mvt.notna().to_numpy()
+    g_arr_stand = _groups((a_apt + "|" + sarr(arr.STAND_mvt))[ok])
+    onb_ok = onb[ok]
+    for k, j in g_stand.items():
+        pos = g_arr_stand.get(k)
+        if pos is None:
+            continue
+        b_s = np.sort(onb_ok[pos])
+        p = _count_le(b_s, a[j])                    # index of the first on-block > a_i
+        hit = p < len(b_s)
+        nxt = np.where(hit, b_s[np.minimum(p, len(b_s) - 1)], np.nan)
+        hit &= (nxt - a[j]) <= W["next_arr"]
+        out["q_next_arr_onblock_gap"][j] = np.where(hit, nxt - tk[j], np.nan)
+
+    o = pd.DataFrame({"MVT_ID_mvt": d.MVT_ID_mvt.to_numpy()})
+    for c in QUEUE_FEATS:
+        o[c] = out[c].astype(np.float32)
+    return o
+
+
+def build_queue_month(path: pathlib.Path, serve: bool = False) -> pd.DataFrame:
+    """Queue features for one calendar-month file (the training caches are one month each)."""
+    return build_queue(pq.read_table(path, columns=QCOLS).to_pandas(), serve=serve)
+
+
+def build_queue_ranking(path: pathlib.Path) -> pd.DataFrame:
+    """Serve-mode queue features for the evaluation file, one calendar month at a time.
+
+    Every training cache is one calendar month, so no training window and no 24 h stand
+    look-ahead ever crosses a month boundary; the evaluation file holds January AND July and is
+    split on the movement month exactly as build_ranking splits it.
+    """
+    t = pq.read_table(path, columns=QCOLS).to_pandas()
+    if t.MVT_TIME_UTC_mvt.isna().any():
+        raise ValueError(f"{t.MVT_TIME_UTC_mvt.isna().sum()} rows without MVT_TIME cannot "
+                         "be assigned to a calendar month")
+    ym = (t.MVT_TIME_UTC_mvt.dt.year * 100 + t.MVT_TIME_UTC_mvt.dt.month).to_numpy()
+    parts = [build_queue(t[ym == m], serve=True) for m in np.unique(ym)]
+    o = pd.concat(parts, ignore_index=True)
+    assert o.MVT_ID_mvt.is_unique, "duplicate MVT_ID across the per-month builds"
+    return o
+
+
+def _peak_rss_gb() -> float:
+    rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return rss / (1024 ** 3 if sys.platform == "darwin" else 1024 ** 2)
+
+
+def cmd_queue_cache(smoke: bool, ranking: bool = False):
+    """Write data/cache_queue/<raw stem>.parquet: MVT_ID_mvt + QUEUE_FEATS, one file per calendar
+    month, joined onto the stand caches by MVT_ID (or positionally: same rows, same order)."""
+    QCACHE.mkdir(parents=True, exist_ok=True)
+    if ranking:
+        if smoke:
+            raise ValueError("--smoke does not apply to --ranking: a partial ranking cache "
+                             "at the real path would be consumed by the full fold")
+        t0 = time.time()
+        o = build_queue_ranking(RAW / "ranking.parquet")
+        out = QCACHE / "ranking.parquet"
+        o.to_parquet(out, index=False)
+        print(f"ranking.parquet -> {out.name}  rows={len(o):,}  cols={o.shape[1]}  "
+              f"wall {time.time() - t0:.1f}s  peak RSS {_peak_rss_gb():.2f} GB", flush=True)
+        return
+    paths = sorted(glob.glob(str(RAW / "training_2025-*.parquet")))
+    if smoke:
+        paths = paths[:1]
+    for p in paths:
+        p = pathlib.Path(p)
+        t0 = time.time()
+        o = build_queue_month(p)
+        out = QCACHE / (p.stem + ".parquet")
+        o.to_parquet(out, index=False)
+        print(f"{p.name} -> {out.name}  rows={len(o):,}  cols={o.shape[1]}  "
+              f"wall {time.time() - t0:.1f}s  peak RSS {_peak_rss_gb():.2f} GB", flush=True)
+        del o
+        gc.collect()
+
+
+# =============================================================================================
+# Amendment 19 arm D: the airport-day regime block (DAY_FEATS)
+# =============================================================================================
+
+DCACHE = ROOT / "data" / "cache_day"
+#: the raw columns the day block reads - a subset of QCOLS (it never keys on STAND or RUNWAY).
+#: As in the queue block, a departure's own BLOCK_TIME and TAXITIME appear only in the
+#: training-mode row filter, never in a feature; both are blank on every scored row.
+DCOLS = ["PHASE_mvt", "MVT_ID_mvt", "ADEP_mvt", "ADES_mvt", "MVT_TIME_UTC_mvt", "SCHED_TIME_UTC_mvt",
+         "BLOCK_TIME_UTC_mvt", "TAXITIME_SEC_mvt", "AOBT_3_flt"]
+#: per (airport, UTC calendar day of the row's OWN MVT_TIME), computed over the SAME file the row
+#: lives in - transductive, which Amendment 19.1 permits - and WITHOUT self-exclusion: the row
+#: is one of hundreds in its airport-day, a day percentile is not moved by it beyond the
+#: percentile's own resolution, and the scored file is built the same way, so excluding the row
+#: would buy nothing and cost a per-row recomputation. Departures are the reference stream
+#: build_features uses (same filter, same take-off order); arrivals are the same arrival stream
+#: (ARR with an on-block at the ten airports), dated by their landing MVT_TIME.
+#:   d_prx_p50, d_prx_p90   percentiles (numpy linear interpolation) of proxy = MVT_TIME - AOBT_3
+#:                          over the day's departures at the airport
+#:   d_prx_le0              share of those departures with proxy <= 0
+#:   d_arr_p50, d_arr_p90   percentiles of arrival taxi-in (TAXITIME) over the day's arrivals at
+#:                          the airport that carry a finite taxi-in; NaN when none
+#:   d_arr_long             share of those arrivals with taxi-in > 1,200 s (strict); NaN when none
+#:   d_n_dep, d_n_arr       the day's departure count and arrival count (a NaN taxi-in counts)
+#:   d_prx_minus_p50        the row's own proxy - d_prx_p50
+DAY_FEATS = ["d_prx_p50", "d_prx_p90", "d_prx_le0", "d_arr_p50", "d_arr_p90", "d_arr_long",
+             "d_n_dep", "d_n_arr", "d_prx_minus_p50"]
+#: NaN together on an airport-day without an arrival taxi-in; every other day feature is finite
+DAY_ARR_FEATS = ["d_arr_p50", "d_arr_p90", "d_arr_long"]
+DAY_ARR_LONG_S = 1_200.0
+DAY_PERCENTILES = (50, 90)
+DAY_S = 86_400.0
+
+
+def _day_index(seconds) -> np.ndarray:
+    """The UTC calendar day of a clock as whole days since EPOCH (a midnight UTC): floor
+    division of the seconds, so 23:59:59 and the following 00:00:00 are one day apart."""
+    return np.floor_divide(np.asarray(seconds, dtype="float64"), DAY_S).astype(np.int64)
+
+
+def _day_groups(apt, day) -> dict:
+    """{(airport, day): row positions}, grouped on TWO key arrays rather than a joined string,
+    so no separator can collapse the composite key (the historical NUL bug)."""
+    return pd.DataFrame({"a": np.asarray(apt), "d": np.asarray(day)}).groupby(["a", "d"], sort=False).indices
+
+
+def build_day(t: pd.DataFrame, serve: bool = False) -> pd.DataFrame:
+    """`MVT_ID_mvt` + DAY_FEATS (float32) for exactly the rows build_features(t, serve) returns,
+    in the same take-off order.
+
+    Both streams are build_features's own (via _dep_stream / _arr_stream), never a different
+    filter. The day of a departure is the UTC date of its MVT_TIME; the day of an arrival is the
+    UTC date of its landing MVT_TIME. Counts are 0 when nothing qualifies; the three arrival
+    levels are NaN when the airport-day has no arrival with a finite taxi-in. Nothing reads a
+    departure's own BLOCK or TAXITIME (guarded by the hidden-clock tests).
+    """
+    d, arr = _dep_stream(t, serve), _arr_stream(t)
+    n = len(d)
+    if n == 0:
+        raise ValueError(f"no admissible departures (serve={serve}) - nothing to build")
+    a, tk = es(d.AOBT_3_flt), es(d.MVT_TIME_UTC_mvt)
+    px = tk - a
+    d_apt, d_day = sarr(d.ADEP_mvt), _day_index(tk)
+    a_apt, a_day = sarr(arr.ADES_mvt), _day_index(es(arr.MVT_TIME_UTC_mvt))
+    taxi_in = arr.TAXITIME_SEC_mvt.astype(float).to_numpy()
+    g_arr = _day_groups(a_apt, a_day) if len(arr) else {}
+    out = {c: np.full(n, np.nan) for c in DAY_FEATS}
+    for key, idx in _day_groups(d_apt, d_day).items():
+        v = px[idx]
+        p50, p90 = np.percentile(v, DAY_PERCENTILES)
+        out["d_prx_p50"][idx] = p50
+        out["d_prx_p90"][idx] = p90
+        out["d_prx_le0"][idx] = (v <= 0).mean()
+        out["d_n_dep"][idx] = len(idx)
+        out["d_prx_minus_p50"][idx] = v - p50
+        pos = g_arr.get(key)
+        n_arr = 0 if pos is None else len(pos)
+        out["d_n_arr"][idx] = n_arr
+        if n_arr:
+            tx = taxi_in[pos]
+            tx = tx[np.isfinite(tx)]
+            if len(tx):
+                a50, a90 = np.percentile(tx, DAY_PERCENTILES)
+                out["d_arr_p50"][idx] = a50
+                out["d_arr_p90"][idx] = a90
+                out["d_arr_long"][idx] = (tx > DAY_ARR_LONG_S).mean()
+    o = pd.DataFrame({"MVT_ID_mvt": d.MVT_ID_mvt.to_numpy()})
+    for c in DAY_FEATS:
+        o[c] = out[c].astype(np.float32)
+    return o
+
+
+def build_day_month(path: pathlib.Path, serve: bool = False) -> pd.DataFrame:
+    """Day features for one calendar-month file (the training caches are one month each)."""
+    return build_day(pq.read_table(path, columns=DCOLS).to_pandas(), serve=serve)
+
+
+def build_day_ranking(path: pathlib.Path) -> pd.DataFrame:
+    """Serve-mode day features for the evaluation file, one calendar month at a time.
+
+    A UTC day never straddles two calendar months, so the per-month build equals the single-unit
+    one; it is split anyway so every cache is built the same way as the training files and the
+    MVT_ID uniqueness across the months is asserted, exactly as build_queue_ranking does.
+    """
+    t = pq.read_table(path, columns=DCOLS).to_pandas()
+    if t.MVT_TIME_UTC_mvt.isna().any():
+        raise ValueError(f"{t.MVT_TIME_UTC_mvt.isna().sum()} rows without MVT_TIME cannot "
+                         "be assigned to a calendar month")
+    ym = (t.MVT_TIME_UTC_mvt.dt.year * 100 + t.MVT_TIME_UTC_mvt.dt.month).to_numpy()
+    parts = [build_day(t[ym == m], serve=True) for m in np.unique(ym)]
+    o = pd.concat(parts, ignore_index=True)
+    assert o.MVT_ID_mvt.is_unique, "duplicate MVT_ID across the per-month builds"
+    return o
+
+
+def cmd_day_cache(smoke: bool, ranking: bool = False):
+    """Write data/cache_day/<raw stem>.parquet: MVT_ID_mvt + DAY_FEATS, one file per calendar
+    month, joined onto the stand caches by MVT_ID (or positionally: same rows, same order)."""
+    DCACHE.mkdir(parents=True, exist_ok=True)
+    if ranking:
+        if smoke:
+            raise ValueError("--smoke does not apply to --ranking: a partial ranking cache "
+                             "at the real path would be consumed by the full fold")
+        t0 = time.time()
+        o = build_day_ranking(RAW / "ranking.parquet")
+        out = DCACHE / "ranking.parquet"
+        o.to_parquet(out, index=False)
+        print(f"ranking.parquet -> {out.name}  rows={len(o):,}  cols={o.shape[1]}  "
+              f"wall {time.time() - t0:.1f}s  peak RSS {_peak_rss_gb():.2f} GB", flush=True)
+        return
+    paths = sorted(glob.glob(str(RAW / "training_2025-*.parquet")))
+    if smoke:
+        paths = paths[:1]
+    for p in paths:
+        p = pathlib.Path(p)
+        t0 = time.time()
+        o = build_day_month(p)
+        out = DCACHE / (p.stem + ".parquet")
+        o.to_parquet(out, index=False)
+        print(f"{p.name} -> {out.name}  rows={len(o):,}  cols={o.shape[1]}  "
+              f"wall {time.time() - t0:.1f}s  peak RSS {_peak_rss_gb():.2f} GB", flush=True)
+        del o
+        gc.collect()
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("cmd", choices=["cache", "fit"])
+    ap.add_argument("cmd", choices=["cache", "fit", "queue-cache", "day-cache"])
     ap.add_argument("--smoke", action="store_true")
     ap.add_argument("--ranking", action="store_true",
-                    help="cache: build data/cache_stand/ranking.parquet (serve mode) instead "
-                         "of the training months")
+                    help="cache / queue-cache / day-cache: build <cache dir>/ranking.parquet "
+                         "(serve mode) instead of the training months")
     a = ap.parse_args()
     if a.cmd == "cache":
         cmd_cache(a.smoke, ranking=a.ranking)
+    elif a.cmd == "queue-cache":
+        cmd_queue_cache(a.smoke, ranking=a.ranking)
+    elif a.cmd == "day-cache":
+        cmd_day_cache(a.smoke, ranking=a.ranking)
     else:
         cmd_fit(a.smoke)
