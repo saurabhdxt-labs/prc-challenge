@@ -12,6 +12,27 @@ This file is the running ledger. Nothing enters it as a gain without a paired bo
 that excludes zero. Seconds are not the unit of account — **MSE removed** is, because seconds are
 not additive and MSE is.
 
+## MEASURED 2026-09-09 14:19Z — v3: 291.63, rank 20 of 87, and matched-side fold gains TRANSFER
+
+`merry-quicksand_v3.parquet` = v2 with the 339,551 matched rows re-predicted by the config measured
+in `reports/lgbm_ab_full.log` (single pooled LightGBM, seed 0, `lgb_refit`, the 68-feature
+`stand_ab` cache; 5,290 unmatched rows byte-identical to v2). Fit: best_iter 25,689 on months (3, 9),
+refit 30,846 trees on all twelve months, 56 min, peak RSS 4.51 GB; `reports/lgbm_submit_v3.log`.
+
+| | board RMSE | board MSE | Δ vs v2 |
+|---|---|---|---|
+| v2 (shipped HGB, 26 features) | 301.70 | 91,024 | — |
+| **v3** | **291.63** | **85,049** | **−10.07 s / −5,975 MSE** |
+| projection from the fold's 237.46 → 226.24 matched gain | ~293.1 | ~85,901 | −8.6 s / −5,123 MSE |
+
+**The fold's matched-side gain transferred at ~117%.** This is the second calibration point and it
+is the one that matters for planning: Amendment 9 says fold TOTALS have no stable absolute value
+(a two-row draw sets them); this says matched-side RELATIVE gains, measured on 339k rows, carry to
+the board at one-to-one or better. Every remaining lane in the plan is matched-side.
+
+Board-anchored position after v3, holding the implied stratum at 35,502 MSE: matched contributes
+~49,547 → implied matched RMSE **224.3** (fold 226.24 — consistent).
+
 ## MEASURED 2026-09-09 — the first real score, and the fold is PESSIMISTIC
 
 **`merry-quicksand_v2.parquet` scored 301.7019 on 344,841 rows at 2026-09-09 02:10:51Z — rank 26

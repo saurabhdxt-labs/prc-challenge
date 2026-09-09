@@ -1149,3 +1149,505 @@ screen), and the oracle-vs-fitted bound (R3.2) — all return the same shape: **
 calibrated as well as the available observables allow, and no observable found so far identifies
 fills per row.** The stratum's remaining error is bet variance, not model error. Further LIRF
 classifier work is closed absent a genuinely new observable.
+
+
+---
+
+# RESULT 5 · 2026-09-09 · v3 on the board: 291.63, rank 20 of 87 — matched fold gains transfer
+
+v3 differs from v2 ONLY on the 339,551 matched rows (asserted: 5,290 unmatched rows byte-identical,
+id order identical). Board: **291.6317**, usedPairs 344,841, processed 14:19:14Z. Against v2's
+301.7019: **−10.07 s, −5,975 MSE**. The projection from the fold's matched A/B (237.46 → 226.24,
+`lgbm_ab_full.log`) was −8.6 s / −5,123 MSE; the realised gain is ~117% of it.
+
+**Verdict on the standing question "do fold gains transfer": matched-side relative gains DO, at
+>= 1:1 (n = 339,551, no row concentration). Fold TOTALS still do not (Amendment 9).** Both are now
+measured and they are consistent. Planning rule from here: a matched-side gain measured on the fold
+with a paired interval excluding zero is bankable on the board; a stratum or total number is not.
+
+Operational note for the next fit: the first launch ran lightgbm's predict single-threaded under
+the OMP_NUM_THREADS=1 cap for 40 min before being killed; fixed at the origin (`predict_delta`
+forwards `num_threads`, commit a570407). Second launch: 56 min end to end.
+
+---
+
+# AMENDMENT 12 — v4: seed averaging and the per-airport blend on the LightGBM path; thresholds locked
+
+**2026-09-09, written BEFORE the fold measurement runs. Nothing above this line has been edited.**
+
+## 12.1 Hypotheses
+
+- **H-12a (seeds):** averaging `delta_hat` over three LightGBM refits (seeds 0, 1, 2; identical
+  params and tree count) reduces matched RMSE on the fold relative to the single seed-0 model.
+  Prior evidence: 2024-competition analogue (single 1612 → ten-model 1564, ~3%); unmeasured here.
+- **H-12b (per-airport blend):** blending the pooled prediction 0.5/0.5 with a per-airport LightGBM
+  (airports with >= 20,000 training matched rows; others keep pooled) reduces matched RMSE further.
+  Prior evidence: +3.08 s per-airport and +2.46 s blend, measured on HGB (`build_submission.py`
+  docstring); never tried on LightGBM.
+
+## 12.2 Harness (`scripts/lgbm_fold.py`), fold A exactly as `lgbm_ab.py`
+
+Holdout months (1, 7); ES months (3, 9) held out of the training fold to find best_iter; refit on
+the ten training months at n_ref; in-fold encodings; matched rows only; y_hat = max(proxy −
+delta_hat, 1). Arms: **A0** seed 0 alone (must reproduce `lgb_refit` 226.24 within 0.5 s, else the
+harness is wrong and nothing below counts); **A1** seeds 1 and 2 alone; **A2** mean of seeds 0, 1, 2;
+**A3** A2 + per-airport blend. Paired row bootstrap, 2,000 draws, seed 0. Seed sd := sd of the three
+single-seed matched RMSEs. Everything reported pooled AND per airport.
+
+## 12.3 Thresholds, locked
+
+- **H-12a ESTABLISHED** iff the paired interval of A2 − A0 excludes zero (improving) AND the point
+  gain exceeds **2 × seed sd** (the repo's standing ESTABLISHED rule). NOT WORKING iff the interval
+  includes zero or the gain is below 1 × seed sd. Between: inconclusive — ship A2 anyway ONLY if the
+  interval excludes zero (averaging cannot hurt in expectation), but do not call it established.
+- **H-12b ESTABLISHED** iff the paired interval of A3 − A2 excludes zero (improving) AND >= 6 of 10
+  airports individually improve. NOT WORKING iff the interval includes zero. If A3 − A2 is
+  established but fewer than 6 airports improve, ship per-airport ONLY at the airports that improve
+  (named in advance as the fallback rule, not decided after seeing which).
+- **What ships as v4:** the best arm among {A2, A3} that clears its rule; v4 differs from v3 only in
+  that. Expected board effect, matched-side transfer >= 1:1 per RESULT 5: −2 to −4 s. **No board
+  projection beyond that range is to be quoted.**
+
+## 12.4 What no result here licenses
+
+Nothing on the stratum. Nothing about seeds beyond three (a fourth seed is a new measurement). The
+per-airport tree-count rule the implementer chooses is recorded in the fold log and is part of the
+tested configuration; changing it after the fold run is a new amendment.
+
+
+---
+
+# AMENDMENT 13 — binding constraint: no leaderboard probing, no reading labels off the scorer
+
+**2026-09-09, owner decision, verbatim: "we are not cheating and in any case don't cheat anything
+anywhere."** Nothing above this line has been edited.
+
+Submissions exist to be scored, not to be read. No file is ever uploaded whose purpose is to learn
+the hidden taxi-out of any row from the score it returns — not one row at a time, not in groups,
+not by bisection, not by any encoding. This holds regardless of what the competition rules permit.
+Any future session that derives this idea (it is the only mechanism of the right size for the last
+~15k MSE, and the leader's flat-then-step trajectory looks like it) stops here.
+
+Consequence, recorded so it is not re-litigated: **the honest target for this competition is the
+engineered ceiling, ~275–280, top-10. 248 is not the target.** Every submission from v4 on differs
+from its predecessor only by a modelling change measured on the fold with a paired interval.
+
+
+---
+
+# AMENDMENT 14 — v6: push-anchored queue features on the matched rows; thresholds locked
+
+**2026-09-09, written BEFORE the feature block is finished and BEFORE any fold measurement.
+Nothing above this line has been edited.**
+
+## 14.1 Hypothesis H-14
+
+On matched rows, features anchored on the row's OWN push (`AOBT_3`) — the number of aircraft
+already pushed and not yet airborne when I push, at the airport and on my runway; take-offs that
+occur during my taxi; pushes in the 20 minutes before mine; symmetric take-off density around my
+own take-off; arrivals taxiing at my push and their taxi-in level; the runway's ambient `proxy`;
+the gap to the next arrival at my stand — reduce matched RMSE on the fold beyond the best v4 arm.
+Mechanism named in advance: the 12,658-MSE "pushed back early, then held" tail (non-fill,
+|delta| > 20 min, 78% with y longer than proxy) is a queueing phenomenon, and the incumbent SURF
+block is take-off-anchored and backward-looking, so it cannot see queue state at the moment of push.
+
+Serve-time legitimacy: every feature reads other departures' `MVT_TIME`/`AOBT_3`/`SCHED` and
+arrivals' `MVT_TIME`/`BLOCK_TIME`/`TAXITIME`, all populated on `ranking.parquet`; none reads a
+departure's own `BLOCK_TIME`/`TAXITIME`. Tested by the hidden-clock test the block must ship with.
+
+## 14.2 Harness
+
+`scripts/lgbm_fold.py` fold A, exactly as Amendment 12: holdout (1, 7), ES (3, 9), in-fold
+encodings, matched rows only, paired row bootstrap 2,000 draws seed 0. Baseline arm = the v4 arm
+that shipped (A2 or A3 per Amendment 12's rule). Treatment arm = baseline + `QUEUE_FEATS` appended
+to the design matrix, everything else identical (same seeds, same tree-count procedure — best_iter
+re-found with the extra columns, since capacity may shift). Reported pooled and per airport.
+
+## 14.3 Thresholds, locked
+
+- **ESTABLISHED** iff the paired interval of (treatment − baseline) matched RMSE excludes zero in
+  the improving direction AND the point gain >= **+2.0 s** AND the gain exceeds 2 × the seed sd
+  measured in Amendment 12 AND >= **4 of the 10 airports** improve individually with the four
+  named in advance as the likely ones — LEBL, LTFM, EGLL, LSZH — not required to be exactly those.
+- **NOT WORKING** iff the interval includes zero, or the point gain < +1.0 s.
+- Between: inconclusive; do not ship; queue behind v5.
+- Additionally reported, not decisional: the RMSE on the pre-defined tail subset (non-fill,
+  |delta| > 1,200 s) for both arms, because that is where the mechanism says the gain must live. If
+  the pooled gain is established but the tail does NOT improve, the gain is not the named mechanism
+  and the amendment says so in the result rather than claiming it.
+- **What ships as v6:** baseline + QUEUE_FEATS iff ESTABLISHED; v6 differs from v5 (or v4) only in
+  that. Expected board effect: −2 to −4 s, per the transfer rule of RESULT 5. No larger projection
+  is to be quoted.
+
+## 14.4 Negative control
+
+The treatment arm re-run with QUEUE_FEATS shuffled across rows WITHIN airport (100 permutations,
+per the Amendment 9/R4 lesson that one draw is not a null); the treatment's gain must exceed the
+95th percentile of the permuted gains. If it does not, NOT WORKING regardless of 14.3.
+
+
+---
+
+# AMENDMENT 15 — the fifth lane: a second learner family and a capacity sweep; thresholds locked
+
+**2026-09-09, written BEFORE any measurement. Nothing above this line has been edited.**
+
+## 15.0 Why a fifth lane
+
+The 10th place on the board is a moving target: 326.6 → 301.7 → 294.9 → 288.9 → 281.5 → 278.2 over
+09-04..09-09, decelerating; extrapolated to the 4 Oct freeze it sits near 270–274. Planning bar:
+**<= 272**, i.e. ~11,000 MSE below v3's 85,049. Amendments 12 and 14 plus the matched-fill head and
+the stratum hybrid sum to 6–10k on their fold ranges. A fifth lane is therefore required, not
+optional, and it is pre-registered here before it is built so the bar is not lowered later.
+
+## 15.1 H-15a — second learner family (CatBoost), blended
+
+CatBoost at matched capacity (depth 8, lr 0.03, ~5k–10k iterations found by the same ES months,
+seed 0; run ONLY from the isolated venv `~/.venvs/prc-catboost`, never installed globally — it
+needs numpy<2 and the live fleet's site-packages must not be touched) on the identical design
+matrix and target, blended 0.5/0.5 with the best LightGBM arm. Mechanism: residual correlation
+between families is below 1, so the blend's variance is below either alone (HGB/LGBM residual corr
+was 0.954 in `lgbm_ab`; the gain is bounded by that).
+- **ESTABLISHED** iff paired interval of (blend − LGBM arm) excludes zero AND gain >= +1.5 s AND
+  the blend weight curve (0.3/0.5/0.7) is not monotone toward 0 (i.e. CatBoost is contributing,
+  not merely diluting).
+- **NOT WORKING** iff interval includes zero or gain < +0.7 s.
+
+## 15.2 H-15b — capacity sweep, screened then confirmed
+
+The `lgb_refit` parameters were taken from lgbm_ab's single setting, never swept. Sweep
+`num_leaves` in {127, 255, 511} x `min_data_in_leaf` in {20, 40, 100} x `feature_fraction` in
+{0.6, 0.8}: 18 settings. **Screening tier:** rank all 18 on a 4-month subfold (train Feb–May,
+stop on Jun; matched rows) at lr 0.05 — ranking only, NO magnitude from this tier may be quoted
+(this project has twice been burned quoting subsample magnitudes). **Confirmation tier:** the top
+2 by screen rank re-run on the full fold A exactly as Amendment 12, against the incumbent setting.
+- **ESTABLISHED** iff the confirmed best beats the incumbent with a paired interval excluding zero
+  AND gain > 2 x seed sd.
+- **NOT WORKING** iff neither confirmed setting beats the incumbent's interval.
+- A setting that screens first but fails confirmation is recorded as such — the screen's ranking
+  power is itself a measurement of whether the fast harness is trustworthy (RESULT to be written).
+
+## 15.3 What ships
+
+Whichever of 15.1 / 15.2 is ESTABLISHED ships as its own submission, differing from its
+predecessor only in that change. Combined effects are measured jointly on the fold before a
+combined submission — no summing of separately measured gains into a claimed total.
+
+
+---
+
+# RESULT 6 · 2026-09-09 · screen: flight-number fill propensity at LIRF — DEAD
+
+Owner set the target to first place, which reopens the LIRF stratum search. Shape stated before
+running: a per-flight-number fill history (mangling stripped, LOMO target encoding, shrunk to the
+airline) is amendment-worthy if LOMO AUC on LIRF unmatched fill >= 0.92 against the L-e's 0.877;
+dead below 0.89.
+
+| key | history source | LOMO AUC |
+|---|---|---|
+| airline (L-e's key) | unmatched rows | 0.826 |
+| flight number | unmatched rows | 0.817 |
+| flight number | MATCHED-row copy history (159k rows) | 0.810 |
+| flight number x hour-band | matched rows | 0.797 |
+
+**DEAD (< 0.89).** A rotation's identity carries no information beyond its airline. Fourth
+legitimate probe into the 228k LIRF stake (aggregate arrival regime, turnaround stamp, oracle bound,
+flight-number history) returning the same shape: P(fill) is as calibrated as the observables allow.
+Note for the record: the 12h+ band in 2025 (n = 29) shows a 62% fill rate with AUC ~0.6, i.e. the
+biggest bets are the least discriminable — yet the board score is only consistent with those bets
+having been won in 2026, so the 2025 sample there is small and not to be planned against.
+
+**Standing rule (Amendment 13): no leaderboard probing.** The stratum's remaining error is bet
+variance under a calibrated model; first place therefore has to come from the matched side and from
+the stratum's REGRESSOR (Screen B's fitted non-fill model), not from fill classification.
+
+
+### 12.5 · decision recorded BEFORE the fold run · per-airport tree count = `--pa-trees es`
+
+The implementer built two rules and refused to pick: `share` (each airport gets n_ref scaled by
+its row fraction, floor 200 — 1,229–2,700 trees on the fold) and `es` (each airport early-stops on
+its own fit/ES rows, same months, seed 0, then refits at its own n_ref). The v3 stopping curve loses
+~4.8 s between 2,000 trees and its optimum, so `share` would under-train the per-airport models and
+H-12b could read NOT WORKING because of the rule rather than the blend. **Decision: `es`.** Cost
++~30 min per run. Recorded here, before launch, per 12.4; the fold log carries the rule string.
+
+
+### 14.4 amended · 2026-09-09 11:20 local · BEFORE any queue-arm run
+
+100 full retrains for the within-airport permutation control is infeasible (~25 min each). The
+control is implemented as **20 permutations (seed 0), each a full retrain at QUARTER capacity
+(best_iter / 4), paired against the unpermuted treatment retrained at the SAME quarter capacity**,
+so the comparison is like-for-like. The treatment's quarter-capacity gain must exceed the 95th
+percentile of the 20 permuted quarter-capacity gains. This replaces "100 permutations" in 14.4;
+the decisional interval in 14.3 is still the full-capacity paired interval. Recorded before the
+arm exists in runnable form.
+
+---
+
+# AMENDMENT 16 — v5: a schedule-fill mixture head on MATCHED rows; thresholds locked
+
+**2026-09-09, written before the head is built and before any measurement. Nothing above this line
+has been edited.**
+
+## 16.1 Hypothesis H-16
+
+On matched rows, 8.9% have `BLOCK_TIME == SCHED_TIME` (the airport stamped the schedule), so
+`y == sp` exactly for them and the proxy identity `y = proxy − delta` is the wrong model. They carry
+13.5% of matched SSE; an oracle that predicts `sp` on them and the incumbent elsewhere scores
+221.15 against 237.46 (7,365 global MSE at fold weights; LIRF 4,452 of it). The tree already leans
+65% of the way toward `sp` on them (implicit p median 0.65). H-16: a fitted classifier
+`p = P(fill | x)`, trained on all matched training rows (label visible on all 2M), used as an
+MSE-optimal mixture `y_hat = p * sp + (1 − p) * (proxy − delta_hat_base)`, reduces matched RMSE
+beyond the best v4/v6 arm.
+
+Classifier: LightGBM binary on the same 68-feature design (+ `nmdelay = proxy − sp` explicitly),
+early-stopped on the ES months, seed 0; reliability deciles reported. Serve-time: every input is
+already in the serve-mode cache.
+
+## 16.2 Harness
+
+`lgbm_fold.py --fillhead`, fold A as Amendment 12; baseline = the best shipped arm at the time;
+treatment = baseline + mixture head. Paired row bootstrap 2,000 draws seed 0. Reported pooled, per
+airport, and on the two pre-defined subsets: **fills** (`|y − sp| <= 60`) and **non-fills**.
+
+## 16.3 Thresholds, locked
+
+- **ESTABLISHED** iff the paired interval of (treatment − baseline) excludes zero (improving) AND
+  point gain >= **+1.5 s** AND the gain on the FILL subset >= **+5 s** (the mechanism must show up
+  where it is claimed) AND the NON-FILL subset is not worse by more than **0.5 s** (the head must not
+  poison the majority) AND the gain exceeds 2 x the Amendment 12 seed sd.
+- **NOT WORKING** iff the interval includes zero, or the fill-subset gain < +2 s, or the non-fill
+  subset worsens by > 1.0 s.
+- Between: inconclusive; do not ship.
+- Reported, not decisional: LIRF alone (60% of the ceiling); reliability deciles of `p`.
+- **What ships as v5:** baseline + head iff ESTABLISHED, differing from its predecessor only in
+  that. Expected board effect −2 to −4 s (transfer rule of RESULT 5). No larger projection.
+
+
+### 14.4 amended (ii) · 2026-09-09 12:05 local · BEFORE any queue-arm run
+
+Building the control surfaced a confound: at reduced capacity, every within-airport permuted run
+beat a 68-column reduced baseline by the same ~8 s, because LightGBM's `feature_fraction` sampling
+stream depends on the column count — a baseline with fewer columns is not like-for-like with an
+80-column treatment even at equal tree counts. The control is therefore stated WITHOUT a baseline:
+**the treatment's quarter-capacity RMSE must be below the 5th percentile of the 20 permuted
+quarter-capacity RMSEs**, all runs at the same 80 columns, same seed, same tree count. This is the
+"gain exceeds the 95th percentile of permuted gains" form with the (cancelling) baseline removed.
+The JSON reports both forms; the verdict uses this one. The decisional interval in 14.3 is
+unchanged (full-capacity paired interval against the shipped v4 arm's own predictions).
+
+
+---
+
+# RESULT 7 · 2026-09-09 13:28 local · Amendment 12 fold — seeds ESTABLISHED (small), per-airport NOT WORKING
+
+`scripts/lgbm_fold.py --pa-trees es`, fold A, matched rows n = 339,015; 2 h 18 min; peak RSS ~4.2 GB.
+Log `reports/lgbm_fold_v4.console.log`, numbers `reports/lgbm_fold_v4.json`, per-row predictions
+`data/cache_stand/fold_v4_preds.parquet`. **A0 reproduces `lgbm_ab`'s `lgb_refit`: 226.309 vs
+226.245 (+0.064 s, tolerance 0.5); best_iter 17,525 vs 17,557; n_ref 21,908 vs 21,948.** The harness
+measures the procedure that shipped as v3.
+
+| arm | matched RMSE |
+|---|---|
+| A0 seed 0 | 226.309 |
+| A1a seed 1 / A1b seed 2 | 226.489 / 226.202 |
+| **A2 mean of 3 seeds** | **225.825** |
+| A3 = A2 + per-airport blend (0.5, `es` trees, 10/10 airports fitted) | 225.388 |
+
+Seed sd (ddof=1) over the three singles: **0.145 s**; 2× = 0.291 s.
+
+| comparison | point | paired 95% (2,000 draws) | excludes 0 | gain / seed sd | airports improving |
+|---|---|---|---|---|---|
+| A2 − A0 | **+0.484** | [+0.321, +0.652] | yes | 3.33 | 10 / 10 |
+| A3 − A2 | +0.437 | [−0.157, +1.045] | **no** | 3.01 | 8 / 10 |
+| A3 − A0 | +0.921 | [+0.304, +1.544] | yes | 6.33 | 8 / 10 |
+
+**H-12a (seeds): ESTABLISHED** by 12.3 — interval excludes zero, gain 3.3× seed sd, 10/10 airports.
+Honest magnitude: 0.48 s of matched RMSE ≈ **~215 MSE at fold weights, ~0.5 s on the board**. The
+"2024 analogue, ~3%" prior was wrong by ~15×; averaging three seeds of a 22k-tree model with
+bagging already inside it buys almost nothing. Ships as v4 because it is real and because the three
+seed boosters are the prerequisite for v5 (Amendment 16) — not because it moves the rank.
+
+**H-12b (per-airport blend): NOT WORKING** by 12.3 — the pooled interval includes zero. Per
+airport: EDDF +1.41*, EDDM +1.33, EGLL +0.31, EHAM +1.09, LEBL +0.29, LEMD +1.89*, LFPG +2.16,
+**LIRF −2.70***, LSZH −1.76, LTFM +0.73* (* = the airport's own interval excludes zero). Eight of
+ten improve; LIRF — the largest RMSE — gets significantly worse and dominates the pooled variance.
+The 12.3 fallback ("ship per-airport only where it improves") applies only when A3 − A2 is
+established; it is not. **Nothing per-airport ships.** Choosing the airport list after seeing this
+table would be a goalpost move; instead the pattern is registered below as a new hypothesis for a
+DIFFERENT fold.
+
+Per-airport tree rule used: `es` (12.5); per-airport n_ref recorded in the JSON.
+
+---
+
+# AMENDMENT 17 — per-airport blend EXCLUDING LIRF and LSZH; a fold-B hypothesis, not a v4 change
+
+**2026-09-09 13:35 local. Generated from RESULT 7's per-airport table, therefore NOT testable on
+fold A. Nothing above this line has been edited.**
+
+H-17: A2 blended 0.5/0.5 with the per-airport model at the eight airports where RESULT 7 showed
+improvement (EDDF, EDDM, EGLL, EHAM, LEBL, LEMD, LFPG, LTFM), A2 at LIRF and LSZH, beats A2 on
+**fold B** (holdout months (2, 8); ES months (4, 10)) with a paired interval excluding zero and
+>= 6 of the 8 selected airports improving individually. NOT WORKING iff the fold-B interval
+includes zero. Fold A may not be used for this verdict. Expected value ~0.5–0.9 s matched; low
+priority against Amendments 14–16; run only when compute is idle.
+
+
+---
+
+# RESULT 8 · 2026-09-09 13:46 local · Amendment 16 (fill head) — NOT WORKING
+
+`lgbm_fold.py --fillhead --baseline A2 --pa-trees es`, fold A, 339,015 matched holdout rows, 11 min,
+peak 3.4 GB. Head: LightGBM binary, 69 features, best_iter 4,578 → n_ref 5,723; holdout AUC 0.896;
+mean p 0.0855 vs fill share 0.0890 (calibrated in the mean); mean p on fills 0.297, on non-fills
+0.065. Log `reports/lgbm_fold_fillhead.console.log`, JSON `reports/lgbm_fold_fillhead.json`,
+predictions `data/cache_stand/fold_preds_fillhead.parquet`.
+
+| subset | rows | baseline A2 | treatment | gain | paired 95% |
+|---|---|---|---|---|---|
+| pooled | 339,015 | 225.825 | 225.683 | +0.14 | **[−0.48, +0.72]** |
+| fills (|y−sp| ≤ 60) | 30,167 (8.9%) | 288.72 | 251.05 | **+37.68** | [+34.26, +41.51] |
+| non-fills | 308,848 (91.1%) | 218.71 | 223.05 | **−4.34** | [−4.76, −3.97] |
+| LIRF alone | 26,131 | 383.32 | 379.33 | +3.99 | [−0.33, +8.65] |
+| LIRF fills | 4,947 | 560.61 | 462.76 | +97.85 | [+86.29, +109.43] |
+| LIRF non-fills | 21,184 | 328.41 | 357.05 | −28.64 | [−32.45, −25.26] |
+
+Per airport: 9 of 10 worse, each with its own interval excluding zero (EDDF −0.44, EDDM −0.55,
+EGLL −0.46, EHAM −0.39, LEBL −0.48, LEMD −0.90, LFPG −0.55, LSZH −0.29, LTFM −0.15); LIRF +3.99.
+
+**Clauses (16.3):** pooled interval includes zero → NOT WORKING; fill-subset gain +37.7 ≥ +5 ✓;
+**non-fill subset worse by 4.34 s > 1.0 s → NOT WORKING on its own.** Verdict: **NOT WORKING.**
+
+**Why, mechanically.** The head is calibrated and ranks well (AUC 0.90), but a mixture pays the
+residual p on every non-fill: with mean p 0.065 and typical |sp − y_hat| in the thousands of seconds,
+the leak onto 91% of rows costs 4.3 s while the fills gain 38 s on 9%. Net zero. This is the same
+structure Screen B found in the stratum: **a calibrated hedge cannot beat per-row identification,
+and no observable identifies fills per row** (four stratum probes + this). The 7,365-MSE oracle
+ceiling was real; none of it is capturable by a classifier of this quality. **Lane closed** unless
+a head with AUC well above 0.95 appears, which nothing in the data suggests.
+
+Not tried, on record: a mixture applied only where p is extreme (p > 0.9), i.e. a thresholded
+head rather than a soft one. It is a different hypothesis (selective override), would need its own
+amendment, and on these numbers its upside is bounded by the fill subset's 37 s on the high-p
+fraction of 8.9% of rows — small. Deprioritised behind Amendments 14 and 15.
+
+**Standing after RESULT 7 and 8:** v4 = A2 (+0.48 s). Per-airport blend and fill head both dead.
+Remaining pre-registered lanes: 14 (queue features), 15.1 (CatBoost blend), 15.2 (capacity sweep),
+17 (fold-B per-airport), the stratum regressor hybrid. The queue fold runs next as the largest.
+
+
+---
+
+# AMENDMENT 18 — v7: a fitted non-fill regressor for the stratum BODY with the cell estimator's
+tail load preserved; thresholds locked
+
+**2026-09-09 13:55 local, written before the code exists and before any measurement. Nothing above
+this line has been edited.**
+
+## 18.1 Hypothesis H-18
+
+Screen B (RESULT 3.2) established, on the fold, that a fitted non-fill regressor `nf_fit` beats the
+hierarchical cell estimator `nf_cells` on EX-MONSTER unmatched rows (B0 995.6 → B2 927.6, +68 s,
+9/10 airports) while losing badly POOLED (+323 s worse) because its 3,000-s target winsorisation
+abandons the tail load that `nf_cells` carries to 80,989 s on LIRF's fine cells. H-18: a HYBRID
+non-fill predictor — `nf_fit` where the row's finest populated cell has `nf_cells < T_tail`, and
+`nf_cells` otherwise — keeps the body gain without the tail loss, so the mixture
+`p_hat * sp + (1 − p_hat) * nf_hybrid` beats the incumbent `fit_unmatched` on BOTH the ex-monster
+and the pooled stratum RMSE. `T_tail` is fixed in advance at **3,000 s** (the winsorisation point,
+not tuned). `p_hat` is the incumbent's (L-e at LIRF, cells elsewhere) — unchanged.
+
+`nf_fit`: HistGradientBoostingRegressor, max_leaf_nodes 15, max_iter 200, min_samples_leaf 100,
+target winsorised at 3,000 s for fitting only, features sp / dayoff / hr / airport / runway / stand
+prefix / airline / operator target-encodings fitted on training rows only — exactly Screen B's B2
+regressor, so the ex-monster number is comparable to R3.2.
+
+## 18.2 Harness
+
+12-fold LOMO over 2025 on the stratum (all ten airports' unmatched rows), the STRATUM_MONSTERS §3b
+design, plus fold A reported alongside for comparability with R3.2. Arms: **S0** incumbent
+`fit_unmatched`; **S1** hybrid. Three seeds of `nf_fit` (random_state 0/1/2) → seed sd; report S1
+as the mean over seeds AND per seed. Paired month-block bootstrap (12 blocks, 2,000 draws, seed 0)
+on pooled and ex-monster stratum RMSE; per airport; per month.
+
+## 18.3 Thresholds, locked
+
+- **ESTABLISHED** iff (a) ex-monster paired interval of (S1 − S0) excludes zero improving AND
+  gain >= 20 s AND > 2 × seed sd; AND (b) pooled paired interval does NOT show S1 worse (upper
+  bound of S1 − S0 loss < 20 s, i.e. the tail is preserved); AND (c) >= 6 of 10 airports improve
+  ex-monster.
+- **NOT WORKING** iff the ex-monster interval includes zero, OR the pooled interval shows S1 worse
+  by more than 20 s (the tail was not preserved).
+- Between: inconclusive; do not ship.
+- Reported, not decisional: the LIRF-only cut; the number of rows routed to `nf_fit` vs `nf_cells`.
+- **Ships as v7** (its own version number, differing from its predecessor only on the 5,290
+  unmatched rows). Expected board effect: unknowable from the fold's stratum (Amendment 9); the
+  board is the instrument. Fold weight of the ex-monster gain ~1,000 MSE.
+
+
+---
+
+# AMENDMENT 19 — where the error actually is, and two arms aimed at it; thresholds locked
+
+**2026-09-09 17:00 local. Written after the diagnosis below and BEFORE either arm is run. Nothing
+above this line has been edited. Owner directive 16:45: "work towards it and find why it is not
+improving."**
+
+## 19.0 The diagnosis (measured on the v4 fold record, matched rows, A2)
+
+| |delta| band | rows | RMSE | share of matched SSE |
+|---|---|---|---|
+| < 2 min | 38.6% | 137.0 | 14.2% |
+| 2–10 min | 53.7% | 189.8 | 38.0% |
+| 10–20 min | 6.0% | 384.9 | 17.4% |
+| > 20 min | 1.7% | 968.8 | 30.5% |
+
+**The 7.63% of matched rows with |delta| > 10 min carry 23,979 global MSE — 47.8% of matched
+error.** Perfect knowledge of those rows alone would take matched RMSE from 225.8 to 163.1; the
+gap to the leader is ~30,000 MSE. On the 39% of rows where the clocks agree within 2 min, RMSE is
+137 s — larger than the band — the signature of a model predicting the conditional MEAN of a
+bimodal distribution. That is why nothing today moved the number: every lane attacked the 92% we
+already predict well; the error lives in a mode no feature identifies. `FLIGHT_ID_mvt` (the one
+unread column) is not the identifier: AUC 0.55 for mode rows.
+
+**The mode clusters on DAYS.** Per airport-day, the day's mode rate (p10 1.4%, p50 5.6%, p90 16.5%,
+max 60%) correlates with the day's own departure-`proxy` p90 at 0.79 (LFPG, 0.90 on p50), 0.76
+(EGLL), 0.73 (EDDM), 0.65–0.72 (LTFM), 0.68 (EDDF). A top-decile day has 2.3–3.7× the mode rate of
+a bottom-decile day at 8 of 10 airports (LFPG 3.68×, EDDM 3.15×, LSZH 3.11×, EGLL 2.83×, LTFM 2.79×;
+LEMD 1.0×). Within a day the signal reaches only AUC 0.55–0.63 — regime, not identity. All of this is
+computable transductively from `ranking.parquet` (other departures' `proxy`, arrivals' taxi-in), so
+external weather data would largely duplicate it.
+
+## 19.1 Arm D — airport-day regime block (`DAY_FEATS`)
+
+Per (airport, calendar day), from the same file the row lives in: departure `proxy` p50 and p90,
+share with `proxy <= 0`, arrival taxi-in p50 and p90, share of arrival taxi-in > 1,200 s, departure
+and arrival counts; plus each row's `proxy` minus the day's p50. Appended to the best current design
+(A2 + QUEUE_FEATS if Amendment 14 ships, else A2). Serve-time: all inputs populated on the scored
+file (verified in 14.1 / v6 tests); no departure's own BLOCK/TAXITIME is read.
+
+## 19.2 Arm Y — formulation: predict `y` directly, and blend
+
+Same design, same LightGBM config and seeds, target `y` instead of `delta` (no proxy anchor);
+`y_hat_Y = max(prediction, 1)`. Reported alone and as the 0.5/0.5 blend with the delta-target arm.
+Mechanism: at LTFM and EDDM `corr(proxy, y)` is 0.08 and 0.16 — the anchor carries almost nothing —
+and the one comparison that chose `delta` (252.66 vs 285.24) was on the 26-feature HGB, never on
+this learner or these features. Reported pooled, per airport, and on the |delta| bands of 19.0.
+
+## 19.3 Thresholds, locked (same harness as Amendments 12/14; paired row bootstrap 2,000 draws)
+
+- **Arm D ESTABLISHED** iff the paired interval excludes zero, point gain >= **+1.0 s**, gain > 2 ×
+  seed sd, >= 6 of 10 airports improve, AND the |delta| > 10 min bands improve by >= +5 s (the block
+  must move the mode rows, not the body). NOT WORKING iff the interval includes zero.
+- **Arm Y** (blend vs delta-target) ESTABLISHED iff the paired interval excludes zero AND gain >=
+  +1.0 s AND > 2 × seed sd. Y alone reported; per-airport Y-vs-delta reported for LTFM/EDDM.
+  NOT WORKING iff the blend's interval includes zero.
+- Point-gain bars are compute-economy thresholds, as before; the owner decides on real gains below
+  them (RESULT 9's precedent).
+
+## 19.4 The honest budget
+
+Regime shifts a day's base rate; it does not identify rows. Expect arms D and Y to be worth low
+single-digit seconds each if they work. The 23,979-MSE mode budget is only capturable by a per-row
+identifier, and none has been found in this data. **That budget is the leader's edge, and the
+search for the identifier continues under Amendment 13's rule: never by reading the scorer.**

@@ -1,0 +1,59 @@
+[13:34:59 +      0s] lgbm_fold [fillhead]  smoke=False  json=/Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_fillhead.json  log=/Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_fillhead.log  preds=/Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/fold_preds_fillhead.parquet
+[13:34:59 +      0s] command: cd ~/Projects/prc-challenge && PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 nice -n 19 /usr/bin/time -l python3.11 -B -u scripts/lgbm_fold.py --fillhead --baseline A3 --pa-trees es 2>&1 | tee reports/lgbm_fold_fillhead.console.log
+[13:34:59 +      0s] estimate: ~30-50 min (range 20-70 min), peak RSS ~4 GB (the v4 load footprint; one 69-column matrix), 4 threads; run ALONE. The baseline is READ from the v4 record (no regressor refit). The head at the v4 per-row/iter rates (ES 2.5e-8 s, refit 2.2e-8 s) x1.015 for 69 columns; the round count of a binary head at lr 0.01 is UNMEASURED (the regressor took 17.5k): 5k-15k ES rounds on 1.38M rows ~3-9 min + the stopping-set predict 1-3 min; one refit on 1.72M rows at n_ref = 1.25 x best_iter ~4-11 min + the holdout predict 1-3 min; load + encodings ~3 min; bootstrap (pooled + 10 airports + 2 subsets + 3 LIRF cuts, 2,000 draws) ~3 min. With --refit-baseline add the full v4 run (~1.9 h with --pa-trees es). Writes reports/lgbm_fold_fillhead.{json,log} and data/cache_stand/fold_preds_fillhead.parquet.
+[13:34:59 +      0s] Amendment 16 arm: baseline A2 over seeds [0, 1, 2]; head = LightGBM binary (metric auc) on FEATS + [nmdelay] (69 features), early-stopped on months (3, 9) (seed 0, patience 200), one refit on all training rows at n_ref; treatment = p * sp + (1 - p) * max(proxy - baseline, 1); fill := |y - sp| <= 60 s; per-airport rule [es] (A3 baseline only); bootstrap 2,000 draws seed 0; reliability in 10 equal-count bins
+[13:34:59 +      0s] baseline: the v4 record /Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_v4.json (sha a57040724db18cc6fcfe986ca40e58176d023df9, best_iter 17,525, n_ref 21,908, seeds [0, 1, 2], pa_trees 'es', A0 reproduction 'pass'); predictions /Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/fold_v4_preds.parquet
+[13:34:59 +      1s] loaded 12 months (2,062,440 rows): holdout (months (1, 7)) 339,015; training 1,723,425; fit 1,378,585; early-stop 344,840; airports ['EDDF', 'EDDM', 'EGLL', 'EHAM', 'LEBL', 'LEMD', 'LFPG', 'LIRF', 'LSZH', 'LTFM']; peak RSS 2.41 GB
+[13:35:05 +      6s] design matrix 2,062,440 x 69 float32 (0.57 GB); peak RSS 2.68 GB
+[13:35:05 +      6s] [baseline] A2 rebuilt from the v4 predictions over seeds [0, 1, 2] on the identical fold (339,015 rows); seed sd 0.1454 s from the v4 json
+[13:35:05 +      6s] fill head: early-stopping run (seed 0, objective binary, metric auc): fit 1,378,585 rows (9.81% fills), stop on 344,840 rows (9.50% fills, months (3, 9)), lr 0.01, max 50,000 rounds, patience 200, 69 features
+[13:35:06 +      7s]     iter      0  valid_0 auc (P(fill)) 0.866
+[13:36:17 +     79s]     iter  1,000  valid_0 auc (P(fill)) 0.891
+[13:37:06 +    127s]     iter  2,000  valid_0 auc (P(fill)) 0.892
+[13:37:52 +    174s]     iter  3,000  valid_0 auc (P(fill)) 0.893
+[13:38:39 +    220s]     iter  4,000  valid_0 auc (P(fill)) 0.893
+[13:39:58 +    299s] fill head: best_iter 4,578   stopping-set AUC 0.8930 (lightgbm 0.8930)   mean p 0.0916 vs fill rate 0.0950   [stopping set, optimistic by construction; NOT a fold result]   293s   peak RSS 3.28 GB
+[13:39:58 +    299s] fill head: n_ref 5,723: one refit (seed 0) on all 1,723,425 training rows (9.75% fills; best_iter 4,578 x 1.250), no early stopping
+[13:44:29 +    570s] fill head: refit done: 5,723 trees on 1,723,425 rows in 271s   peak RSS 3.37 GB
+[13:45:26 +    627s] head on the 339,015 holdout rows: AUC 0.8957; mean p 0.0855 vs fill share 0.0890 (30,167 fills); mean p on fills 0.2967, on non-fills 0.0649; 2,602 rows with sp <= 0 carry mean p 0.0002; mixture shift vs the baseline RMS 34.17 s; the treatment's floor binds on 0.000%   [621s]; predictions -> /Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/fold_preds_fillhead.parquet
+[13:45:47 +    649s] ====================================================================================================
+[13:45:47 +    649s] AMENDMENT 16, fold A matched rows (339,015), holdout months (1, 7)   head best_iter 4,578 -> n_ref 5,723
+[13:45:47 +    649s] ====================================================================================================
+[13:45:47 +    649s] arm          matched RMSE   definition
+[13:45:47 +    649s] baseline         225.8254   the v4 arm A2 over seeds [0, 1, 2] (v4 predictions)
+[13:45:47 +    649s] treatment        225.6831   baseline + fill head: the mixture p * sp + (1 - p) * max(proxy - baseline, 1), head best_iter 4,578 -> n_ref 5,723; stored as proxy - mixture
+[13:45:47 +    649s] seed sd: 0.1454 s (sample sd, ddof=1)   2 x seed sd = 0.2908 s
+[13:45:47 +    649s] pair                      gain s         95% paired CI  excl 0  gain/sd  >2x sd  airports improving
+[13:45:47 +    649s] treatment_vs_baseline    +0.1423   [ -0.4768,  +0.7165]   False     0.98   False         1 / 10     
+[13:45:47 +    649s] airport         n   baseline  treatment  treatment_vs_baseline
+[13:45:47 +    649s] EDDF       36,231     181.01     181.46             -0.44*    
+[13:45:47 +    649s] EDDM       26,854     168.47     169.02             -0.55*    
+[13:45:47 +    649s] EGLL       39,744     230.07     230.53             -0.46*    
+[13:45:47 +    649s] EHAM       40,141     164.44     164.83             -0.39*    
+[13:45:47 +    649s] LEBL       28,489     221.49     221.96             -0.48*    
+[13:45:47 +    649s] LEMD       35,019     176.21     177.11             -0.90*    
+[13:45:47 +    649s] LFPG       38,713     246.27     246.82             -0.55*    
+[13:45:47 +    649s] LIRF       26,131     383.32     379.33             +3.99     
+[13:45:47 +    649s] LSZH       21,811     176.65     176.94             -0.29*    
+[13:45:47 +    649s] LTFM       45,882     246.92     247.07             -0.15     
+[13:45:47 +    649s]    (* = that airport's own paired interval excludes zero)
+[13:45:47 +    649s] seed sd source: v4 json; the head is single-seed (Amendment 16: seed 0), so the 2 x seed sd rule reads the baseline's seed sd
+[13:45:47 +    649s] fill subset [fill: |y - sp| <= 60 s (holdout rows)]: 30,167 rows (8.90% of rows, 14.5% of the baseline's SSE): baseline 288.72, treatment 251.05, gain +37.68 s, paired CI [+34.26, +41.51] *
+[13:45:47 +    649s] non-fill subset [non-fill: |y - sp| > 60 s (holdout rows)]: 308,848 rows (91.10% of rows, 85.5% of the baseline's SSE): baseline 218.71, treatment 223.05, gain -4.34 s, paired CI [-4.76, -3.97] *
+[13:45:47 +    649s] LIRF alone: 26,131 rows: baseline 383.32, treatment 379.33, gain +3.99 s, paired CI [-0.33, +8.65]
+[13:45:47 +    649s] LIRF fill subset [LIRF, fill: |y - sp| <= 60 s (holdout rows)]: 4,947 rows (1.46% of rows, 9.0% of the baseline's SSE): baseline 560.61, treatment 462.76, gain +97.85 s, paired CI [+86.29, +109.43] *
+[13:45:47 +    649s] LIRF non-fill subset [LIRF, non-fill: |y - sp| > 60 s (holdout rows)]: 21,184 rows (6.25% of rows, 13.2% of the baseline's SSE): baseline 328.41, treatment 357.05, gain -28.64 s, paired CI [-32.45, -25.26] *
+[13:45:47 +    649s] reliability deciles of p on the 339,015 holdout rows (equal-count bins; mean p vs realised fill rate):
+[13:45:47 +    649s]  decile        n               p range   mean p  fill rate
+[13:45:47 +    649s]       1   33,902    [0.0000, 0.0001]   0.0000     0.0000
+[13:45:47 +    649s]       2   33,902    [0.0001, 0.0003]   0.0002     0.0001
+[13:45:47 +    649s]       3   33,902    [0.0003, 0.0009]   0.0005     0.0004
+[13:45:47 +    649s]       4   33,902    [0.0009, 0.0032]   0.0018     0.0017
+[13:45:47 +    649s]       5   33,902    [0.0032, 0.0102]   0.0061     0.0065
+[13:45:47 +    649s]       6   33,901    [0.0102, 0.0313]   0.0190     0.0234
+[13:45:47 +    649s]       7   33,901    [0.0313, 0.0844]   0.0541     0.0629
+[13:45:47 +    649s]       8   33,901    [0.0844, 0.1793]   0.1291     0.1387
+[13:45:47 +    649s]       9   33,901    [0.1793, 0.2930]   0.2335     0.2407
+[13:45:47 +    649s]      10   33,901    [0.2930, 0.9993]   0.4108     0.4156
+[13:45:47 +    649s]    overall: mean p 0.0855 vs fill rate 0.0890
+[13:45:47 +    649s] json -> /Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_fillhead.json   wall 649s   peak RSS 3.37 GB

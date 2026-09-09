@@ -2,6 +2,9 @@
 
     python scripts/build_submission.py --validate    # held-out Jan+Jul 2025, prints RMSE
     python scripts/build_submission.py               # fits on all 12 months, writes the parquet
+    python scripts/build_submission.py --hybrid --base submissions/<team>_v<N-1>.parquet --version N
+                                                     # v7 path: the predecessor with ONLY the unmatched
+                                                     # rows replaced by the Amendment 18 hybrid stratum
 
 The method is documented in README.md. In one line: for rows with a Network Manager
 off-block (98.47%) we model `delta = BLOCK_TIME - AOBT_3` and recover the target as
@@ -52,6 +55,16 @@ SP_FINE = [-np.inf, 900, 1800, 3600, 7200, 10800, 14400, 18000, 21600, 28800, 43
 K_SHRINK = 5.0                   # pseudo-counts toward the parent cell (STRATUM_MONSTERS.md 3a)
 LIRF_C = 1.0                     # logistic regularisation; C=0.1/0.3 measured worse, C=3/10 flat
 SP_LABELS = ["<15m", "15-30m", "30-60m", "1-2h", "2-3h", "3-6h", "6-12h", "12h+"]
+#: Amendment 18 (v7): a fitted regressor for the stratum BODY, the cells for its tail. The
+#: regressor is Screen B's B2 arm (RESULT 3.2) exactly, so its ex-monster number stays
+#: comparable; its target is winsorised at WINSOR_S for the FIT only, and `nf_hybrid` routes a
+#: row to it only where the cell estimate is below T_TAIL_S -- the cells keep the tail load
+#: they carry to 80,989 s on LIRF. Both constants are 3,000 s by pre-registration, not tuned.
+WINSOR_S = 3_000.0
+T_TAIL_S = 3_000.0
+NF_PARAMS = dict(max_leaf_nodes=15, max_iter=200, min_samples_leaf=100)
+NF_NUMERIC = ["sp", "dayoff", "hr"]
+NF_ENCODED = ["ADEP_mvt", "RUNWAY_mvt", "stand_pref", "airline", "AIRCRAFT_OPERATOR_flt"]
 
 
 def _seconds(a: pd.Series, b: pd.Series) -> pd.Series:
@@ -234,9 +247,108 @@ def _lirf_fill_model(tr_unm: pd.DataFrame, tr_matched: pd.DataFrame, te: pd.Data
     return mask, clf.predict_proba(X(te[mask]))[:, 1]
 
 
+def schedule_fill(frame: pd.DataFrame) -> np.ndarray:
+    """The fill flag: the airport stamped the SCHEDULE into off-block, |BLOCK - SCHED| <= 60 s.
+    Training rows only -- BLOCK is the target and is null on every scored row."""
+    d = (frame.BLOCK_TIME_UTC_mvt - frame.SCHED_TIME_UTC_mvt).dt.total_seconds().abs()
+    return (d <= 60).to_numpy()
+
+
+class NonFillRegressor:
+    """Screen B's B2 regressor (RESULT 3.2), fitted on NON-FILL unmatched training rows only.
+
+    HistGradientBoostingRegressor(max_leaf_nodes=15, max_iter=200, min_samples_leaf=100,
+    random_state=seed) with sklearn's other defaults -- including `early_stopping='auto'`,
+    which is ON above 10,000 rows on a seed-dependent 10% split; that is what Screen B ran on
+    ~18k rows, and it is why three seeds give three answers. Features: float64 sp / dayoff /
+    hr plus SMOOTH-smoothed target encodings of NF_ENCODED, prior and encodings computed from
+    the WINSORISED target; an unseen level encodes to the prior. Predictions are float64 and
+    unfloored -- the mixture applies the 1 s floor.
+    """
+
+    def __init__(self, train_nonfill: pd.DataFrame, seed: int):
+        y = train_nonfill.y.to_numpy(dtype="float64")
+        y_fit = np.clip(y, -WINSOR_S, WINSOR_S)                 # winsorised for the FIT only
+        frame = train_nonfill.assign(y_w=y_fit)
+        self.seed = int(seed)
+        self.n_train = int(len(frame))
+        self.n_winsorised = int((y > WINSOR_S).sum())
+        self.prior = float(frame.y_w.mean())
+        self.maps = {}
+        for c in NF_ENCODED:
+            g = frame.groupby(c, observed=True)["y_w"].agg(["mean", "size"])
+            self.maps[c] = (g["mean"] * g["size"] + self.prior * SMOOTH) / (g["size"] + SMOOTH)
+        self.columns = NF_NUMERIC + ["te_" + c for c in NF_ENCODED]
+        self.model = HGR(random_state=self.seed, **NF_PARAMS).fit(self.design(frame), y_fit)
+
+    def design(self, frame: pd.DataFrame) -> pd.DataFrame:
+        x = frame[NF_NUMERIC].astype("float64").copy()
+        for c in NF_ENCODED:
+            x["te_" + c] = frame[c].astype(str).map(self.maps[c]).astype("float64").fillna(self.prior)
+        return x
+
+    def predict(self, frame: pd.DataFrame) -> np.ndarray:
+        return np.asarray(self.model.predict(self.design(frame)), dtype="float64")
+
+
+def fit_nf_regressor(train_unmatched_nonfill: pd.DataFrame, seed: int) -> NonFillRegressor:
+    """The Amendment 18 body regressor. Refuses fill rows: a fill row's label is `sp`,
+    thousands of seconds, and would poison every encoding and the fit."""
+    frame = train_unmatched_nonfill
+    if len(frame) == 0 or "y" not in frame.columns:
+        raise ValueError("fit_nf_regressor needs non-fill training rows with a label `y`")
+    if "BLOCK_TIME_UTC_mvt" in frame.columns and "SCHED_TIME_UTC_mvt" in frame.columns:
+        n_fill = int(schedule_fill(frame).sum())
+        if n_fill:
+            raise ValueError(f"fit_nf_regressor expects NON-FILL rows only; {n_fill} fill rows found")
+    return NonFillRegressor(frame, seed)
+
+
+def nf_hybrid(nf_cells, nf_fit_pred, T_tail: float = T_TAIL_S) -> np.ndarray:
+    """`nf_fit` where the row's cell estimate is below T_tail, the cell estimate otherwise.
+    Strict: a cell AT the threshold keeps its own (tail) load."""
+    cells = np.asarray(nf_cells, dtype="float64")
+    fit = np.asarray(nf_fit_pred, dtype="float64")
+    if cells.shape != fit.shape:
+        raise ValueError(f"shape mismatch: nf_cells {cells.shape} vs nf_fit {fit.shape}")
+    if not (np.isfinite(cells).all() and np.isfinite(fit).all()):
+        raise ValueError("nf_cells and nf_fit must be finite")
+    return np.where(cells < T_tail, fit, cells)
+
+
+def routing_counts(nf_cells, T_tail: float = T_TAIL_S) -> dict:
+    """How many rows `nf_hybrid` sends to each branch (reported, not decisional)."""
+    cells = np.asarray(nf_cells, dtype="float64")
+    return {"n_nf_fit": int((cells < T_tail).sum()), "n_nf_cells": int((cells >= T_tail).sum()),
+            "T_tail": float(T_tail)}
+
+
+def mean_over_seeds(preds_by_seed: dict) -> np.ndarray:
+    """The arithmetic mean of the per-seed predictions, float64, in seed order."""
+    if not preds_by_seed:
+        raise ValueError("no seed predictions to average")
+    stack = np.stack([np.asarray(preds_by_seed[s], dtype="float64") for s in sorted(preds_by_seed)])
+    return np.mean(stack, axis=0)
+
+
+def mixture(p, sp, nf) -> np.ndarray:
+    """The stratum prediction: p * (MVT - SCHED) + (1 - p) * non-fill estimate, floored at 1 s.
+    The same arithmetic as fit_unmatched's return line; kept here so a per-seed arm can be
+    rebuilt from the parts fit_unmatched exposes."""
+    p, sp, nf = (np.asarray(v, dtype="float64") for v in (p, sp, nf))
+    return np.maximum(p * sp + (1 - p) * nf, 1.0)
+
+
 def fit_unmatched(train: pd.DataFrame, test: pd.DataFrame,
-                  train_matched: pd.DataFrame | None = None) -> np.ndarray:
+                  train_matched: pd.DataFrame | None = None, hybrid: bool = False,
+                  seeds=(0,), parts: dict | None = None) -> np.ndarray:
     """Schedule-fill mixture: p * (MVT - SCHED) + (1 - p) * conditional mean.
+
+    `hybrid=False` (the default, v2-v6) is the cell path below, unchanged. `hybrid=True`
+    (Amendment 18, v7) replaces the non-fill term by `nf_hybrid(nf_cells, nf_fit)` with
+    `nf_fit` averaged over `seeds`; `p` is untouched. `parts`, if given, is filled with
+    p / sp / nf_cells / nf / nf_fit / nf_fit_by_seed / routing so a harness can rebuild
+    every arm from what shipped.
 
     `p` is the rate at which the airport stamped the SCHEDULED push into the off-block
     field. It is strongly airport-specific -- LIRF 48.5% against 0.2-9.4% elsewhere -- and
@@ -275,15 +387,48 @@ def fit_unmatched(train: pd.DataFrame, test: pd.DataFrame,
             p = p.copy()
             p[mask] = p_lirf
 
+    nf_cells, nf_fit, by_seed, used = nf, None, {}, ()
+    if hybrid:
+        used = tuple(int(s) for s in seeds)
+        if not used or len(set(used)) != len(used):
+            raise ValueError(f"hybrid needs one or more distinct seeds, got {tuple(seeds)!r}")
+        nonfill = tr[~tr.fill]
+        by_seed = {s: fit_nf_regressor(nonfill, s).predict(test) for s in used}
+        nf_fit = mean_over_seeds(by_seed)
+        nf = nf_hybrid(nf_cells, nf_fit, T_TAIL_S)
+    if parts is not None:
+        parts.update(p=p, sp=test.sp.to_numpy(dtype="float64"), nf_cells=nf_cells, nf=nf,
+                     hybrid=bool(hybrid), seeds=used, nf_fit=nf_fit, nf_fit_by_seed=by_seed,
+                     routing=routing_counts(nf_cells, T_TAIL_S) if hybrid else None)
     return np.maximum(p * test.sp.to_numpy() + (1 - p) * nf, 1.0)
 
 
-def predict(train: pd.DataFrame, test: pd.DataFrame) -> np.ndarray:
+def predict(train: pd.DataFrame, test: pd.DataFrame, hybrid: bool = False, seeds=SEEDS,
+            parts: dict | None = None) -> np.ndarray:
     out = np.empty(len(test), dtype="float64")
     matched = ~test.unmatched.to_numpy()
     out[matched] = fit_matched(train[~train.unmatched], test[matched])
     out[~matched] = fit_unmatched(train[train.unmatched], test[~matched],
-                                  train_matched=train[~train.unmatched])
+                                  train_matched=train[~train.unmatched], hybrid=hybrid,
+                                  seeds=seeds, parts=parts)
+    return out
+
+
+def splice_unmatched(base: pd.DataFrame, ids, values) -> pd.DataFrame:
+    """The v7 shipping path: a predecessor submission with ONLY the given rows replaced.
+    Every id must be in the base exactly once; every other row and the dtype are untouched."""
+    ids, values = np.asarray(ids), np.asarray(values)
+    if len(ids) != len(values):
+        raise ValueError(f"length mismatch: {len(ids)} ids vs {len(values)} values")
+    if len(np.unique(ids)) != len(ids):
+        raise ValueError("duplicate ids in the splice")
+    pos = pd.Index(base.MVT_ID_mvt).get_indexer(ids)
+    if (pos < 0).any():
+        raise ValueError(f"{int((pos < 0).sum())} ids are not in the base submission")
+    out = base.copy()
+    col = out.TAXITIME_SEC_mvt.to_numpy().copy()
+    col[pos] = values
+    out["TAXITIME_SEC_mvt"] = col.astype(base.TAXITIME_SEC_mvt.dtype)
     return out
 
 
@@ -323,7 +468,7 @@ def check_submission(frame: pd.DataFrame, template: pd.DataFrame) -> None:
         raise ValueError(f"{int((v <= 0).sum())} non-positive predictions")
 
 
-def main() -> int:
+def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--validate", action="store_true",
                     help="hold out Jan+Jul 2025 and print RMSE instead of writing a submission")
@@ -331,7 +476,14 @@ def main() -> int:
                     help="submission version N; the file is written as <team>_vN.parquet")
     ap.add_argument("--out", default=None,
                     help="explicit output path; overrides --version, still name-validated")
-    args = ap.parse_args()
+    ap.add_argument("--hybrid", action="store_true",
+                    help="Amendment 18 (v7): the stratum hybrid -- nf_fit for the body, the "
+                         f"cells for the tail -- averaged over seeds {SEEDS}")
+    ap.add_argument("--base", default=None,
+                    help="a predecessor submission (path under the repo root); the output is "
+                         "that file with ONLY the scored unmatched rows replaced, the matched "
+                         "rows copied verbatim and the matched model never fitted")
+    args = ap.parse_args(argv)
 
     training_files = sorted(glob.glob(str(RAW / "training_*.parquet")))
     if not training_files:
@@ -344,7 +496,7 @@ def main() -> int:
     if args.validate:
         held = frame.month.isin(HOLDOUT_MONTHS)
         train, test = frame[~held], frame[held].reset_index(drop=True)
-        pred = predict(train, test)
+        pred = predict(train, test, hybrid=args.hybrid)
         truth = test.y.to_numpy()
         rng = np.random.default_rng(0)
         err = (truth - pred) ** 2
@@ -363,10 +515,31 @@ def main() -> int:
     if len(scored) != len(template):
         raise ValueError(f"joined {len(scored)} scored rows, template has {len(template)}")
 
-    pred = predict(frame, scored)
-    out = pd.DataFrame({"MVT_ID_mvt": scored.MVT_ID_mvt.to_numpy(),
-                        "TAXITIME_SEC_mvt": np.rint(pred).astype("int32")})
-    out = template[["MVT_ID_mvt"]].merge(out, on="MVT_ID_mvt", how="left")
+    parts: dict = {}
+    if args.base:
+        base_path = ROOT / args.base
+        if not base_path.exists():
+            raise SystemExit(f"--base {base_path} does not exist")
+        base = pq.read_table(base_path).to_pandas()
+        check_submission(base, template)
+        um = scored.unmatched.to_numpy()
+        pred_um = fit_unmatched(frame[frame.unmatched], scored[um],
+                                train_matched=frame[~frame.unmatched], hybrid=args.hybrid,
+                                seeds=SEEDS, parts=parts)
+        values = np.rint(pred_um).astype("int32")
+        out = splice_unmatched(base, scored.MVT_ID_mvt.to_numpy()[um], values)
+        before = base.set_index("MVT_ID_mvt").TAXITIME_SEC_mvt.loc[scored.MVT_ID_mvt.to_numpy()[um]].to_numpy()
+        print(f"splice into {base_path.name}: replaced {int(um.sum())} unmatched rows "
+              f"({int((before != values).sum())} values differ from the base); matched rows copied verbatim")
+    else:
+        pred = predict(frame, scored, hybrid=args.hybrid, parts=parts)
+        out = pd.DataFrame({"MVT_ID_mvt": scored.MVT_ID_mvt.to_numpy(),
+                            "TAXITIME_SEC_mvt": np.rint(pred).astype("int32")})
+        out = template[["MVT_ID_mvt"]].merge(out, on="MVT_ID_mvt", how="left")
+    if args.hybrid:
+        r = parts["routing"]
+        print(f"hybrid stratum: routed {r['n_nf_fit']} rows -> nf_fit, {r['n_nf_cells']} rows -> nf_cells "
+              f"(T_tail {r['T_tail']:.0f} s), seeds {SEEDS}")
     check_submission(out, template)
 
     if args.out:

@@ -1,0 +1,57 @@
+[09:22:29 +      0s] version 3  smoke=False  out=/Users/saurabhdxt/Projects/prc-challenge/submissions/merry-quicksand_v3.parquet  booster=/Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/lgbm_v3.txt
+[09:22:29 +      1s] loaded 12 training months (2,062,440 rows) + ranking (339,551 rows); peak RSS 2.86 GB
+[09:22:35 +      7s] design matrix 2,401,991 x 68 float32 (0.65 GB); peak RSS 3.38 GB
+[09:22:35 +      7s] early-stopping run: fit 1,717,600 rows, stop on 344,840 rows (months (3, 9)), lr 0.01, max 50,000 rounds, patience 200
+[09:22:36 +      7s]     iter      0  valid_0 rmse (delta) 374.719
+[09:24:02 +     93s]     iter  1,000  valid_0 rmse (delta) 208.126
+[09:25:13 +    164s]     iter  2,000  valid_0 rmse (delta) 204.362
+[09:26:10 +    222s]     iter  3,000  valid_0 rmse (delta) 202.994
+[09:26:59 +    270s]     iter  4,000  valid_0 rmse (delta) 202.208
+[09:27:44 +    315s]     iter  5,000  valid_0 rmse (delta) 201.709
+[09:28:27 +    359s]     iter  6,000  valid_0 rmse (delta) 201.318
+[09:29:10 +    401s]     iter  7,000  valid_0 rmse (delta) 201.024
+[09:29:51 +    442s]     iter  8,000  valid_0 rmse (delta) 200.811
+[09:30:31 +    483s]     iter  9,000  valid_0 rmse (delta) 200.644
+[09:31:11 +    522s]     iter 10,000  valid_0 rmse (delta) 200.503
+[09:31:50 +    562s]     iter 11,000  valid_0 rmse (delta) 200.380
+[09:32:29 +    600s]     iter 12,000  valid_0 rmse (delta) 200.286
+[09:33:07 +    639s]     iter 13,000  valid_0 rmse (delta) 200.212
+[09:33:45 +    676s]     iter 14,000  valid_0 rmse (delta) 200.147
+[09:34:22 +    714s]     iter 15,000  valid_0 rmse (delta) 200.083
+[09:35:00 +    751s]     iter 16,000  valid_0 rmse (delta) 200.033
+[09:35:37 +    789s]     iter 17,000  valid_0 rmse (delta) 199.989
+[09:36:15 +    826s]     iter 18,000  valid_0 rmse (delta) 199.960
+[09:36:52 +    864s]     iter 19,000  valid_0 rmse (delta) 199.932
+[09:37:30 +    902s]     iter 20,000  valid_0 rmse (delta) 199.904
+[09:38:07 +    938s]     iter 21,000  valid_0 rmse (delta) 199.874
+[09:38:43 +    975s]     iter 22,000  valid_0 rmse (delta) 199.856
+[09:39:20 +   1012s]     iter 23,000  valid_0 rmse (delta) 199.835
+[09:39:56 +   1048s]     iter 24,000  valid_0 rmse (delta) 199.815
+[09:40:33 +   1084s]     iter 25,000  valid_0 rmse (delta) 199.805
+[09:47:34 +   1505s] best_iter 25,689   stopping-set RMSE (taxi-time) 199.58   proxy-only on the same rows 366.28   ratio 0.545   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 4.08 GB
+[09:47:34 +   1505s] n_ref 30,846: refit on all 2,062,440 training rows (best_iter 25,689 x 1.201), no early stopping
+[10:10:32 +   2883s] refit done: 30,846 trees   peak RSS 4.42 GB
+[10:10:34 +   2885s] saved booster -> /Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/lgbm_v3.txt  fit wall 2877s
+[10:18:07 +   3339s] predicted 339,551 matched rows: median 958s  mean 1028s  min 1  max 85245  floor binds on 0.002%
+[10:18:08 +   3339s] splice: 339,551 rows replaced (336,040 values differ from the base), 5,290 rows untouched; matched-row shift vs base: mean +2.6s, RMS 87.7s
+[10:18:08 +   3339s] wrote /Users/saurabhdxt/Projects/prc-challenge/submissions/merry-quicksand_v3.parquet  rows=344,841  median=960s  mean=1035s
+[10:18:08 +   3339s] meta -> /Users/saurabhdxt/Projects/prc-challenge/submissions/merry-quicksand_v3.meta.json
+[10:18:08 +   3339s] done: wall 3339s, peak RSS 4.51 GB
+     3340.40 real     10083.05 user       712.38 sys
+          4841275392  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             2010242  page reclaims
+                 237  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                 140  voluntary context switches
+           266785383  involuntary context switches
+     117180767451169  instructions retired
+      43266293057415  cycles elapsed
+          7347607744  peak memory footprint

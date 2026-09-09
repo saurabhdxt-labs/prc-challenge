@@ -1,0 +1,19 @@
+=== training months ===
+training_2025-01-01_2025-02-01.parquet -> training_2025-01-01_2025-02-01.parquet  rows=152,250  cols=13  wall 1.2s  peak RSS 0.38 GB
+training_2025-02-01_2025-03-01.parquet -> training_2025-02-01_2025-03-01.parquet  rows=142,611  cols=13  wall 1.1s  peak RSS 0.40 GB
+training_2025-03-01_2025-04-01.parquet -> training_2025-03-01_2025-04-01.parquet  rows=163,361  cols=13  wall 1.3s  peak RSS 0.44 GB
+training_2025-04-01_2025-05-01.parquet -> training_2025-04-01_2025-05-01.parquet  rows=174,192  cols=13  wall 1.3s  peak RSS 0.46 GB
+training_2025-05-01_2025-06-01.parquet -> training_2025-05-01_2025-06-01.parquet  rows=183,590  cols=13  wall 1.4s  peak RSS 0.47 GB
+training_2025-06-01_2025-07-01.parquet -> training_2025-06-01_2025-07-01.parquet  rows=180,610  cols=13  wall 1.4s  peak RSS 0.47 GB
+training_2025-07-01_2025-08-01.parquet -> training_2025-07-01_2025-08-01.parquet  rows=186,765  cols=13  wall 1.4s  peak RSS 0.47 GB
+training_2025-08-01_2025-09-01.parquet -> training_2025-08-01_2025-09-01.parquet  rows=188,840  cols=13  wall 1.4s  peak RSS 0.47 GB
+training_2025-09-01_2025-10-01.parquet -> training_2025-09-01_2025-10-01.parquet  rows=181,479  cols=13  wall 1.4s  peak RSS 0.47 GB
+training_2025-10-01_2025-11-01.parquet -> training_2025-10-01_2025-11-01.parquet  rows=183,752  cols=13  wall 1.4s  peak RSS 0.47 GB
+training_2025-11-01_2025-12-01.parquet -> training_2025-11-01_2025-12-01.parquet  rows=160,967  cols=13  wall 1.2s  peak RSS 0.47 GB
+training_2025-12-01_2026-01-01.parquet -> training_2025-12-01_2026-01-01.parquet  rows=164,023  cols=13  wall 1.3s  peak RSS 0.47 GB
+       16.86 real        16.61 user         0.22 sys
+           509149184  maximum resident set size
+=== ranking ===
+ranking.parquet -> ranking.parquet  rows=339,551  cols=13  wall 2.8s  peak RSS 0.53 GB
+        3.66 real         3.50 user         0.14 sys
+           569835520  maximum resident set size
