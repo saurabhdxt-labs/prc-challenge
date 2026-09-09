@@ -1,10 +1,18 @@
 # Where the gap to the leader actually is
 
 > **AMENDED 2026-09-09 02:15Z, after the first real score.** `merry-quicksand_v2` scored
-> **301.7019** on the board (rank 26 of 80) against a `--validate` fold number of 330.22 for the
-> same artifact. The fold is **+28.52 s pessimistic** at this model class, most likely because
-> `--validate` holds out Jan+Jul 2025 and so denies the validation model the very seasonality the
-> evaluation months carry. Consequences for what follows:
+> **301.7019** on the board (rank 26 of 80) against a `--validate` fold number of **330.81** for the
+> same artifact. (330.22 appeared in the first version of this amendment; it was a 2026-reweighting
+> done in analysis, not the instrument's output.)
+>
+> **SUPERSEDED the same night.** The first version blamed the 29 s gap on `--validate` holding out
+> the evaluation months' seasonality. Measured: **two LFPG January rows carry 29,511 MSE — 54.7% of
+> the fold's stratum SSE and 27.0% of its total — against the 18,412 MSE the seasonality story had
+> to explain.** It is a monster draw, not a mechanism, and `FAMILY_B.md` §8 had already said this
+> fold is ~25 s unlucky on that family. The consequence is STRONGER, not weaker: **the fold TOTAL
+> has no stable absolute value**, being set by a two-row draw from a heavy tail. Carry no offset;
+> do not quote the fold TOTAL as a board prediction. `--validate` stays sound for A/B on MATCHED
+> rows (n = 339,015), where no such concentration exists. Consequences for what follows:
 >
 > * **Gap to the leader, like-for-like:** the SHIPPED artifact's gap is 48,179 MSE on the fold and
 >   **30,158 MSE on the board**. The ~43,000 quoted elsewhere is the LightGBM-inclusive FOLD gap

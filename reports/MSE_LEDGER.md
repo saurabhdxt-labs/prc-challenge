@@ -17,19 +17,41 @@ not additive and MSE is.
 **`merry-quicksand_v2.parquet` scored 301.7019 on 344,841 rows at 2026-09-09 02:10:51Z — rank 26
 of 80 teams.** (Our only prior submission, `v1` at 689.6901, was the constant-predictor probe.)
 The artifact is the shipped pipeline including the consolidated stratum: no LightGBM, no new
-features. It is the model whose `--validate` fold number is 330.22.
+features. It is the model whose `--validate` fold number is **330.81** (reproduced 2026-09-09).
 
-**The fold is +28.52 s pessimistic at this model class (+18,021 MSE).** This is the first
-model-level calibration point the project has; `HARNESS_CALIBRATION.md` established fold/board
-agreement to within +/-5 s at the NAIVE-predictor level only, and that agreement does not carry
-to a fitted model.
+**SUPERSEDED the same night: the 29.11 s fold-vs-board gap is NOT seasonality. It is the fold's
+monster draw, and TWO ROWS carry it.**
 
-The probable cause is structural rather than luck: `--validate` holds out Jan+Jul 2025, which
-removes from the training fold exactly the two months whose seasonality the evaluation is scored
-on. The submitted artifact fits all twelve months and has seen January and July. **Treat
-`--validate` as a sound RELATIVE instrument for A/B work and a biased ABSOLUTE one.** Do not
-quote a fold total as a predicted board score without this offset, and do not assume the offset
-is constant across model classes -- it is one measurement.
+The first version of this block attributed the gap to `--validate` holding out Jan+Jul 2025 and so
+denying the validation model the evaluation months' seasonality. Measured, that story is neither
+needed nor supported:
+
+| | MSE |
+|---|---|
+| gap the seasonality story had to explain | 18,412 |
+| carried by the fold's top TWO unmatched rows | **29,511** |
+
+Those two rows are LFPG, January, y = 84,240 s (23.4 h) and 58,206 s (16.2 h) — both with small
+`sp` (1,740 / 2,043), so nothing flags them; the model predicts 1,090 and 1,216. **They are 54.7%
+of the fold's entire stratum SSE and 27.0% of its total MSE**, and the single worst row is 18.3% of
+the fold by itself. Replacing them with an expected Family-B load of 13-17k MSE puts the fold at
+304.8-311.3 against the board's 301.70 — a residual of +3 to +10 s, against the 29 s that had been
+attributed to a mechanism.
+
+`reports/FAMILY_B.md` §8 already recorded that this fold is roughly 25 s unluckier than average on
+this family. It was read and not subtracted. That is the actual failure here: a known correction
+sitting in the repo went unapplied, and a mechanism was invented to explain the residue.
+
+**The operative consequence is STRONGER than the one first written.** It is not that the fold
+carries a +28.52 s offset to correct for. It is that **the fold's TOTAL has no stable absolute
+value**: it is set by a two-row draw from a heavy tail, so its absolute uncertainty is tens of
+seconds. Carry no offset, across model classes or anything else. `--validate` remains sound for A/B
+on MATCHED rows, where n = 339,015 and no such concentration exists; its TOTAL should not be quoted
+as a predicted board score at all.
+
+**A number this file introduced and now retracts: 330.22.** The instrument prints **330.81**.
+330.22 was a re-weighting of the fold's components by the 2026 scored-file weights, performed in
+analysis and then quoted as though it were the instrument's output.
 
 **The gap to the leader, measured like-for-like.** A review on 09-09 caught that the first
 version of this block compared 30,158 against ~43,000 — which is itself a configuration mix, the
@@ -39,9 +61,9 @@ without mixing:
 
 | artifact | instrument | total | gap to 246.71 |
 |---|---|---|---|
-| shipped + consolidated stratum | fold | 330.22 | 48,179 MSE |
+| shipped + consolidated stratum | fold | 330.81 | 48,594 MSE |
 | shipped + consolidated stratum | **BOARD (measured)** | **301.70** | **30,158 MSE** |
-| + LightGBM matched | fold | 322.37 | 43,056 MSE |
+| + LightGBM matched | fold | ~322 (arithmetic, never run end-to-end) | ~43,000 MSE |
 | + LightGBM matched | board | **not measured** | — |
 
 The like-for-like statement is the first two rows: **for one artifact, the fold overstates the gap

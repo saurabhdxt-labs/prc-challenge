@@ -759,3 +759,60 @@ those arrival rows `BLOCK_TIME_UTC_mvt` and `TAXITIME_SEC_mvt` are fully populat
 537 s). Every scored departure's take-off time is also known. `derive()` currently builds no count
 or congestion feature of any kind. This is not one of the four closed lanes, it is unmeasured, and
 it requires a proper pre-registration before it is probed.
+
+---
+
+# AMENDMENT 9 — superseding 8.1: the fold/board gap is a two-row draw, not seasonality
+
+**2026-09-09, same night as Amendment 8. Nothing above this line has been edited; 8.1 stands as
+written and is superseded here.**
+
+## 9.1 What 8.1 claimed, and why it is wrong
+
+Amendment 8.1 recorded the fold at 330.22 against a board of 301.70 and attributed the gap to
+`--validate` holding out Jan+Jul 2025, denying the validation model the seasonality of the scored
+months. Two independent reviews challenged it and the measurement settles it.
+
+**Corrections of fact:**
+- The instrument prints **330.81**, not 330.22. The latter was a re-weighting of the fold's
+  components by the 2026 scored-file weights, done in analysis and quoted as instrument output.
+  The gap is 29.11 s / 18,412 MSE.
+- **The gap is carried by two rows.** The fold's top two unmatched rows — LFPG, January,
+  y = 84,240 s and 58,206 s, `sp` 1,740 and 2,043, predicted 1,090 and 1,216 — carry **29,511 MSE:
+  54.7% of the fold's stratum SSE and 27.0% of its total.** The worst single row is 18.3% of the
+  fold. 29,511 exceeds the 18,412 the seasonality story had to explain.
+- Adjusting those rows to an expected Family-B load (13-17k MSE) puts the fold at 304.8-311.3
+  against a board of 301.70: a residual of +3 to +10 s, not 29.
+- `reports/FAMILY_B.md` §8 had **already** recorded that this fold is ~25 s unluckier than average
+  on this family. It was read and not subtracted, and a mechanism was invented for the residue.
+
+**Verdict on 8.1's causal claim: NOT WORKING.** Seasonality is not needed to explain the gap and no
+evidence was offered for it beyond the gap itself.
+
+## 9.2 The replacement rule, which binds harder than 8.1's
+
+8.1 said "`--validate` is a biased absolute instrument, offset +28.52 s, do not assume the offset is
+constant." That is too weak and invites correcting by the offset anyway.
+
+**The fold TOTAL has no stable absolute value.** It is set by a two-row draw from a heavy tail, so
+its absolute uncertainty is tens of seconds and it cannot be calibrated by any number of
+submissions. Accordingly:
+
+1. **Never carry a fold→board offset.** Not across model classes, not across runs, not at all.
+2. **Never quote a fold TOTAL as a predicted board score.** The board is the only instrument for
+   absolute position.
+3. **`--validate` remains valid for A/B on MATCHED rows**, where n = 339,015 and no comparable
+   concentration exists. Matched-side A/B conclusions in this document are unaffected.
+4. **Any stratum or TOTAL comparison must report the monster rows separately** — as an ex-monster
+   figure plus an explicit expected-load term — because a stratum RMSE computed over 5,321 rows
+   whose SSE is 55% concentrated in two of them is not a measurement of a model.
+
+## 9.3 Consequence for the target
+
+Amendment 8's framing of the gap to the leader is unaffected in direction but its precision was
+overstated. The board gap of 30,158 MSE stands, since both terms are board numbers. What does NOT
+stand is any inference from fold totals about how far a change moves us on the board.
+
+Note for anyone reading 8.3 and 8.4: those verdicts rest on stratum comparisons, and per rule 4
+above they must be re-expressed ex-monster before they are cited. 8.3 was already left OPEN. 8.4 is
+unmeasured and unaffected.
