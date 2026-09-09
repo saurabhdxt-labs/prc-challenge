@@ -1102,3 +1102,50 @@ and is screened separately before any amendment is written for it.
 Also on record: the per-airline 2026 arrival-stamping drift table computed the same night (RYR
 15→22%, LAV 56→26%, 60% of the LIRF stake on airlines that moved >3pp) was a preview of THIS
 mechanism and is therefore **not evidence of anything** now that the mechanism is refuted.
+
+### R4 addendum · same night · a post-hoc null, and why the verdict stands anyway
+
+After the pre-registered run, the delegated agent ran a **post-hoc, non-decisional** null: 200
+distinct month-derangements (seed 1) instead of the single seed-0 derangement the amendment locked.
+The seed-0 derangement turns out to preserve the month-level correlation between arrival stamping
+and realised fill (+0.647, the 100th percentile of the null), i.e. it happened to map months onto
+months with similar stamping rates, so the "permuted" control still carried the signal. Against
+the 200-derangement null: permuted gain mean +0.08 s [−7.77, +5.24]; only 6% of derangements
+retain half the treatment gain; the treatment's +8.42 s sits at the 100th percentile; the
+treatment's 27.8% tracking drop also sits at the 100th percentile (3% of derangements reach 15%).
+
+**Read honestly:** the registered control was under-designed — one derangement is a weak null —
+and under a proper null the *mechanism* looks real. **The verdict is not flipped**, for two reasons
+that are stronger than the rule: (1) flipping a pre-registered verdict on a test chosen after
+seeing the data is the thing this document exists to forbid; (2) it does not matter, because the
+effect is **8.4 s of ex-monster stratum RMSE ≈ 250 MSE at fold weights**, against a 228,371 MSE
+LIRF stake and a 30,158 MSE gap. Whether or not the month regime is readable from arrivals, it
+does not move the bets. **NOT WORKING stands, on magnitude.**
+
+Lesson for future amendments: a negative control must be a *distribution* (>= 100 permutations),
+not one draw. Written into the next amendment that uses one.
+
+### R4 screen · turnaround linkage · weak, no amendment
+
+Shape stated before running: worth an amendment if P(fill | inbound same-stand arrival stamped)
+− P(fill | inbound not stamped) >= 40pp at LIRF unmatched with >= 60% linkable; dead if < 15pp.
+Measured (12 months, 1,488 LIRF unmatched departures, 94.9% linkable within 24h):
+
+| link set | n | P(fill \| inbound stamped) | P(fill \| inbound not) | diff |
+|---|---|---|---|---|
+| all linkable | 1,412 | 56.7% (n=194) | 45.2% (n=1,218) | **+11.5pp** |
+| same airline both legs | 885 | 46.0% (n=124) | 28.4% (n=761) | +17.6pp |
+| gap < 6h | 1,189 | 52.5% (n=141) | 42.3% (n=1,048) | +10.2pp |
+
+On LIRF MATCHED rows (150,259 same-airline links): 36.6% vs 18.5%, +18.1pp. The stamp is loosely
+shared across a rotation — consistent with an airline/handler effect, not a per-record capture
+failure. **Below the amendment bar; no per-row fill identifier here.** At most a minor feature for
+a consolidation bundle, and it must not be described as anything more.
+
+### Where the LIRF stratum stands after tonight
+
+Three probes into the 228k stake — aggregate arrival regime (R4), turnaround linkage (this
+screen), and the oracle-vs-fitted bound (R3.2) — all return the same shape: **P(fill) at LIRF is
+calibrated as well as the available observables allow, and no observable found so far identifies
+fills per row.** The stratum's remaining error is bet variance, not model error. Further LIRF
+classifier work is closed absent a genuinely new observable.
