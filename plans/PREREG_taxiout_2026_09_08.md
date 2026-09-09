@@ -816,3 +816,72 @@ stand is any inference from fold totals about how far a change moves us on the b
 Note for anyone reading 8.3 and 8.4: those verdicts rest on stratum comparisons, and per rule 4
 above they must be re-expressed ex-monster before they are cited. 8.3 was already left OPEN. 8.4 is
 unmeasured and unaffected.
+
+---
+
+# AMENDMENT 10 — two screens, thresholds locked BEFORE measurement
+
+**2026-09-09. Nothing above this line has been edited. Written and committed BEFORE either screen
+is run** — 8.2 and 8.3 were measured before being registered, Amendment 9 exists partly because of
+that slack, and this amendment does not repeat it.
+
+Both screens are read-only diagnostics under 5 minutes. Neither ships anything. Their only purpose
+is to decide whether a full experiment (~45 min, and we have ~40 left before the wall) is warranted.
+
+## 10.1 SCREEN A — is `AOBT_3` synthetic on the matched tail?
+
+**Motivation.** On matched rows the pipeline predicts `delta = BLOCK_TIME - AOBT_3`. The error is
+extremely heavy-tailed: 1.47% of matched rows carry 50.4% of matched squared error. If the tail is
+where the Network Manager's `AOBT_3` is not a measurement but a *fallback* — copied from a filed
+estimate — then those rows carry a different data-generating process, and crucially the copy would
+be **observable at serve time**, because `LOBT_flt`, `EOBT_1_flt` and `IOBT_flt` are populated on
+scored rows while `BLOCK_TIME` is not.
+
+**Hypothesis H-A.** Rows in the `delta` tail are enriched for an observable signature that
+`AOBT_3` was derived from a filed time rather than measured.
+
+Candidate signatures, all computable at serve time: `AOBT_3` equal to `EOBT_1` / `LOBT` / `IOBT`
+exactly or within 60 s; `AOBT_3` landing exactly on a whole minute; `AOBT_3` on a 5-minute grid.
+
+**TRUE shape.** At least one signature shows enrichment (rate in tail / rate in body) of **>= 3.0x
+at >= 4 of the 10 airports**, AND the flagged rows account for **>= 20% of matched squared error**.
+-> the lane earns a full experiment.
+
+**FALSE shape.** No signature reaches **2.0x at any airport**, or flagged rows carry **< 5%** of
+matched squared error. -> H-A NOT WORKING, lane closed, do not revisit without new information.
+
+**Ambiguous** (between the two) -> report as inconclusive and do NOT spend a full experiment on it
+this week; it goes behind consolidation in the queue.
+
+Tail is defined before looking: `|delta - median(delta)| > 900 s`, body is the complement, both on
+the fold's matched rows only, and enrichment is computed **per airport** (pooling has hidden the
+truth five times in this project).
+
+## 10.2 SCREEN B — the arm that actually bounds the stratum
+
+**Motivation.** Amendment 8.3 refuted the cheap version of the fill-classification lane but did not
+bound it, because its oracle arm paired a perfect classifier with a CONSTANT non-fill predictor.
+The arm that separates the classifier from the regressor has never been run.
+
+**Arms**, all fitted on the ten non-holdout months and scored on the fold's unmatched rows:
+- **B0** shipped mixture `p_hat*sp + (1-p_hat)*nf_cells` — the incumbent, expected 1867.9.
+- **B1** oracle fill-flag x `nf_cells` — classifier headroom given today's regressor.
+- **B2** `p_hat` x `nf_fit`, where `nf_fit` is a small fitted model on non-fill rows — the
+  **shippable** arm.
+- **B3** oracle fill-flag x `nf_fit` — the bound.
+
+**Per Amendment 9 rule 4, every arm is reported BOTH pooled and ex-monster**, because a stratum
+RMSE over ~5,300 rows whose SSE is 55% concentrated in two of them is not a measurement of a model.
+**The ex-monster figures are the decisional ones.** Monsters are defined before looking, as
+unmatched fold rows with `y > 3h`.
+
+**TRUE shape / thresholds, locked:**
+- Regressor lane **ESTABLISHED** iff `B0 - B2 >= 20 s` on ex-monster stratum RMSE. -> wire `nf_fit`.
+- Classifier lane **ALIVE** iff `B3 - B2 >= 100 s` ex-monster; **DEAD** iff `< 60 s`; between the
+  two, inconclusive and deprioritised.
+- If `B2 >= B0` ex-monster (the fitted regressor does not beat the cell estimator), the whole
+  stratum-regressor lane is **NOT WORKING** and closes.
+
+**What no result here licenses.** No board projection. Per Amendment 9, stratum and total fold
+numbers do not translate to the board; these thresholds are stated in fold ex-monster RMSE and are
+decisional only for whether to spend a full experiment.
