@@ -501,7 +501,7 @@ def test_per_airport_es_rule_early_stops_on_the_airport_own_rows(monkeypatch):
     """
     es_calls, refits = [], []
 
-    def fake_early_stop(X, dlt, y, proxy, train, fit, es, params, nest, patience):
+    def fake_early_stop(X, dlt, y, proxy, train, fit, es, params, nest, patience, target=ls.TARGET_DELTA):
         es_calls.append((int(train.sum()), int(fit.sum()), int(es.sum()), params["seed"], nest, patience))
         best = 10 * int(fit.sum())                        # identifies which fit rows it saw
         return dict(best_iter=best, n_ref=ls.n_refit(best, int(train.sum()), int(fit.sum())),
@@ -883,7 +883,7 @@ def test_fit_seeds_checks_the_feature_count_it_is_given(monkeypatch):
     the check is dropped. Rehearsed 2026-09-09, each RED: `n_features = len(FEATS)`
     unconditionally; `if False:` for the check.
     """
-    monkeypatch.setattr(ls, "refit", lambda X, dlt, mask, params, n: _WideBooster(2.5))
+    monkeypatch.setattr(ls, "refit", lambda X, dlt, mask, params, n, weight=None: _WideBooster(2.5))
     X = np.zeros((6, 80), dtype="float32")
     train = np.array([True, True, True, True, False, False])
     dlt = np.arange(6, dtype="float64")
@@ -891,7 +891,7 @@ def test_fit_seeds_checks_the_feature_count_it_is_given(monkeypatch):
     assert out[0].tolist() == [2.5, 2.5]
     with pytest.raises(ValueError, match="features"):
         ls.fit_seeds(X, dlt, train, X[~train], dict(ls.P), 3, (0,))
-    monkeypatch.setattr(ls, "refit", lambda X, dlt, mask, params, n: _WideBooster(2.5, len(ls.FEATS)))
+    monkeypatch.setattr(ls, "refit", lambda X, dlt, mask, params, n, weight=None: _WideBooster(2.5, len(ls.FEATS)))
     assert ls.fit_seeds(X, dlt, train, X[~train], dict(ls.P), 3, (1,))[1].tolist() == [2.5, 2.5]
 
 
@@ -1384,3 +1384,605 @@ def test_default_target_is_byte_identical_to_the_pristine_golden(tmp_path, monke
     assert meta["n_replaced"] == 5_000 and meta["smoke"] is True
     changed = pred != pq.read_table(fx.base).to_pandas().set_index("MVT_ID_mvt").loc[ids].TAXITIME_SEC_mvt.to_numpy()
     assert 0 < changed.sum() <= 5_000 and not set(ids[changed]) & fx.unmatched_ids
+
+
+def _day_frame(n, seed=0, ids=None):
+    """A day-cache-shaped frame: MVT_ID_mvt + the nine DAY_FEATS as float32, each column offset
+    by its index so a column swap is visible."""
+    rng = np.random.default_rng(seed)
+    d = pd.DataFrame({"MVT_ID_mvt": np.arange(n, dtype="float64") + 100.0 if ids is None
+                      else np.asarray(ids, dtype="float64")})
+    for i, c in enumerate(_syn.DAY_FEATS):
+        d[c] = (rng.integers(0, 9, n) + 100 * i).astype("float32")
+    return d
+
+
+def test_day_month_join_is_positional_with_equal_lengths_and_the_column_contract_asserted():
+    """A training month's day twin is joined by position exactly as the queue twin is: the rows
+    are the same rows in the same order (build_day's stream IS build_features's stream), so the
+    only guard a positional join can have is the row count - asserted per month, a mismatch a
+    refusal, never a truncation. The day cache must carry exactly MVT_ID_mvt + DAY_FEATS in the
+    contract order; the twin's path is the same file name under data/cache_day/.
+
+    Fails when the length check is dropped (an 8-row month against a 7-row twin would be
+    silently mis-aligned) or when the column contract is not checked. Rehearsed 2026-09-09,
+    each RED: `if False:` for the length check in attach_block_positional; `set(q.columns) !=`
+    in place of the ordered comparison (the reversed-columns case).
+    """
+    d = _day_frame(7)
+    got = ls.attach_day_positional(7, d, "training_2025-02-01_2025-03-01.parquet")
+    assert list(got.columns) == _syn.DAY_FEATS and len(got) == 7
+    for c in _syn.DAY_FEATS:
+        assert np.array_equal(got[c].to_numpy(), d[c].to_numpy()) and got[c].dtype == np.float32
+    with pytest.raises(ValueError, match="rows"):
+        ls.attach_day_positional(8, d, "training_2025-02-01_2025-03-01.parquet")
+    with pytest.raises(ValueError, match="columns"):
+        ls.attach_day_positional(7, d.drop(columns=["d_arr_p90"]), "x")
+    with pytest.raises(ValueError, match="columns"):
+        ls.attach_day_positional(7, d[["MVT_ID_mvt"] + _syn.DAY_FEATS[::-1]], "x")
+    with pytest.raises(ValueError, match="columns"):
+        ls.attach_day_positional(7, _queue_frame(7), "x")            # a queue cache is not a day cache
+    assert ls.DAY_FEATS == stand_ab.DAY_FEATS == _syn.DAY_FEATS and len(ls.DAY_FEATS) == 9
+    assert ls.DCACHE == stand_ab.DCACHE
+    assert ls.day_cache_path(pathlib.Path("/d"), pathlib.Path("/s/training_2025-02-01_2025-03-01.parquet")) \
+        == pathlib.Path("/d/training_2025-02-01_2025-03-01.parquet")
+    with pytest.raises(FileNotFoundError, match="day cache"):
+        ls.read_day_cache(pathlib.Path("/nowhere/training_2025-02-01_2025-03-01.parquet"))
+
+
+def test_day_ranking_join_is_by_id_with_set_equality_and_order_asserted():
+    """The ranking day cache joins by MVT_ID_mvt exactly as the queue one: the full join needs
+    the SAME id set in the SAME order, a sampled join (smoke) aligns the subset by id;
+    duplicates and missing ids are refusals.
+
+    Fails when the by-id alignment is replaced by position, when the order check is dropped,
+    or when the missing-id check is dropped. Rehearsed 2026-09-09, each RED: `q[feats]`
+    returned without the `.loc[ids]` alignment in attach_block_by_id; `if False:` for the
+    order check; `if False:` for the missing check.
+    """
+    ids = np.array([5.0, 3.0, 9.0, 1.0])
+    d = _day_frame(4, ids=ids)
+    got = ls.attach_day_by_id(ids, d)
+    assert list(got.columns) == _syn.DAY_FEATS and len(got) == 4
+    assert np.array_equal(got.d_prx_p50.to_numpy(), d.d_prx_p50.to_numpy())
+    shuffled = d.iloc[[3, 0, 2, 1]].reset_index(drop=True)
+    with pytest.raises(ValueError, match="order"):
+        ls.attach_day_by_id(ids, shuffled)
+    sub = ls.attach_day_by_id(ids[[2, 0]], shuffled, subset_ok=True)
+    want = d.set_index("MVT_ID_mvt").loc[ids[[2, 0]]]
+    for c in _syn.DAY_FEATS:
+        assert np.array_equal(sub[c].to_numpy(), want[c].to_numpy()), c
+    assert sub[_syn.DAY_FEATS[0]].dtype == np.float32
+    with pytest.raises(ValueError, match="missing"):
+        ls.attach_day_by_id(np.r_[ids, 77.0], d, subset_ok=True)
+    with pytest.raises(ValueError, match="extra"):
+        ls.attach_day_by_id(ids[:3], d)
+    with pytest.raises(ValueError, match="duplicate"):
+        ls.attach_day_by_id(ids, pd.concat([d, d.iloc[:1]], ignore_index=True))
+    with pytest.raises(ValueError, match="columns"):
+        ls.attach_day_by_id(ids, d.drop(columns=["d_n_dep"]))
+
+
+def test_load_frames_attaches_the_day_block_after_the_queue_block(tmp_path):
+    """`load_frames(..., queue=True, day=True)` appends the twelve queue columns and then the
+    nine day columns, months by position and ranking by id, so the design matrix is
+    FEATS + QUEUE_FEATS + DAY_FEATS in that order; day alone gives FEATS + DAY_FEATS; a day
+    month with a different row count refuses the whole load; a missing day cache is named.
+
+    Fails when the day block is attached before the queue block (the column order the boosters
+    were fitted on would silently change), or when the day month's row count is not checked.
+    Rehearsed 2026-09-09, each RED: the day attach moved ahead of the queue attach; the
+    day twin one row short accepted (`if False:` in attach_block_positional).
+    """
+    stand, queue, day = tmp_path / "cache_stand", tmp_path / "cache_queue", tmp_path / "cache_day"
+    stand.mkdir(), queue.mkdir(), day.mkdir()
+    name = "training_2025-{:02d}-01_2025-{:02d}-01.parquet"
+    _mini_month(5, 1, 1).to_parquet(stand / name.format(1, 2), index=False)
+    _mini_month(4, 3, 3).to_parquet(stand / name.format(3, 4), index=False)
+    _queue_frame(5, seed=1).to_parquet(queue / name.format(1, 2), index=False)
+    _queue_frame(4, seed=3).to_parquet(queue / name.format(3, 4), index=False)
+    d1, d3 = _day_frame(5, seed=11), _day_frame(4, seed=13)
+    d1.to_parquet(day / name.format(1, 2), index=False)
+    d3.to_parquet(day / name.format(3, 4), index=False)
+    rank = _mini_month(3, 7, 7)
+    rank["y"] = np.nan
+    rank["delta"] = np.nan
+    rank.insert(0, "MVT_ID_mvt", np.array([11.0, 12.0, 13.0]))
+    rank.to_parquet(stand / "ranking.parquet", index=False)
+    _queue_frame(3, seed=7, ids=[11.0, 12.0, 13.0]).to_parquet(queue / "ranking.parquet", index=False)
+    dr = _day_frame(3, seed=17, ids=[11.0, 12.0, 13.0])
+    dr.to_parquet(day / "ranking.parquet", index=False)
+
+    d, is_rank, rank_ids = ls.load_frames(stand, queue=True, qcache=queue, day=True, dcache=day)
+    assert list(d.columns) == ["y", "delta", "month", "x"] + stand_ab.QUEUE_FEATS + stand_ab.DAY_FEATS
+    assert len(d) == 12 and is_rank.sum() == 3
+    for c in stand_ab.DAY_FEATS:
+        assert np.array_equal(d[c].to_numpy(), np.r_[d1[c].to_numpy(), d3[c].to_numpy(), dr[c].to_numpy()]), c
+    d_only, _, _ = ls.load_frames(stand, day=True, dcache=day)
+    assert list(d_only.columns) == ["y", "delta", "month", "x"] + stand_ab.DAY_FEATS
+    d2, is_rank2, ids2 = ls.load_frames(stand, n_rank=2, day=True, dcache=day, seed=0)
+    want = dr.set_index("MVT_ID_mvt").loc[ids2]
+    for c in stand_ab.DAY_FEATS:
+        assert np.array_equal(d2[c].to_numpy()[is_rank2], want[c].to_numpy()), c
+    _day_frame(3, seed=13).to_parquet(day / name.format(3, 4), index=False)     # one row short
+    with pytest.raises(ValueError, match="rows"):
+        ls.load_frames(stand, day=True, dcache=day)
+    with pytest.raises(FileNotFoundError, match="day cache"):
+        ls.load_frames(stand, day=True, dcache=tmp_path / "nowhere")
+
+
+def test_target_argument_label_and_taxi_time_recovery():
+    """`--target` defaults to delta (the shipped formulation) and accepts y; `regression_label`
+    hands the regressor delta = BLOCK - AOBT_3 under delta and y = TAXITIME under y, in float64,
+    unchanged; `raw_taxi_time` recovers proxy - prediction under delta and the prediction ITSELF
+    under y - it never touches proxy there (Amendment 19.2: "no proxy anchor"), pinned by a
+    proxy of NaN that must not leak into the result; an unknown target is refused;
+    `--fillhead --target y` is refused (not pre-registered, and the head was NOT WORKING in
+    RESULT 8); `--dayfeats` is off by default.
+
+    Fails when the default flips, when the y label is the delta, or when the y recovery
+    subtracts proxy. Rehearsed 2026-09-09, each RED: `default=TARGET_Y`; `return dlt` on the y
+    branch of regression_label; `proxy - pred` on the y branch of raw_taxi_time (NaN leaks).
+    """
+    assert ls.parse_args(["--version", "8"]).target == "delta" == ls.TARGET_DELTA
+    assert ls.parse_args(["--version", "8", "--target", "y"]).target == "y" == ls.TARGET_Y
+    assert ls.TARGETS == ("delta", "y")
+    with pytest.raises(SystemExit):
+        ls.parse_args(["--version", "8", "--target", "z"])
+    with pytest.raises(SystemExit):
+        ls.parse_args(["--version", "8", "--fillhead", "--target", "y"])
+    assert ls.parse_args(["--version", "8"]).dayfeats is False
+    assert ls.parse_args(["--version", "8", "--dayfeats", "--queue", "--target", "y"]).dayfeats is True
+    dlt = np.array([100.0, -50.0, 0.0])
+    y = np.array([900.0, 1_100.0, 1_000.0])
+    assert ls.regression_label(dlt, y).tolist() == dlt.tolist()
+    assert ls.regression_label(dlt, y, ls.TARGET_DELTA).tolist() == dlt.tolist()
+    assert ls.regression_label(dlt, y, ls.TARGET_Y).tolist() == y.tolist()
+    assert ls.regression_label(dlt, y, ls.TARGET_Y).dtype == np.float64
+    with pytest.raises(ValueError, match="target"):
+        ls.regression_label(dlt, y, "z")
+    pred = np.array([10.0, 20.0, 0.5])
+    proxy = np.array([1_000.0, 1_010.0, 1_020.0])
+    assert ls.raw_taxi_time(pred, proxy).tolist() == [990.0, 990.0, 1_019.5]
+    got = ls.raw_taxi_time(pred, np.full(3, np.nan), ls.TARGET_Y)
+    assert got.tolist() == pred.tolist() and got.dtype == np.float64, "the y recovery must not read proxy"
+    assert ls.raw_taxi_time(pred, proxy, ls.TARGET_Y).tolist() == pred.tolist()
+    with pytest.raises(ValueError, match="target"):
+        ls.raw_taxi_time(pred, proxy, "z")
+    # the default path is recover_taxi_time to the bit
+    assert np.array_equal(ls.finalise_taxi_time(ls.raw_taxi_time(pred, proxy)), ls.recover_taxi_time(proxy, pred))
+
+
+class _FakeTrained:
+    """Stands in for the booster lgb.train returns inside early_stop / refit: a fixed
+    best_iteration, a constant prediction, and the feature count fit_seeds checks."""
+    def __init__(self, value, best=7, n_features=None):
+        self.value, self.best_iteration, self.n_features = float(value), best, n_features
+    def predict(self, X, **kw):
+        return np.full(len(X), self.value, dtype="float64")
+    def num_feature(self):
+        return self.n_features
+    def num_trees(self):
+        return self.best_iteration
+
+
+def test_early_stop_under_target_y_trains_and_stops_on_y_and_recovers_without_proxy(monkeypatch):
+    """Under `--target y` the early-stopping run hands LightGBM y on the fit rows and y on the
+    stopping rows (the stopping metric is then RMSE on y directly - Amendment 19.2), and its
+    stopping-set taxi time is max(prediction, 1) with no proxy subtraction; under the default it
+    hands delta on both and recovers max(proxy - prediction, 1), exactly as before. The
+    proxy-only reference is the same number under both (it is the guard's yardstick, not the
+    model's formulation). Pinned with a fake lgb.train that records the two labels and returns a
+    constant predictor; the breakage guard is lifted for the fake.
+
+    Fails when the y label is the delta, when the stopping set is labelled with delta, or when
+    the recovery subtracts proxy under y. Rehearsed 2026-09-09, each RED: `regression_label(dlt,
+    y, target)` replaced by `dlt` for the fit rows; `dlt[es]` kept for the valid set; the y
+    branch of raw_taxi_time subtracting proxy.
+    """
+    rng = np.random.default_rng(0)
+    n = 400
+    X = rng.normal(size=(n, 5)).astype("float32")
+    y = 1_000.0 + rng.normal(0, 10, n)
+    dlt = 500.0 + rng.normal(0, 200, n)
+    proxy = y + dlt
+    month = np.r_[np.full(300, 2), np.full(100, 3)]
+    train, fit, es = ls.split_masks(month, np.zeros(n, bool))
+    seen = {}
+
+    def fake_train(params, train_set, num_boost_round, valid_sets, callbacks):
+        seen["fit"] = np.asarray(train_set.label, dtype="float64")
+        seen["es"] = np.asarray(valid_sets[0].label, dtype="float64")
+        seen["objective"] = params["objective"]
+        return _FakeTrained(seen["value"])
+    monkeypatch.setattr(ls.lgb, "train", fake_train)
+    monkeypatch.setattr(ls, "ES_MAX_RATIO_TO_PROXY_ONLY", float("inf"))
+    params = dict(ls.P, num_threads=1)
+
+    seen["value"] = 1_003.0
+    info_y = ls.early_stop(X, dlt, y, proxy, train, fit, es, params, 50, 5, target=ls.TARGET_Y)
+    assert np.array_equal(seen["fit"], y[fit]) and np.array_equal(seen["es"], y[es]), "the y arm must train and stop on y"
+    assert info_y["target"] == "y" and info_y["best_iter"] == 7 and info_y["n_ref"] == ls.n_refit(7, 400, 300)
+    want_y = float(np.sqrt(((y[es] - np.maximum(1_003.0, 1.0)) ** 2).mean()))
+    assert info_y["es_rmse_taxi_time_NOT_A_RESULT"] == pytest.approx(want_y, abs=1e-12)
+
+    seen["value"] = 480.0
+    info_d = ls.early_stop(X, dlt, y, proxy, train, fit, es, params, 50, 5)
+    assert np.array_equal(seen["fit"], dlt[fit]) and np.array_equal(seen["es"], dlt[es]), "the default trains on delta"
+    assert info_d["target"] == "delta"
+    want_d = float(np.sqrt(((y[es] - np.maximum(proxy[es] - 480.0, 1.0)) ** 2).mean()))
+    assert info_d["es_rmse_taxi_time_NOT_A_RESULT"] == pytest.approx(want_d, abs=1e-12)
+    assert info_d["es_proxy_only_rmse"] == info_y["es_proxy_only_rmse"] > 100.0
+    assert abs(want_y - want_d) > 50.0, "the fixture cannot tell the two recoveries apart"
+
+
+def test_booster_names_carry_the_day_and_ytarget_tags_and_provenance_records_the_target(tmp_path):
+    """Boosters are tagged `_queue` / `_day` / `_queue_day` for the block(s) in the design and
+    `_ytarget` for the y formulation, in that order, on top of the seed naming - so a
+    77/89-feature or y-target booster can never be reused by another configuration; the head
+    booster carries the block tags too. fit_seeds records `target` in fit.json; reuse_seeds and
+    check_provenance refuse a booster whose recorded target differs from the run's; a legacy
+    fit.json without the field is a delta booster (reusable by a delta run only).
+
+    Fails when a tag is dropped, when the target is not recorded, or when a mismatch is
+    accepted. Rehearsed 2026-09-09, each RED: `tag = ""` for the day case in booster_tag;
+    `"target": n_features` never written (the key removed from fit.json); `if False:` for the
+    target branch of check_provenance.
+    """
+    d = pathlib.Path("/x")
+    assert ls.booster_tag() == "" and ls.booster_tag(queue=True) == "_queue"
+    assert ls.booster_tag(day=True) == "_day" and ls.booster_tag(queue=True, day=True) == "_queue_day"
+    assert ls.booster_tag(target=ls.TARGET_Y) == "_ytarget"
+    assert ls.booster_tag(queue=True, day=True, target=ls.TARGET_Y) == "_queue_day_ytarget"
+    assert ls.booster_files(d, 8, (0,), day=True) == [(d / "lgbm_v8_day.txt", d / "lgbm_v8_day.fit.json")]
+    assert ls.booster_files(d, 8, (0, 1), queue=True, day=True) == [
+        (d / "lgbm_v8_queue_day_seed0.txt", d / "lgbm_v8_queue_day_seed0.fit.json"),
+        (d / "lgbm_v8_queue_day_seed1.txt", d / "lgbm_v8_queue_day_seed1.fit.json")]
+    assert ls.booster_files(d, 8, (0,), target=ls.TARGET_Y) == [(d / "lgbm_v8_ytarget.txt", d / "lgbm_v8_ytarget.fit.json")]
+    assert ls.booster_files(d, 8, (0, 1), queue=True, target=ls.TARGET_Y)[1][0] == d / "lgbm_v8_queue_ytarget_seed1.txt"
+    assert ls.booster_files(d, 3, (0,)) == [(d / "lgbm_v3.txt", d / "lgbm_v3.fit.json")]           # v3 unchanged
+    assert ls.head_booster_files(d, 5, day=True) == (d / "lgbm_v5_day_fillhead.txt", d / "lgbm_v5_day_fillhead.fit.json")
+    assert ls.head_booster_files(d, 5, queue=True, day=True)[0] == d / "lgbm_v5_queue_day_fillhead.txt"
+
+    info = dict(smoke=False, n_all=10, n_ref=5, params=dict(ls.P), n_features=68, target="delta")
+    ls.check_provenance(info, 5, False, 10, dict(ls.P), n_features=68, target="delta")
+    ls.check_provenance(info, 5, False, 10, dict(ls.P), n_features=68)               # target not asked: not checked
+    with pytest.raises(ValueError, match="target"):
+        ls.check_provenance(info, 5, False, 10, dict(ls.P), n_features=68, target="y")
+    legacy = {k: v for k, v in info.items() if k != "target"}
+    ls.check_provenance(legacy, 5, False, 10, dict(ls.P), n_features=68, target="delta")   # legacy = delta
+    with pytest.raises(ValueError, match="target"):
+        ls.check_provenance(legacy, 5, False, 10, dict(ls.P), n_features=68, target="y")
+
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(200, 6)).astype("float32")
+    label = rng.normal(size=200)
+    train = np.ones(200, bool)
+    params = dict(ls.P, num_leaves=4, min_data_in_leaf=5, num_threads=1)
+    files = ls.booster_files(tmp_path, 8, (0,), target=ls.TARGET_Y)
+    es_info = dict(best_iter=5, n_ref=7, n_fit=150, n_es=50, n_all=200, es_months=[3, 9])
+    preds = ls.fit_seeds(X, label, train, X[:3], params, 7, (0,), files=files, info=es_info, smoke=False,
+                         n_features=6, target=ls.TARGET_Y)
+    fj = json.loads(files[0][1].read_text())
+    assert fj["target"] == "y" and fj["n_features"] == 6 and files[0][0].name == "lgbm_v8_ytarget.txt"
+    again, info2 = ls.reuse_seeds(files, (0,), X[:3], params, smoke=False, n_all=200, n_features=6, target=ls.TARGET_Y)
+    assert np.array_equal(again[0], preds[0]) and info2["target"] == "y"
+    with pytest.raises(ValueError, match="target"):
+        ls.reuse_seeds(files, (0,), X[:3], params, smoke=False, n_all=200, n_features=6)     # a delta run
+
+
+def test_fit_per_airport_forwards_the_target_to_the_per_airport_early_stopping_run(monkeypatch):
+    """`--pa-trees es` under `--target y` early-stops each airport on y as well: fit_per_airport
+    forwards its `target` to early_stop (default delta, so the v4 path is unchanged).
+
+    Fails when the target is not threaded through. Rehearsed 2026-09-09: the `target=target`
+    forward removed from the es branch went RED.
+    """
+    seen = []
+
+    def fake_early_stop(X, dlt, y, proxy, train, fit, es, params, nest, patience, target="delta"):
+        seen.append(target)
+        return dict(best_iter=3, n_ref=ls.n_refit(3, int(train.sum()), int(fit.sum())), n_fit=int(fit.sum()),
+                    n_es=int(es.sum()), n_all=int(train.sum()), es_months=[3, 9],
+                    es_rmse_taxi_time_NOT_A_RESULT=1.0, es_proxy_only_rmse=2.0, target=target)
+    monkeypatch.setattr(ls, "early_stop", fake_early_stop)
+    monkeypatch.setattr(ls, "refit", lambda X, lab, mask, params, n: _ConstantBooster(1.0))
+    ap_code = np.r_[np.zeros(30, np.int8), np.array([0], np.int8)]
+    train = np.r_[np.ones(30, bool), np.zeros(1, bool)]
+    es_mask = np.zeros(31, bool)
+    es_mask[20:30] = True
+    fit = train & ~es_mask
+    args = (np.zeros((31, 3), np.float32), np.r_[np.full(30, 5.0), np.nan], train, ~train, ap_code, ["AAA"],
+            dict(ls.P), 1_000, (0,))
+    es_kw = dict(y=np.zeros(31), proxy=np.zeros(31), fit=fit, es=es_mask, nest=77, patience=9)
+    ls.fit_per_airport(*args, min_rows=20, floor=5, trees="es", es=es_kw)
+    with pytest.raises(ValueError, match="dlt"):
+        ls.fit_per_airport(*args, min_rows=20, floor=5, trees="es", es=es_kw, target=ls.TARGET_Y)
+    ls.fit_per_airport(*args, min_rows=20, floor=5, trees="es", es=dict(es_kw, dlt=np.zeros(31)), target=ls.TARGET_Y)
+    assert seen == ["delta", "y"]
+    with pytest.raises(ValueError, match="target"):
+        ls.fit_per_airport(*args, min_rows=20, floor=5, trees="share", target="z")
+
+
+def _fit_json(out, name):
+    return json.loads((out / name).read_text())
+
+
+def test_dayfeats_end_to_end_on_the_synthetic_submission(tmp_path, monkeypatch):
+    """`--dayfeats` on the synthetic submission fixture: the day twins join the two training
+    months by position and the sampled ranking rows by id, a 77-column design matrix, the
+    booster saved as lgbm_v9_day.txt with n_features 77 and target delta in its fit.json, the
+    meta recording the block (dayfeats, day_feats, features = FEATS + DAY_FEATS), the splice
+    invariants (5,000 sampled matched rows replaced, no unmatched row touched); then
+    `--queue --dayfeats --seeds 0,1` gives 89 columns and lgbm_v9_queue_day_seed{s}.txt, and
+    --reuse-booster reproduces that file byte for byte from the two tagged boosters.
+
+    Fails when the day block is not in the design (77 -> 68), when the tag is dropped (reuse
+    finds nothing and refits: a different feature_fraction stream), or when the meta forgets the
+    block. Rehearsed 2026-09-09, each RED: `feats` built without DAY_FEATS under --dayfeats;
+    `day=False` hard-wired in booster_files' call; `"dayfeats": False` in the meta.
+    """
+    fx = _submission_env(ls, monkeypatch, tmp_path / "data")
+    out = tmp_path / "out"
+    ids, pred, meta = _run_submit(ls, fx, out, ["--dayfeats"])
+    assert meta["dayfeats"] is True and meta["day_feats"] == stand_ab.DAY_FEATS and meta["target"] == "delta"
+    assert meta["features"] == list(ls.FEATS) + stand_ab.DAY_FEATS and meta["n_features"] == 77
+    assert meta["queue"] is False and meta["queue_feats"] is None and meta["booster_files"] == ["lgbm_v9_day.txt"]
+    fj = _fit_json(out, "lgbm_v9_day.fit.json")
+    assert fj["n_features"] == 77 and fj["target"] == "delta" and fj["smoke"] is True
+    assert not (out / "lgbm_v9.txt").exists(), "a day booster took the untagged name"
+    assert meta["n_replaced"] == 5_000 and pred.dtype == np.int32 and (pred > 0).all()
+    base = pq.read_table(fx.base).to_pandas().set_index("MVT_ID_mvt").loc[ids].TAXITIME_SEC_mvt.to_numpy()
+    changed = pred != base
+    assert 0 < changed.sum() <= 5_000 and not set(ids[changed]) & fx.unmatched_ids
+
+    out2 = tmp_path / "out2"
+    ids2, pred2, meta2 = _run_submit(ls, fx, out2, ["--queue", "--dayfeats", "--seeds", "0,1"])
+    assert meta2["n_features"] == 89 and meta2["features"] == list(ls.FEATS) + stand_ab.QUEUE_FEATS + stand_ab.DAY_FEATS
+    assert meta2["booster_files"] == ["lgbm_v9_queue_day_seed0.txt", "lgbm_v9_queue_day_seed1.txt"]
+    for s in (0, 1):
+        fj = _fit_json(out2, f"lgbm_v9_queue_day_seed{s}.fit.json")
+        assert fj["n_features"] == 89 and fj["params"]["seed"] == s and fj["target"] == "delta"
+    first = (out2 / "merry-quicksand_v9.parquet").read_bytes()
+    _run_submit(ls, fx, out2, ["--queue", "--dayfeats", "--seeds", "0,1", "--reuse-booster"])
+    assert (out2 / "merry-quicksand_v9.parquet").read_bytes() == first, "reuse did not reproduce the file"
+    assert not np.array_equal(pred, pred2), "the queue block changed nothing"
+
+
+def test_target_y_end_to_end_on_the_synthetic_submission(tmp_path, monkeypatch):
+    """`--target y` on the synthetic submission fixture: the regressor is fitted on y, saved as
+    lgbm_v9_ytarget.txt with target y in its fit.json, the meta records target y, the shipped
+    taxi times are on y's scale and differ from the delta run's, the splice invariants hold,
+    and --reuse-booster reproduces the file byte for byte; a delta run cannot reuse the
+    y booster (different name) and the golden test guards the default.
+
+    Fails when the y booster is fitted on delta (the shipped times then sit near the delta
+    scale, hundreds of seconds, against a y median of ~2,500 s on this fixture), when the tag is
+    dropped, or when the meta misreports the target. Rehearsed 2026-09-09, each RED:
+    `regression_label(dlt, y, TARGET_DELTA)` hard-wired in main; `target=TARGET_DELTA` in the
+    booster_files call; `"target": TARGET_DELTA` in the meta.
+    """
+    fx = _submission_env(ls, monkeypatch, tmp_path / "data")
+    out = tmp_path / "out"
+    ids, pred, meta = _run_submit(ls, fx, out, ["--target", "y"])
+    assert meta["target"] == "y" and meta["booster_files"] == ["lgbm_v9_ytarget.txt"] and meta["n_features"] == 68
+    fj = _fit_json(out, "lgbm_v9_ytarget.fit.json")
+    assert fj["target"] == "y" and fj["n_features"] == 68 and fj["params"]["objective"] == "regression"
+    assert 1_500 < np.median(pred) < 3_500, "y-target predictions must sit on y's scale (delta would be ~0-1,000)"
+    assert meta["n_replaced"] == 5_000 and (pred > 0).all() and pred.dtype == np.int32
+    base = pq.read_table(fx.base).to_pandas().set_index("MVT_ID_mvt").loc[ids].TAXITIME_SEC_mvt.to_numpy()
+    changed = pred != base
+    assert 0 < changed.sum() <= 5_000 and not set(ids[changed]) & fx.unmatched_ids
+    first = (out / "merry-quicksand_v9.parquet").read_bytes()
+    _run_submit(ls, fx, out, ["--target", "y", "--reuse-booster"])
+    assert (out / "merry-quicksand_v9.parquet").read_bytes() == first
+    ids_d, pred_d, meta_d = _run_submit(ls, fx, tmp_path / "out_delta", [])
+    assert meta_d["target"] == "delta" and np.array_equal(ids_d, ids)
+    assert not np.array_equal(pred_d, pred), "the y formulation reproduced the delta file exactly"
+    assert float(np.sqrt(((pred_d.astype("float64") - pred.astype("float64")) ** 2).mean())) < 600.0, \
+        "the two formulations disagree by more than the fixture's own spread: one of them is broken"
+
+
+# ---------------------------------------------------------------------------------------------
+# The unified all-rows arm (the Amendment 19 addition): `--target y --all-rows` - ONE regressor
+# with target y on every admissible training row, matched AND unmatched, the unmatched rows from
+# data/cache_unmatched with their NaN pattern, an explicit is_unmatched column, an optional sample
+# weight on the unmatched rows, y_hat = max(pred, 1) on every row, the splice replacing EVERY
+# scored row (matched and unmatched alike). No mixture, no proxy anywhere.
+# ---------------------------------------------------------------------------------------------
+
+def test_unmatched_cache_reader_contract_and_nan_pattern_check():
+    """read_unmatched_cache asserts the contract (stand_ab.UNMATCHED_COLS in order) and names the
+    build command when the file is missing; check_unmatched_nan_pattern accepts a conforming
+    frame, and refuses - naming the column and the count - a frame where an AOBT_3-anchored or
+    a *_flt-derived column carries a value on an unmatched row, so a cache built with those
+    columns filled (0, the mean, anything) can never train silently.
+
+    Fails when the check is dropped or reads the wrong list. Rehearsed 2026-09-09, each RED:
+    `if False:` around the refusal; proxy filled with 0.0 in the fixture against an unchanged
+    check (the sanity case, must raise).
+    """
+    u = pd.read_parquet(next(iter(_syn.synthetic_caches(pathlib.Path(__import__("tempfile").mkdtemp()) / "d", (2,), n=20)[0].parent.joinpath("cache_unmatched").glob("*.parquet"))))
+    assert list(u.columns) == stand_ab.UNMATCHED_COLS == ls.UNMATCHED_COLS
+    ls.check_unmatched_nan_pattern(u)
+    for c in ("proxy", "q_apt_at_push", "eobt_p", "d_prx_minus_p50"):
+        bad = u.copy()
+        bad.loc[bad.index[:3], c] = 0.0
+        with pytest.raises(ValueError, match=c):
+            ls.check_unmatched_nan_pattern(bad)
+    with pytest.raises(ValueError, match="columns"):
+        ls.attach_block_positional(len(u), u.drop(columns=["sp"]), "x", stand_ab.UNMATCHED_COLS[1:], "unmatched")
+    with pytest.raises(FileNotFoundError, match="unmatched cache"):
+        ls.read_unmatched_cache(pathlib.Path("/nowhere/training_2025-02-01_2025-03-01.parquet"))
+    assert ls.unmatched_cache_path(pathlib.Path("/u"), pathlib.Path("/s/training_2025-02-01_2025-03-01.parquet")) \
+        == pathlib.Path("/u/training_2025-02-01_2025-03-01.parquet")
+    assert ls.UCACHE == stand_ab.UCACHE and ls.IS_UNMATCHED == "is_unmatched"
+
+
+def test_all_rows_flags_weights_and_booster_tags():
+    """--all-rows requires --target y (the delta formulation has no proxy on unmatched rows) and
+    refuses --fillhead and --per-airport (not pre-registered for the unified arm);
+    --unmatched-weight is a positive float, default 1.0; row_weights gives 1 on matched and W on
+    unmatched rows in float64 and refuses W <= 0 / non-finite; the booster tag adds `_allrows`
+    and `_w{W}` when W != 1 after the block and target tags.
+
+    Fails when the requirement or a refusal is dropped, or when the weight is not applied per
+    row. Rehearsed 2026-09-09, each RED: the `--all-rows` without y check replaced by `if
+    False:`; `np.where(is_unmatched, 1.0, w)` (swapped).
+    """
+    a = ls.parse_args(["--version", "8", "--target", "y", "--all-rows"])
+    assert a.all_rows is True and a.unmatched_weight == 1.0
+    assert ls.parse_args(["--version", "8", "--target", "y", "--all-rows", "--unmatched-weight", "10"]).unmatched_weight == 10.0
+    assert ls.parse_args(["--version", "8"]).all_rows is False
+    for argv in (["--all-rows"], ["--target", "delta", "--all-rows"], ["--target", "y", "--all-rows", "--fillhead"],
+                 ["--target", "y", "--all-rows", "--per-airport"], ["--target", "y", "--all-rows", "--unmatched-weight", "0"],
+                 ["--target", "y", "--all-rows", "--unmatched-weight", "-2"]):
+        with pytest.raises(SystemExit):
+            ls.parse_args(["--version", "8"] + argv)
+    w = ls.row_weights(np.array([False, True, True, False]), 10.0)
+    assert w.dtype == np.float64 and w.tolist() == [1.0, 10.0, 10.0, 1.0]
+    assert ls.row_weights(np.array([0, 1]), 1.0).tolist() == [1.0, 1.0]
+    for bad in (0.0, -1.0, float("nan"), float("inf")):
+        with pytest.raises(ValueError, match="weight"):
+            ls.row_weights(np.array([False, True]), bad)
+    assert ls.booster_tag(target=ls.TARGET_Y, all_rows=True) == "_ytarget_allrows"
+    assert ls.booster_tag(target=ls.TARGET_Y, all_rows=True, unmatched_weight=10.0) == "_ytarget_allrows_w10"
+    assert ls.booster_tag(queue=True, day=True, target=ls.TARGET_Y, all_rows=True, unmatched_weight=2.5) == "_queue_day_ytarget_allrows_w2.5"
+    assert ls.booster_tag(all_rows=False, unmatched_weight=10.0) == "", "the weight tags only an all-rows booster"
+    d = pathlib.Path("/x")
+    assert ls.booster_files(d, 8, (0,), target=ls.TARGET_Y, all_rows=True, unmatched_weight=10.0)[0][0] == d / "lgbm_v8_ytarget_allrows_w10.txt"
+
+
+def test_early_stop_and_fit_seeds_hand_the_row_weights_to_lightgbm(monkeypatch):
+    """With `weight` given, early_stop's training Dataset carries weight[fit] and its stopping
+    Dataset carries NO weight (the stopping metric is the plain RMSE on y, the competition's
+    metric), and every refit in fit_seeds carries weight[train]; without `weight` no Dataset has
+    one (the default path is untouched). Pinned with a fake lgb.train that records each
+    Dataset's weight.
+
+    Fails when the weight is not forwarded, or forwarded to the stopping set. Rehearsed
+    2026-09-09, each RED: `weight=None` hard-wired in early_stop's training Dataset; the
+    stopping Dataset given `weight[es]`; `refit` ignoring its weight.
+    """
+    rng = np.random.default_rng(0)
+    n = 300
+    X = rng.normal(size=(n, 4)).astype("float32")
+    y = 1_000.0 + rng.normal(0, 10, n)
+    dlt = 500.0 + rng.normal(0, 200, n)
+    proxy = y + dlt
+    month = np.r_[np.full(200, 2), np.full(100, 3)]
+    train, fit, es = ls.split_masks(month, np.zeros(n, bool))
+    w = ls.row_weights(rng.random(n) < 0.3, 10.0)
+    seen = []
+
+    def fake_train(params, train_set, num_boost_round, valid_sets=None, callbacks=None):
+        seen.append((None if train_set.weight is None else np.asarray(train_set.weight, dtype="float64"),
+                     None if not valid_sets else (None if valid_sets[0].weight is None else np.asarray(valid_sets[0].weight))))
+        return _FakeTrained(1_000.0, n_features=4)
+    monkeypatch.setattr(ls.lgb, "train", fake_train)
+    monkeypatch.setattr(ls, "ES_MAX_RATIO_TO_PROXY_ONLY", float("inf"))
+    params = dict(ls.P, num_threads=1)
+    ls.early_stop(X, dlt, y, proxy, train, fit, es, params, 20, 5, target=ls.TARGET_Y, weight=w)
+    assert np.array_equal(seen[-1][0], w[fit]) and seen[-1][1] is None
+    ls.fit_seeds(X, y, train, X[:3], params, 4, (0, 1), n_features=4, target=ls.TARGET_Y, weight=w)
+    assert len(seen) == 3 and all(np.array_equal(s[0], w[train]) and s[1] is None for s in seen[1:])
+    ls.early_stop(X, dlt, y, proxy, train, fit, es, params, 20, 5)
+    ls.fit_seeds(X, dlt, train, X[:3], params, 4, (0,), n_features=4)
+    assert seen[-2] == (None, None) and seen[-1] == (None, None), "the default path must carry no weights"
+
+
+def test_load_frames_all_rows_appends_the_unmatched_rows_with_the_flag(tmp_path):
+    """load_frames(all_rows=True, ucache=...) appends every unmatched month after the matched
+    months and the unmatched scored rows after the matched ranking rows, aligned by name (the
+    matched caches' STAND_BLOCK columns are NaN on unmatched rows, the unmatched cache's extra
+    blocks are dropped unless asked for), with is_unmatched = 1 exactly on the appended rows,
+    the NaN pattern checked on every unmatched row, MVT_ID_mvt lifted out for every ranking row;
+    a sampled ranking (smoke) samples from matched and unmatched rows together; a missing
+    unmatched month refuses the load.
+
+    Fails when the flag is not set, when the pattern check is skipped (a filled column loads),
+    or when the ranking's unmatched rows are dropped. Rehearsed 2026-09-09, each RED:
+    `is_unmatched` written as zeros; the pattern check removed (the filled-proxy cache loads);
+    the unmatched ranking rows left out of the concat.
+    """
+    fx = _syn.synthetic_submission(tmp_path / "data", months=(1, 3), n=60, seed=0, n_rank=100, n_unmatched=20)
+    d, is_rank, rank_ids = ls.load_frames(fx.stand, all_rows=True, ucache=fx.unmatched)
+    n_u_train = 2 * _syn.N_UNMATCHED
+    assert len(d) == 120 + n_u_train + 100 + 20 and is_rank.sum() == 120 and len(rank_ids) == 120
+    um = d[ls.IS_UNMATCHED].to_numpy()
+    assert um.dtype == np.float64 and set(um) == {0.0, 1.0}
+    assert um[:120].sum() == 0 and um[120:120 + n_u_train].sum() == n_u_train
+    assert um[is_rank][:100].sum() == 0 and um[is_rank][100:].sum() == 20
+    assert set(rank_ids[100:]) == fx.unmatched_ids and set(rank_ids[:100]) == fx.matched_ids
+    assert d.y[um == 1].iloc[:n_u_train].notna().all() and d.y[is_rank].isna().all()
+    assert d.delta[um == 1].isna().all() and d.proxy[um == 1].isna().all()
+    for c in stand_ab.UNMATCHED_NAN_COLS:
+        if c in d.columns:
+            assert d[c][um == 1].isna().all(), c
+    assert "gapa" in d.columns and d.gapa[um == 1].isna().all(), "the stand block is NaN on unmatched rows"
+    assert "q_apt_at_push" not in d.columns, "blocks not asked for are dropped"
+    d2, is_rank2, ids2 = ls.load_frames(fx.stand, n_rank=30, all_rows=True, ucache=fx.unmatched, seed=0)
+    assert len(ids2) == 30 and set(ids2) <= fx.matched_ids | fx.unmatched_ids
+    assert (d2[ls.IS_UNMATCHED][is_rank2] == 1.0).sum() == len(set(ids2) & fx.unmatched_ids)
+    d3, _, _ = ls.load_frames(fx.stand, all_rows=True, ucache=fx.unmatched, queue=True, qcache=fx.queue, day=True, dcache=fx.day)
+    assert list(d3.columns)[-len(stand_ab.DAY_FEATS) - 1:-1] == stand_ab.DAY_FEATS and list(d3.columns)[-1] == ls.IS_UNMATCHED
+    um3 = d3[ls.IS_UNMATCHED].to_numpy() == 1.0
+    assert d3.q_apt_at_push[um3].isna().all() and d3.q_dep_tko_sym15[um3].notna().all()
+    filled = pd.read_parquet(fx.unmatched / "training_2025-03-01_2025-04-01.parquet")
+    filled["proxy"] = 0.0
+    filled.to_parquet(fx.unmatched / "training_2025-03-01_2025-04-01.parquet", index=False)
+    with pytest.raises(ValueError, match="proxy"):
+        ls.load_frames(fx.stand, all_rows=True, ucache=fx.unmatched)
+    with pytest.raises(FileNotFoundError, match="unmatched cache"):
+        ls.load_frames(fx.stand, all_rows=True, ucache=tmp_path / "nowhere")
+
+
+def test_all_rows_end_to_end_on_the_synthetic_submission(tmp_path, monkeypatch):
+    """`--target y --all-rows` on the synthetic submission fixture: one booster on matched AND
+    unmatched training rows (69 columns: FEATS + is_unmatched), saved as
+    lgbm_v9_ytarget_allrows.txt with target y, all_rows and the weight in its fit.json; EVERY
+    sampled scored row is replaced - unmatched rows included, which no other path touches - the
+    unmatched predictions on y's scale; the meta records all_rows, the weight, the unmatched row
+    counts and the NaN-pattern check; --reuse-booster reproduces the file byte for byte; with
+    `--unmatched-weight 3` the booster is lgbm_v9_ytarget_allrows_w3.txt and the
+    predictions differ from the weight-1 run's (the weight reached LightGBM). Three, not the
+    registered ten: the smoke fits on ONE month, where 40 unmatched rows x 10 are 40% of the
+    effective weight against 600 matched rows, and the matched stopping-set breakage guard sits
+    at ratio 0.84 (measured 2026-09-09; 0.68 at weight 1; the guard refuses at 0.85) - too close
+    to rest a test on; the fold smoke, which fits on more rows, runs the registered 1,10.
+
+    Fails when the unmatched rows are not in the training set or not spliced, when the weight
+    is not forwarded (identical predictions), or when the tag is dropped. Rehearsed 2026-09-09,
+    each RED: the splice given the matched id set only (`expected` unchanged); `weight=None` in
+    main's fit_seeds call; `all_rows=False` in the booster_files call.
+    """
+    # exact proxy levels, as the fold's Y test uses: at the smoke's 60 rounds a y-target model on a
+    # continuous proxy sits at 0.93 x proxy-only on the matched stopping rows and the breakage guard
+    # (0.85) refuses it - a fixture artifact the guard is right to flag, not a reason to relax it
+    fx = _submission_env(ls, monkeypatch, tmp_path / "data", proxy_levels=3)
+    monkeypatch.setattr(ls, "UCACHE", fx.unmatched)
+    out = tmp_path / "out"
+    ids, pred, meta = _run_submit(ls, fx, out, ["--target", "y", "--all-rows"])
+    assert meta["all_rows"] is True and meta["unmatched_weight"] == 1.0 and meta["target"] == "y"
+    assert meta["n_features"] == 69 and meta["features"][-1] == ls.IS_UNMATCHED and meta["features"][:68] == list(ls.FEATS)
+    assert meta["n_unmatched_train"] == 2 * _syn.N_UNMATCHED and meta["n_unmatched_rank"] > 0   # the smoke's two months
+    assert meta["unmatched_nan_cols"] == stand_ab.UNMATCHED_NAN_COLS and meta["unmatched_nan_pattern_checked"] is True
+    assert meta["booster_files"] == ["lgbm_v9_ytarget_allrows.txt"]
+    fj = _fit_json(out, "lgbm_v9_ytarget_allrows.fit.json")
+    assert fj["target"] == "y" and fj["n_features"] == 69 and fj["all_rows"] is True and fj["unmatched_weight"] == 1.0
+    base = pq.read_table(fx.base).to_pandas().set_index("MVT_ID_mvt").loc[ids].TAXITIME_SEC_mvt.to_numpy()
+    changed = pred != base
+    replaced_unmatched = set(meta["replaced_ids"]) & fx.unmatched_ids
+    assert replaced_unmatched and meta["n_replaced"] == 5_000
+    assert set(ids[changed]) & fx.unmatched_ids, "the unmatched rows must be re-predicted by the unified model"
+    um_pred = pred[np.isin(ids, list(fx.unmatched_ids))]
+    assert 300 < np.median(um_pred) < 5_000 and (pred > 0).all()
+    first = (out / "merry-quicksand_v9.parquet").read_bytes()
+    _run_submit(ls, fx, out, ["--target", "y", "--all-rows", "--reuse-booster"])
+    assert (out / "merry-quicksand_v9.parquet").read_bytes() == first
+    ids10, pred10, meta10 = _run_submit(ls, fx, tmp_path / "out10", ["--target", "y", "--all-rows", "--unmatched-weight", "3"])
+    assert meta10["booster_files"] == ["lgbm_v9_ytarget_allrows_w3.txt"] and meta10["unmatched_weight"] == 3.0
+    fj3 = _fit_json(tmp_path / "out10", "lgbm_v9_ytarget_allrows_w3.fit.json")
+    assert fj3["unmatched_weight"] == 3.0 and fj3["all_rows"] is True
+    assert np.array_equal(ids10, ids)
+    assert not np.array_equal(pred10, pred), "the unmatched weight changed nothing: it never reached LightGBM"

@@ -8,6 +8,9 @@ Pre-registered in plans/PREREG_taxiout_2026_09_08.md Amendment 5.
                                   # v6 push-anchored queue block -> data/cache_queue/ (Amendment 14)
     python3.11 scripts/stand_ab.py day-cache   [--ranking] [--smoke]
                                   # airport-day regime block -> data/cache_day/ (Amendment 19, arm D)
+    python3.11 scripts/stand_ab.py unmatched-cache [--ranking] [--smoke]
+                                  # the UNMATCHED departures' features -> data/cache_unmatched/ (the
+                                  # unified all-rows arm; every block, NaN where the row's own AOBT_3 is read)
 
 Design. Fold A holds out Jan+Jul 2025; encodings are fitted on the ten training months only.
 Target is `delta = BLOCK_TIME - AOBT_3`; the prediction is `y_hat = max(proxy - delta_hat, 1)`.
@@ -154,30 +157,12 @@ def build_ranking(path: pathlib.Path) -> pd.DataFrame:
     return o
 
 
-def build_features(t: pd.DataFrame, serve: bool = False) -> pd.DataFrame:
-    arr = t[(t.PHASE_mvt == "ARR") & t.BLOCK_TIME_UTC_mvt.notna()]
-    arr = arr[arr.ADES_mvt.isin(APTS)]
-    a_apt = sarr(arr.ADES_mvt)
-    a_t = es(arr.BLOCK_TIME_UTC_mvt)
-    a_taxi = arr.TAXITIME_SEC_mvt.astype(float).to_numpy()
-    a_cdiff = np.where(arr.ARVT_3_flt.notna().to_numpy(),
-                       es(arr.BLOCK_TIME_UTC_mvt) - es(arr.ARVT_3_flt), np.nan)
-    a_stand = sarr(arr.STAND_mvt)
-    a_type = sarr(arr.AIRCRAFT_TYPE_mvt)
-    a_ok = arr.STAND_mvt.notna().to_numpy()
-
-    if serve:
-        # the scored rows carry no TAXITIME and no BLOCK; admit every departure that has
-        # the clocks the features read. Neither hidden column is consulted.
-        d = t[(t.PHASE_mvt == "DEP") & t.AOBT_3_flt.notna()
-              & t.MVT_TIME_UTC_mvt.notna() & t.SCHED_TIME_UTC_mvt.notna()]
-    else:
-        d = t[(t.PHASE_mvt == "DEP") & t.TAXITIME_SEC_mvt.notna()
-              & t.BLOCK_TIME_UTC_mvt.notna() & (t.TAXITIME_SEC_mvt > 0)
-              & t.AOBT_3_flt.notna()]
-    d = d[d.ADEP_mvt.isin(APTS)].copy()
-    d = d.sort_values("MVT_TIME_UTC_mvt", kind="mergesort").reset_index(drop=True)
-
+def _own_clock_features(d: pd.DataFrame, serve: bool) -> tuple:
+    """The per-row columns a departure computes from its OWN clocks - delta, y and the BASE
+    features - for a frame already filtered and in take-off order; returns (frame, mvt, sch,
+    aobt) in seconds since EPOCH. Shared by build_features (the matched cache) and
+    build_unmatched (the unmatched cache) so the two cannot drift: on an unmatched row AOBT_3
+    is NaT and every AOBT_3-derived value here is NaN by arithmetic, not by a special case."""
     mvt, sch = es(d.MVT_TIME_UTC_mvt), es(d.SCHED_TIME_UTC_mvt)
     aobt, eobt = es(d.AOBT_3_flt), es(d.EOBT_1_flt)
     lobt, iobt = es(d.LOBT_flt), es(d.IOBT_flt)
@@ -220,6 +205,34 @@ def build_features(t: pd.DataFrame, serve: bool = False) -> pd.DataFrame:
                    != sarr(d.AIRCRAFT_TYPE_mvt)).astype(float)
     o["f_rule"] = (sarr(d.FLIGHT_RULE_flt)
                    != sarr(d.FLIGHT_RULE_mvt)).astype(float)
+    return o, mvt, sch, aobt
+
+
+def build_features(t: pd.DataFrame, serve: bool = False) -> pd.DataFrame:
+    arr = t[(t.PHASE_mvt == "ARR") & t.BLOCK_TIME_UTC_mvt.notna()]
+    arr = arr[arr.ADES_mvt.isin(APTS)]
+    a_apt = sarr(arr.ADES_mvt)
+    a_t = es(arr.BLOCK_TIME_UTC_mvt)
+    a_taxi = arr.TAXITIME_SEC_mvt.astype(float).to_numpy()
+    a_cdiff = np.where(arr.ARVT_3_flt.notna().to_numpy(),
+                       es(arr.BLOCK_TIME_UTC_mvt) - es(arr.ARVT_3_flt), np.nan)
+    a_stand = sarr(arr.STAND_mvt)
+    a_type = sarr(arr.AIRCRAFT_TYPE_mvt)
+    a_ok = arr.STAND_mvt.notna().to_numpy()
+
+    if serve:
+        # the scored rows carry no TAXITIME and no BLOCK; admit every departure that has
+        # the clocks the features read. Neither hidden column is consulted.
+        d = t[(t.PHASE_mvt == "DEP") & t.AOBT_3_flt.notna()
+              & t.MVT_TIME_UTC_mvt.notna() & t.SCHED_TIME_UTC_mvt.notna()]
+    else:
+        d = t[(t.PHASE_mvt == "DEP") & t.TAXITIME_SEC_mvt.notna()
+              & t.BLOCK_TIME_UTC_mvt.notna() & (t.TAXITIME_SEC_mvt > 0)
+              & t.AOBT_3_flt.notna()]
+    d = d[d.ADEP_mvt.isin(APTS)].copy()
+    d = d.sort_values("MVT_TIME_UTC_mvt", kind="mergesort").reset_index(drop=True)
+
+    o, mvt, sch, aobt = _own_clock_features(d, serve)
 
     d_apt = sarr(d.ADEP_mvt)
     d_rwy = (d_apt + "|" + sarr(d.RUNWAY_mvt))
@@ -357,20 +370,30 @@ def _smooth_enc(tr_key, tr_val, keys, prior, k=SMOOTH):
     return pd.Series(keys).map(enc).fillna(prior).to_numpy(np.float32)
 
 
-def infold_encodings(keys, y, delta, tr_mask, enc_keys=ENC_KEYS):
+def infold_encodings(keys, y, delta, tr_mask, enc_keys=ENC_KEYS, delta_mask=None):
     """The 24 smoothed target encodings, fitted on TRAINING rows only.
 
     The leak lives at this call site, not inside `_smooth_enc`: passing the full key array
     instead of `keys[tr_mask]` lets held-out targets into the features and every downstream
     interval becomes meaningless. Guarded by tests/test_stand_fit.py.
+
+    `delta_mask` (the unified all-rows design) names the rows whose delta is defined - the
+    matched ones; the 12 delta encodings and their prior are then fitted on `tr_mask &
+    delta_mask` while the 12 y encodings stay on every training row. Without it a NaN delta
+    on a training row is refused: it would poison the prior and every delta encoding.
     """
-    y_tr, d_tr = np.asarray(y)[tr_mask], np.asarray(delta)[tr_mask]
+    tr_mask = np.asarray(tr_mask, dtype=bool)
+    d_mask = tr_mask if delta_mask is None else (tr_mask & np.asarray(delta_mask, dtype=bool))
+    y_tr, d_tr = np.asarray(y)[tr_mask], np.asarray(delta)[d_mask]
+    if np.isnan(np.asarray(d_tr, dtype="float64")).any():
+        raise ValueError(f"NaN delta on {int(np.isnan(np.asarray(d_tr, dtype='float64')).sum()):,} rows of the "
+                         "delta-encoding set: pass delta_mask to fit the delta encodings where delta is defined")
     py, pdl = float(y_tr.mean()), float(d_tr.mean())
     out = {}
     for k in enc_keys:
         kk = keys[k].to_numpy()
         out[f"te_{k}"] = _smooth_enc(kk[tr_mask], y_tr, kk, py)
-        out[f"de_{k}"] = _smooth_enc(kk[tr_mask], d_tr, kk, pdl)
+        out[f"de_{k}"] = _smooth_enc(kk[d_mask], d_tr, kk, pdl)
     return out
 
 
@@ -799,6 +822,30 @@ def _day_groups(apt, day) -> dict:
     return pd.DataFrame({"a": np.asarray(apt), "d": np.asarray(day)}).groupby(["a", "d"], sort=False).indices
 
 
+def _day_stats(d_apt, d_day, px, a_apt, a_day, taxi_in) -> tuple:
+    """Per (airport, UTC day): the departure statistics {key: (proxy p50, p90, share <= 0,
+    count)} over the matched reference stream, and the arrival statistics {key: (taxi-in p50,
+    p90, share > 1,200 s, count)} - the three levels NaN when no arrival of the day carries a
+    finite taxi-in. Shared by build_day (rows in the stream) and build_unmatched (rows outside
+    it, looked up by their own airport-day)."""
+    dep, dep_groups = {}, _day_groups(d_apt, d_day)
+    for key, idx in dep_groups.items():
+        v = px[idx]
+        p50, p90 = np.percentile(v, DAY_PERCENTILES)
+        dep[key] = (p50, p90, float((v <= 0).mean()), len(idx))
+    arr = {}
+    if len(a_apt):
+        for key, pos in _day_groups(a_apt, a_day).items():
+            tx = taxi_in[pos]
+            tx = tx[np.isfinite(tx)]
+            if len(tx):
+                a50, a90 = np.percentile(tx, DAY_PERCENTILES)
+                arr[key] = (a50, a90, float((tx > DAY_ARR_LONG_S).mean()), len(pos))
+            else:
+                arr[key] = (np.nan, np.nan, np.nan, len(pos))
+    return dep, arr, dep_groups
+
+
 def build_day(t: pd.DataFrame, serve: bool = False) -> pd.DataFrame:
     """`MVT_ID_mvt` + DAY_FEATS (float32) for exactly the rows build_features(t, serve) returns,
     in the same take-off order.
@@ -818,27 +865,20 @@ def build_day(t: pd.DataFrame, serve: bool = False) -> pd.DataFrame:
     d_apt, d_day = sarr(d.ADEP_mvt), _day_index(tk)
     a_apt, a_day = sarr(arr.ADES_mvt), _day_index(es(arr.MVT_TIME_UTC_mvt))
     taxi_in = arr.TAXITIME_SEC_mvt.astype(float).to_numpy()
-    g_arr = _day_groups(a_apt, a_day) if len(arr) else {}
+    dep_s, arr_s, groups = _day_stats(d_apt, d_day, px, a_apt, a_day, taxi_in)
     out = {c: np.full(n, np.nan) for c in DAY_FEATS}
-    for key, idx in _day_groups(d_apt, d_day).items():
-        v = px[idx]
-        p50, p90 = np.percentile(v, DAY_PERCENTILES)
+    for key, idx in groups.items():
+        p50, p90, le0, n_dep = dep_s[key]
         out["d_prx_p50"][idx] = p50
         out["d_prx_p90"][idx] = p90
-        out["d_prx_le0"][idx] = (v <= 0).mean()
-        out["d_n_dep"][idx] = len(idx)
-        out["d_prx_minus_p50"][idx] = v - p50
-        pos = g_arr.get(key)
-        n_arr = 0 if pos is None else len(pos)
+        out["d_prx_le0"][idx] = le0
+        out["d_n_dep"][idx] = n_dep
+        out["d_prx_minus_p50"][idx] = px[idx] - p50
+        a50, a90, long, n_arr = arr_s.get(key, (np.nan, np.nan, np.nan, 0))
+        out["d_arr_p50"][idx] = a50
+        out["d_arr_p90"][idx] = a90
+        out["d_arr_long"][idx] = long
         out["d_n_arr"][idx] = n_arr
-        if n_arr:
-            tx = taxi_in[pos]
-            tx = tx[np.isfinite(tx)]
-            if len(tx):
-                a50, a90 = np.percentile(tx, DAY_PERCENTILES)
-                out["d_arr_p50"][idx] = a50
-                out["d_arr_p90"][idx] = a90
-                out["d_arr_long"][idx] = (tx > DAY_ARR_LONG_S).mean()
     o = pd.DataFrame({"MVT_ID_mvt": d.MVT_ID_mvt.to_numpy()})
     for c in DAY_FEATS:
         o[c] = out[c].astype(np.float32)
@@ -898,12 +938,301 @@ def cmd_day_cache(smoke: bool, ranking: bool = False):
         gc.collect()
 
 
+# =============================================================================================
+# The unified all-rows arm: the UNMATCHED departures' features (data/cache_unmatched/)
+# =============================================================================================
+
+UCACHE = ROOT / "data" / "cache_unmatched"
+#: the reference columns the unmatched builder needs of the OTHER movements (the matched
+#: departures and the arrivals): QCOLS plus the arrivals' ARVT_3 (cdiff). The unmatched rows
+#: themselves are read with the full COLS.
+RCOLS = QCOLS + ["ARVT_3_flt"]
+#: NaN by construction on every unmatched row: each reads the row's own AOBT_3, directly or as
+#: the anchor of a window. Asserted after the build, never filled.
+UNMATCHED_NAN_COLS = ["proxy", "aobt_sched", "aobt_eobt", "aobt_sec",
+                      "q_apt_at_push", "q_rwy_at_push", "q_pushed_after_me", "q_rwy_tko_in_taxi",
+                      "q_rwy_push_pre20", "q_arr_taxiing_at_push", "q_arr_taxiin_sym30_push",
+                      "q_next_arr_onblock_gap", "d_prx_minus_p50"]
+#: NaN whenever the row's *_flt clocks are null - on the data, every unmatched row (Amendment 3
+#: section 2; measured 2026-09-09: EOBT null on 1,408 / 1,408 January and 5,290 / 5,290 scored
+#: unmatched rows). Not forced: the arithmetic yields it, and the tests assert it.
+UNMATCHED_FLT_COLS = ["eobt_p", "lobt_p", "iobt_p", "eobt_sched", "lobt_sched", "eobt_lobt", "iobt_lobt",
+                      "airborne3", "airborne1", "arvt_diff"]
+#: the queue features an unmatched row CAN carry: anchored on its own take-off, counting the
+#: matched reference stream (the row itself is not in it, so no self-exclusion applies)
+UNMATCHED_QUEUE_FEATS = ["q_dep_tko_sym15", "q_rwy_tko_sym10", "q_arr_taxiin_sym30_tko", "q_rwy_ambient_proxy"]
+UNMATCHED_KEY_COLS = ["STAND_mvt", "RUNWAY_mvt", "AIRCRAFT_TYPE_mvt", "ADES_mvt", "AIRCRAFT_OPERATOR_flt",
+                      "MARKET_SEGMENT_flt", "WK_TBL_CAT_flt", "FLIGHT_TYPE_flt", "ADEP_mvt", "stand_pref", "airline", "ars"]
+#: the unmatched cache's contract: id, labels, every BASELINE feature except the encodings
+#: (fitted in-fold), month, ap, the encoding keys, the queue block, the day block - one file per
+#: month, no twins (the rows are few: ~1.8k of ~170k per month)
+UNMATCHED_COLS = (["MVT_ID_mvt", "delta", "y"] + BASE + SURF + STANDHIST + ["month", "ap"] + UNMATCHED_KEY_COLS
+                  + QUEUE_FEATS + DAY_FEATS)
+UNMATCHED_FLOAT32 = BASE + SURF + STANDHIST + QUEUE_FEATS + DAY_FEATS
+
+
+def _unmatched_stream(t: pd.DataFrame, serve: bool) -> pd.DataFrame:
+    """The stratum's row set: departures without an NM off-block at the ten airports with the
+    clocks the features read (MVT_TIME, SCHED); in training mode labelled exactly as
+    build_submission.admissible requires, one row per MVT_ID by its keep-first rule (sort by
+    BLOCK, MVT_TIME, TAXITIME, MVT_ID, mergesort); in serve mode every such row. Take-off order."""
+    u = t[(t.PHASE_mvt == "DEP") & t.AOBT_3_flt.isna() & t.MVT_TIME_UTC_mvt.notna() & t.SCHED_TIME_UTC_mvt.notna()]
+    u = u[u.ADEP_mvt.isin(APTS)]
+    if not serve:
+        u = u[u.TAXITIME_SEC_mvt.notna() & u.BLOCK_TIME_UTC_mvt.notna() & (u.TAXITIME_SEC_mvt > 0)]
+        u = u.sort_values(["BLOCK_TIME_UTC_mvt", "MVT_TIME_UTC_mvt", "TAXITIME_SEC_mvt", "MVT_ID_mvt"], kind="mergesort")
+        u = u[~u.MVT_ID_mvt.duplicated(keep="first")]
+    return u.sort_values("MVT_TIME_UTC_mvt", kind="mergesort").reset_index(drop=True)
+
+
+def _trailing_median(sorted_t, vals, x, window: int, min_periods: int) -> np.ndarray:
+    """The median of the last `window` values (aligned with sorted_t) at times <= x, NaN below
+    `min_periods`: pandas' rolling(window, min_periods).median() evaluated at the position x
+    would take in the stream - the matched builder's dep_dur / rwy_dur for a row outside it."""
+    hi = _count_le(sorted_t, x)
+    out = np.full(len(x), np.nan)
+    for i in range(len(x)):
+        lo = max(0, hi[i] - window)
+        if hi[i] - lo >= min_periods:
+            out[i] = np.median(vals[lo:hi[i]])
+    return out
+
+
+def _window_median(sorted_t, vals, x, w) -> np.ndarray:
+    """Median of vals over rows with sorted_t in [x - w, x + w]; NaN where the window is empty."""
+    lo, hi = _count_lt(sorted_t, x - w), _count_le(sorted_t, x + w)
+    out = np.full(len(x), np.nan)
+    for i in range(len(x)):
+        if hi[i] > lo[i]:
+            out[i] = np.median(vals[lo[i]:hi[i]])
+    return out
+
+
+def build_unmatched(t: pd.DataFrame, serve: bool = False, u: pd.DataFrame | None = None) -> pd.DataFrame:
+    """UNMATCHED_COLS for the admissible unmatched departures of `t` (or of `u`, when the
+    unmatched rows were read separately with COLS and `t` holds the RCOLS of every movement),
+    in take-off order.
+
+    The reference streams are build_features's own - the matched departures (_dep_stream, the
+    same filter and take-off order as the caches) and the arrivals (_arr_stream) - and every
+    window is the matched builder's formula anchored on the unmatched row's OWN take-off (and
+    schedule) against those streams; the row is never in a stream, so nothing is self-excluded
+    and a window counts every matched neighbour (tests/test_unmatched_features.py pins the
+    parity on cloned rows). Everything that reads the row's own AOBT_3 - proxy, the three
+    off-block offsets, aobt_sec, the eight push-anchored queue features, d_prx_minus_p50 - is
+    NaN by construction (UNMATCHED_NAN_COLS, asserted); everything that reads the row's *_flt
+    clocks is NaN whenever they are null (every unmatched row of the data). The encoding keys
+    of null *_flt columns read "NA", as build_features's do.
+    """
+    d, arr = _dep_stream(t, serve), _arr_stream(t)
+    if u is None:
+        u = _unmatched_stream(t, serve)
+    else:
+        u = _unmatched_stream(u, serve)
+    n = len(u)
+    if n == 0:
+        raise ValueError(f"no admissible unmatched departures (serve={serve}) - nothing to build")
+    if serve and not u.MVT_ID_mvt.is_unique:
+        raise ValueError(f"duplicate MVT_ID among the unmatched departures: {int(u.MVT_ID_mvt.duplicated().sum())}")
+    o, tu, su, _ = _own_clock_features(u, serve)
+    for name in SURF + STANDHIST + QUEUE_FEATS + DAY_FEATS:
+        o[name] = np.nan
+    W = QUEUE_WINDOWS
+
+    # ---- the matched reference stream ----
+    tk, a, sch = es(d.MVT_TIME_UTC_mvt), es(d.AOBT_3_flt), es(d.SCHED_TIME_UTC_mvt)
+    px = tk - a
+    d_apt = sarr(d.ADEP_mvt)
+    d_rwy = d_apt + "|" + sarr(d.RUNWAY_mvt)
+    d_stand = d_apt + "|" + sarr(d.STAND_mvt)
+    g_apt, g_rwy, g_stand = (_groups(k) if len(d) else {} for k in (d_apt, d_rwy, d_stand))
+    if len(d):
+        assert len(g_rwy) >= len(g_apt) and len(g_stand) >= len(g_apt), "composite keys collapsed - separator?"
+    u_apt = sarr(u.ADEP_mvt)
+    u_rwy = u_apt + "|" + sarr(u.RUNWAY_mvt)
+    u_stand = u_apt + "|" + sarr(u.STAND_mvt)
+
+    # ---- the arrival stream: landing, on-block, taxi-in, cdiff, stand ----
+    a_apt = sarr(arr.ADES_mvt)
+    a_land, a_t = es(arr.MVT_TIME_UTC_mvt), es(arr.BLOCK_TIME_UTC_mvt)
+    a_taxi = arr.TAXITIME_SEC_mvt.astype(float).to_numpy()
+    a_cdiff = np.where(arr.ARVT_3_flt.notna().to_numpy(), a_t - es(arr.ARVT_3_flt), np.nan)
+    a_stand = sarr(arr.STAND_mvt)
+    a_ok = arr.STAND_mvt.notna().to_numpy()
+    a_key = a_apt + "|" + a_stand
+
+    # ---- airport windows anchored on the row's take-off ----
+    for k, rows in pd.Series(np.arange(n)).groupby(u_apt, sort=False):
+        q = rows.to_numpy()
+        idx, tq = o.index[q], tu[q]
+        j = g_apt.get(k)
+        if j is not None:
+            m_sorted = tk[j]
+            o.loc[idx, "apt_b30"] = _win_count(tq, m_sorted, -1800, 0)
+            o.loc[idx, "n_push"] = _win_count(tq, np.sort(a[j]), -1800, 0)
+            s_sorted = np.sort(sch[j])
+            o.loc[idx, "sched_prev60"] = _win_count(tq, s_sorted, -3600, 0)
+            o.loc[idx, "sched_next60"] = _win_count(tq, s_sorted, 0, 3600)
+            o.loc[idx, "sched_day"] = len(j)
+            o.loc[idx, "dep_dur"] = _trailing_median(m_sorted, px[j], tq, 30, 3)
+            o.loc[idx, "q_dep_tko_sym15"] = (_count_le(m_sorted, tq + W["tko_sym_apt"])
+                                             - _count_lt(m_sorted, tq - W["tko_sym_apt"]))
+        am = a_apt == k
+        if am.any():
+            at, ax, ac = a_t[am], a_taxi[am], a_cdiff[am]
+            so = np.argsort(at, kind="mergesort")
+            at, ax, ac = at[so], ax[so], ac[so]
+            o.loc[idx, "arr_b30"] = _win_count(tq, at, -1800, 0)
+            hi = np.searchsorted(at, tq, "right")
+            lo60 = np.searchsorted(at, tq - 3600, "right")
+            lo180 = np.searchsorted(at, tq - 10800, "right")
+            cx, cc = np.concatenate([[0.0], np.nancumsum(ax)]), np.concatenate([[0.0], np.nancumsum(np.nan_to_num(ac))])
+            n60 = np.maximum(hi - lo60, 1)
+            o.loc[idx, "arr_dur"] = (cx[hi] - cx[lo60]) / n60
+            o.loc[idx, "arr_ob60_taxiin"] = (cx[hi] - cx[lo60]) / n60
+            o.loc[idx, "arr_ob60_cdiff"] = (cc[hi] - cc[lo60]) / n60
+            o.loc[idx, "arr_ob180_cdiff"] = (cc[hi] - cc[lo180]) / np.maximum(hi - lo180, 1)
+            o.loc[idx, "q_arr_taxiin_sym30_tko"] = _window_mean(at, ax, tq, W["arr_sym"])
+    # ---- runway windows ----
+    for k, rows in pd.Series(np.arange(n)).groupby(u_rwy, sort=False):
+        q = rows.to_numpy()
+        idx, tq = o.index[q], tu[q]
+        j = g_rwy.get(k)
+        if j is None:
+            continue
+        m_sorted = tk[j]
+        o.loc[idx, "rwy_b30"] = _win_count(tq, m_sorted, -1800, 0)
+        o.loc[idx, "rwy_rate"] = _win_count(tq, m_sorted, -3600, 0) / 60.0
+        o.loc[idx, "rwy_dur"] = _trailing_median(m_sorted, px[j], tq, 20, 3)
+        o.loc[idx, "q_rwy_tko_sym10"] = (_count_le(m_sorted, tq + W["tko_sym_rwy"])
+                                         - _count_lt(m_sorted, tq - W["tko_sym_rwy"]))
+        o.loc[idx, "q_rwy_ambient_proxy"] = _window_median(m_sorted, px[j], tq, W["ambient"])
+    # ---- the stand chain, anchored on the row's take-off ----
+    ok = a_ok & pd.notna(a_stand)
+    ka, ta, tx, cd = a_key[ok], a_t[ok], a_taxi[ok], a_cdiff[ok]
+    so = np.argsort(ta, kind="mergesort")
+    ka, ta, tx, cd = ka[so], ta[so], tx[so], cd[so]
+    aidx = {k: g.to_numpy() for k, g in pd.Series(np.arange(len(ta))).groupby(ka, sort=False)}
+    assert len(aidx) == len(set(zip(a_apt[ok], a_stand[ok]))), "stand index collapsed - separator?"
+    for k, rows in pd.Series(np.arange(n)).groupby(u_stand, sort=False):
+        q = rows.to_numpy()
+        idx, tq = o.index[q], tu[q]
+        j = g_stand.get(k)
+        if j is not None:
+            dj = np.sort(a[j])
+            o.loc[idx, "prev_dep_gap"] = tq - dj[np.maximum(np.searchsorted(dj, tq, "right") - 1, 0)]
+        pos = aidx.get(k)
+        if pos is None:
+            continue
+        st, sx, sc = ta[pos], tx[pos], cd[pos]
+        hm = np.searchsorted(st, tq, "right") - 1
+        okm = hm >= 0
+        o.loc[idx, "prev_arr_gap"] = tq - np.where(okm, st[np.maximum(hm, 0)], np.nan)
+        o.loc[idx, "prev_arr_taxiin"] = np.where(okm, sx[np.maximum(hm, 0)], np.nan)
+        o.loc[idx, "prev_arr_cdiff"] = np.where(okm, sc[np.maximum(hm, 0)], np.nan)
+    # ---- the day block: the row's own airport-day, looked up in the reference statistics ----
+    dep_s, arr_s, _ = _day_stats(d_apt, _day_index(tk), px, a_apt, _day_index(a_land), a_taxi)
+    u_day = _day_index(tu)
+    for i in range(n):
+        key = (u_apt[i], u_day[i])
+        p50, p90, le0, n_dep = dep_s.get(key, (np.nan, np.nan, np.nan, 0))
+        a50, a90, long, n_arr = arr_s.get(key, (np.nan, np.nan, np.nan, 0))
+        o.iloc[i, o.columns.get_loc("d_prx_p50")] = p50
+        o.iloc[i, o.columns.get_loc("d_prx_p90")] = p90
+        o.iloc[i, o.columns.get_loc("d_prx_le0")] = le0
+        o.iloc[i, o.columns.get_loc("d_n_dep")] = n_dep
+        o.iloc[i, o.columns.get_loc("d_arr_p50")] = a50
+        o.iloc[i, o.columns.get_loc("d_arr_p90")] = a90
+        o.iloc[i, o.columns.get_loc("d_arr_long")] = long
+        o.iloc[i, o.columns.get_loc("d_n_arr")] = n_arr
+
+    # ---- the NaN pattern: by construction, asserted, never filled ----
+    carrying = [c for c in UNMATCHED_NAN_COLS if o[c].notna().any()]
+    assert not carrying, f"an AOBT_3-anchored column carries a value on an unmatched row: {carrying}"
+    o["month"] = u.MVT_TIME_UTC_mvt.dt.month.to_numpy()
+    o["MVT_ID_mvt"] = u.MVT_ID_mvt.to_numpy()
+    o["ap"] = u_apt
+    for k in ("STAND_mvt", "RUNWAY_mvt", "AIRCRAFT_TYPE_mvt", "ADES_mvt", "AIRCRAFT_OPERATOR_flt", "MARKET_SEGMENT_flt",
+              "WK_TBL_CAT_flt", "FLIGHT_TYPE_flt"):
+        o[k] = sarr(u[k])
+    o["ADEP_mvt"] = u_apt
+    o["stand_pref"] = pd.Series(sarr(u.STAND_mvt)).str[:2].to_numpy()
+    o["airline"] = pd.Series(sarr(u.FLIGHT_mvt)).str[:3].to_numpy()
+    o["ars"] = u_stand + "|" + sarr(u.RUNWAY_mvt)
+    out = o[UNMATCHED_COLS].reset_index(drop=True)
+    for c in UNMATCHED_FLOAT32:
+        out[c] = out[c].astype(np.float32)
+    return out
+
+
+def build_unmatched_month(path: pathlib.Path, serve: bool = False) -> pd.DataFrame:
+    """Unmatched features for one calendar-month file, read in two passes to stay small: the
+    unmatched departures with the full COLS (a few thousand rows, filtered at the Arrow level),
+    then every movement's RCOLS for the reference streams."""
+    import pyarrow.compute as pc
+    tab = pq.read_table(path, columns=COLS, filters=[("PHASE_mvt", "==", "DEP")])
+    u = tab.filter(pc.is_null(tab["AOBT_3_flt"])).to_pandas()
+    del tab
+    gc.collect()
+    return build_unmatched(pq.read_table(path, columns=RCOLS).to_pandas(), serve=serve, u=u)
+
+
+def build_unmatched_ranking(path: pathlib.Path) -> pd.DataFrame:
+    """Serve-mode unmatched features for the evaluation file, one calendar month at a time, as
+    every other cache is built; MVT_ID uniqueness across the months asserted."""
+    import pyarrow.compute as pc
+    tab = pq.read_table(path, columns=COLS, filters=[("PHASE_mvt", "==", "DEP")])
+    u = tab.filter(pc.is_null(tab["AOBT_3_flt"])).to_pandas()
+    del tab
+    gc.collect()
+    t = pq.read_table(path, columns=RCOLS).to_pandas()
+    if t.MVT_TIME_UTC_mvt.isna().any():
+        raise ValueError(f"{t.MVT_TIME_UTC_mvt.isna().sum()} rows without MVT_TIME cannot "
+                         "be assigned to a calendar month")
+    ym = (t.MVT_TIME_UTC_mvt.dt.year * 100 + t.MVT_TIME_UTC_mvt.dt.month).to_numpy()
+    uym = (u.MVT_TIME_UTC_mvt.dt.year * 100 + u.MVT_TIME_UTC_mvt.dt.month).to_numpy()
+    parts = [build_unmatched(t[ym == m], serve=True, u=u[uym == m]) for m in np.unique(ym) if (uym == m).any()]
+    o = pd.concat(parts, ignore_index=True)
+    assert o.MVT_ID_mvt.is_unique, "duplicate MVT_ID across the per-month builds"
+    return o
+
+
+def cmd_unmatched_cache(smoke: bool, ranking: bool = False):
+    """Write data/cache_unmatched/<raw stem>.parquet: UNMATCHED_COLS for the unmatched
+    departures, one file per calendar month; --ranking writes ranking.parquet (serve mode)."""
+    UCACHE.mkdir(parents=True, exist_ok=True)
+    if ranking:
+        if smoke:
+            raise ValueError("--smoke does not apply to --ranking: a partial ranking cache "
+                             "at the real path would be consumed by the full fold")
+        t0 = time.time()
+        o = build_unmatched_ranking(RAW / "ranking.parquet")
+        out = UCACHE / "ranking.parquet"
+        o.to_parquet(out, index=False)
+        print(f"ranking.parquet -> {out.name}  rows={len(o):,}  cols={o.shape[1]}  "
+              f"wall {time.time() - t0:.1f}s  peak RSS {_peak_rss_gb():.2f} GB", flush=True)
+        return
+    paths = sorted(glob.glob(str(RAW / "training_2025-*.parquet")))
+    if smoke:
+        paths = paths[:1]
+    for p in paths:
+        p = pathlib.Path(p)
+        t0 = time.time()
+        o = build_unmatched_month(p)
+        out = UCACHE / (p.stem + ".parquet")
+        o.to_parquet(out, index=False)
+        print(f"{p.name} -> {out.name}  rows={len(o):,}  cols={o.shape[1]}  "
+              f"wall {time.time() - t0:.1f}s  peak RSS {_peak_rss_gb():.2f} GB", flush=True)
+        del o
+        gc.collect()
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("cmd", choices=["cache", "fit", "queue-cache", "day-cache"])
+    ap.add_argument("cmd", choices=["cache", "fit", "queue-cache", "day-cache", "unmatched-cache"])
     ap.add_argument("--smoke", action="store_true")
     ap.add_argument("--ranking", action="store_true",
-                    help="cache / queue-cache / day-cache: build <cache dir>/ranking.parquet "
+                    help="cache / queue-cache / day-cache / unmatched-cache: build <cache dir>/ranking.parquet "
                          "(serve mode) instead of the training months")
     a = ap.parse_args()
     if a.cmd == "cache":
@@ -912,5 +1241,7 @@ if __name__ == "__main__":
         cmd_queue_cache(a.smoke, ranking=a.ranking)
     elif a.cmd == "day-cache":
         cmd_day_cache(a.smoke, ranking=a.ranking)
+    elif a.cmd == "unmatched-cache":
+        cmd_unmatched_cache(a.smoke, ranking=a.ranking)
     else:
         cmd_fit(a.smoke)

@@ -10,6 +10,10 @@ measurements, never verdict labels - the amendments hold the thresholds and appl
     $ENV scripts/lgbm_fold.py --sweep                                       # 15.2 screening tier
     $ENV scripts/lgbm_fold.py --confirm "255,40,0.8" "511,20,0.6"           # 15.2 confirmation tier
     $ENV scripts/lgbm_fold.py --fillhead [--baseline A3] [--pa-trees es]   # Amendment 16
+    $ENV scripts/lgbm_fold.py --dayfeats [--queue] [--baseline A2] [--pa-trees es]   # Amendment 19.1, arm D
+    $ENV scripts/lgbm_fold.py --ytarget  [--queue] [--baseline A2] [--pa-trees es]   # Amendment 19.2, arm Y
+    $ENV scripts/lgbm_fold.py --ytarget --all-rows [--queue] [--dayfeats] --unmatched-weight 1,10 [--baseline A2]
+                                                                            # the UNIFIED all-rows arm
     any of the above with --smoke                                           # code path only
 
 Fold A: holdout months (1, 7) of the 2025 training caches; early-stopping months (3, 9) carved
@@ -101,6 +105,50 @@ the 2 x seed sd check against the v4 JSON's seed sd (the head is single-seed, so
 has no seed sd of its own). Predictions -> data/cache_stand/fold_preds_fillhead.parquet; record
 -> reports/lgbm_fold_fillhead.json.
 
+--dayfeats (Amendment 19.1, arm D): treatment = the current best design + stand_ab.DAY_FEATS (9
+airport-day regime columns from data/cache_day/, joined onto each training month by POSITION
+exactly as the queue block is; the row contract is tests/test_day_features.py's), best_iter
+re-found. The current best design is the v4 arm (--baseline A2/A3, read from the v4 record) or,
+with --queue, the queue fold's own treatment A2/A3 + QUEUE_FEATS read from ITS record
+(--queue-preds / --queue-json, default data/cache_stand/fold_preds_queue.parquet +
+reports/lgbm_fold_queue.json; the record's baseline_arm must be the arm asked for); --queue makes
+the mode queue_day with its own output names. Reported per 19.3: the paired interval and point
+gain pooled and per airport with the >= 6 of 10 count, the seed sd rule, and both arms' RMSE with
+the treatment's paired interval on each |delta| band of 19.0 (< 2 min, 2-10, 10-20, > 20 min;
+left-closed, right-open in seconds) plus their union over10 (|delta| >= 600 s, the "> 10 min
+bands" 19.3 needs to move by >= +5 s). Predictions -> data/cache_stand/fold_preds_day.parquet
+(fold_preds_queue_day.parquet), record -> reports/lgbm_fold_day.json (lgbm_fold_queue_day.json).
+
+--ytarget (Amendment 19.2, arm Y): the same design, configuration and seeds as the delta arm
+(the v4 arm, or the queue treatment under --queue, read from its record - it is both the pair's
+reference and the blend partner, so --blend-with is the same knob as --baseline), fitted with
+target y (lgbm_submit's --target y: label y, the stopping metric on y directly, y_hat_Y =
+max(prediction, 1), no proxy anchor); and the 0.5/0.5 blend of y_hat_Y with the delta arm's
+y_hat (YBLEND). Reported per 19.2/19.3: Y alone and the blend, each paired against the delta arm
+pooled, per airport (LTFM and EDDM named) and on the |delta| bands; the seed sd rule. The parquet
+carries the per-seed y predictions (y_seed{s}, y scale) and the arms in the delta form every arm's
+column uses (max(proxy - col, 1) recovers the taxi time). Predictions ->
+data/cache_stand/fold_preds_ytarget.parquet (fold_preds_queue_ytarget.parquet), record ->
+reports/lgbm_fold_ytarget.json (lgbm_fold_queue_ytarget.json).
+
+--ytarget --all-rows (the UNIFIED arm, the Amendment 19 addition): ONE regressor with target y
+on EVERY admissible training row - the matched caches AND the unmatched cache
+(data/cache_unmatched, stand_ab.py unmatched-cache: the stratum's rows with every AOBT_3-anchored
+column NaN, asserted, never filled) - on the design FEATS [+ QUEUE_FEATS with --queue] [+
+DAY_FEATS with --dayfeats] + is_unmatched, the delta encodings fitted on the matched training
+rows only, an optional sample weight W on the unmatched rows (--unmatched-weight, a list: each W
+is its own arm U_w{W}, three seeds), y_hat = max(prediction, 1) on every row, no proxy anywhere.
+Paired against the CURRENT PIPELINE's per-row predictions: the matched holdout rows from the v4 /
+queue record (as arms D and Y), the unmatched holdout rows from the stratum fold's shipped
+fit_unmatched (S0 of data/cache_stand/stratum_fold_v7_preds.parquet, fold "A", joined by id;
+--stratum-preds). Reported THREE ways, each arm and its 0.5/0.5 blend with the pipeline
+(Ublend_w{W}): (i) the matched rows, (ii) the unmatched rows pooled AND ex-monster (y <= 10,800
+s), both with per-airport cuts and paired row intervals on the subset's rows, (iii) the fold
+TOTAL at the 2026 scored-file weights (w_m 0.984660 / w_u 0.015340) with a STRATIFIED paired row
+bootstrap (each stratum resampled within itself); plus the |delta| bands on the matched rows.
+The parquet's arm columns are TAXI TIMES (the unmatched rows have no proxy) with is_unmatched
+and MVT_ID_mvt. Modes allrows / queue_allrows (+ _day) with their own output names.
+
 Smoke (--smoke): months (1, 2, 3) - holdout 1, early-stop 3, fit 2 (the sweep: train 2, stop
 3); tiny trees; 200 bootstrap draws; a scratch directory; the banner. The reproduction check is
 skipped there. A smoke proves the code path and nothing else.
@@ -125,6 +173,8 @@ import pandas as pd
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CACHE = ROOT / "data" / "cache_stand"
 QCACHE = ROOT / "data" / "cache_queue"
+DCACHE = ROOT / "data" / "cache_day"
+UCACHE = ROOT / "data" / "cache_unmatched"
 REPORTS = ROOT / "reports"
 
 
@@ -195,7 +245,31 @@ RANKING_BANNER = "RANKING ONLY — no magnitude from this tier is a result"
 FEATS_HEAD = L.head_features(L.FEATS)                     # FEATS + [nmdelay]: the head's 69 columns
 N_DECILES = 10                                            # reliability: equal-count bins of p on the holdout
 
-MODES = ("v4", "queue", "catboost", "sweep", "confirm", "fillhead")
+# ---- Amendment 19: arm D (the airport-day regime block) and arm Y (the y formulation) -------
+DAY_FEATS = list(L.DAY_FEATS)
+FEATS_DAY = list(L.FEATS) + DAY_FEATS                     # 77 columns
+FEATS_QUEUE_DAY = FEATS_QUEUE + DAY_FEATS                 # 89 columns: the queue design + the day block
+YBLEND = 0.5                                              # 19.2: the 0.5/0.5 blend of y_hat_Y with the delta arm's y_hat
+YTARGET_NAMED_AIRPORTS = ("LTFM", "EDDM")                 # 19.2: corr(proxy, y) 0.08 / 0.16 - called out per airport
+DAY_MIN_AIRPORTS = 6                                      # 19.3: arm D needs >= 6 of 10 airports to improve
+#: 19.0's |delta| bands in seconds, left-closed / right-open, a partition of the holdout; over10
+#: is the union of the upper two (19.3's "|delta| > 10 min bands"), |delta| >= OVER10_S
+DELTA_BANDS = (("lt2", 0.0, 120.0), ("2to10", 120.0, 600.0), ("10to20", 600.0, 1_200.0), ("gt20", 1_200.0, float("inf")))
+OVER10_S = 600.0
+#: the queue fold's record: under --queue it is the current best design's own predictions
+QUEUE_JSON, QUEUE_PREDS = REPORTS / "lgbm_fold_queue.json", CACHE / "fold_preds_queue.parquet"
+
+# ---- the unified all-rows arm -------------------------------------------------------------------
+IS_UNMATCHED = L.IS_UNMATCHED
+STRATUM_PREDS = CACHE / "stratum_fold_v7_preds.parquet"     # the shipped unmatched predictions, fold "A" rows
+#: the 2026 scored file's shares: 339,551 matched and 5,290 unmatched of 344,841 rows
+W_MATCHED_2026, W_UNMATCHED_2026 = 339_551 / 344_841, 5_290 / 344_841
+MONSTER_S = 10_800.0                                        # y > 3 h: Amendment 9 rule 4, the stratum's ex-monster cut
+UNIFIED_AMENDMENT = "19-unified"
+ALLROWS_MODES = ("allrows", "queue_allrows", "allrows_day", "queue_allrows_day")
+
+MODES = ("v4", "queue", "catboost", "sweep", "confirm", "fillhead", "day", "queue_day", "ytarget", "queue_ytarget",
+         *ALLROWS_MODES)
 OUTPUT_NAMES = {
     "v4": (JSON_NAME, LOG_NAME, PREDS_NAME),
     "queue": ("lgbm_fold_queue.json", "lgbm_fold_queue.log", "fold_preds_queue.parquet"),
@@ -203,6 +277,15 @@ OUTPUT_NAMES = {
     "sweep": ("lgbm_fold_sweep.json", "lgbm_fold_sweep.log", None),
     "confirm": ("lgbm_fold_confirm.json", "lgbm_fold_confirm.log", "fold_preds_confirm.parquet"),
     "fillhead": ("lgbm_fold_fillhead.json", "lgbm_fold_fillhead.log", "fold_preds_fillhead.parquet"),
+    "day": ("lgbm_fold_day.json", "lgbm_fold_day.log", "fold_preds_day.parquet"),
+    "queue_day": ("lgbm_fold_queue_day.json", "lgbm_fold_queue_day.log", "fold_preds_queue_day.parquet"),
+    "ytarget": ("lgbm_fold_ytarget.json", "lgbm_fold_ytarget.log", "fold_preds_ytarget.parquet"),
+    "queue_ytarget": ("lgbm_fold_queue_ytarget.json", "lgbm_fold_queue_ytarget.log", "fold_preds_queue_ytarget.parquet"),
+    "allrows": ("lgbm_fold_allrows.json", "lgbm_fold_allrows.log", "fold_preds_allrows.parquet"),
+    "queue_allrows": ("lgbm_fold_queue_allrows.json", "lgbm_fold_queue_allrows.log", "fold_preds_queue_allrows.parquet"),
+    "allrows_day": ("lgbm_fold_allrows_day.json", "lgbm_fold_allrows_day.log", "fold_preds_allrows_day.parquet"),
+    "queue_allrows_day": ("lgbm_fold_queue_allrows_day.json", "lgbm_fold_queue_allrows_day.log",
+                          "fold_preds_queue_allrows_day.parquet"),
 }
 _ENV = ("cd ~/Projects/prc-challenge && PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 nice -n 19 "
         "/usr/bin/time -l python3.11 -B -u scripts/lgbm_fold.py")
@@ -214,6 +297,14 @@ COMMANDS = {
     "sweep": f"{_ENV} --sweep 2>&1 | tee reports/lgbm_fold_sweep.console.log",
     "confirm": f"{_ENV} --confirm \"<screen rank 1>\" \"<screen rank 2>\" 2>&1 | tee reports/lgbm_fold_confirm.console.log",
     "fillhead": f"{_ENV} --fillhead --baseline A3 --pa-trees es 2>&1 | tee reports/lgbm_fold_fillhead.console.log",
+    "day": f"{_ENV} --dayfeats --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_day.console.log",
+    "queue_day": f"{_ENV} --dayfeats --queue --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_queue_day.console.log",
+    "ytarget": f"{_ENV} --ytarget --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_ytarget.console.log",
+    "queue_ytarget": f"{_ENV} --ytarget --queue --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_queue_ytarget.console.log",
+    "allrows": f"{_ENV} --ytarget --all-rows --unmatched-weight 1,10 --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_allrows.console.log",
+    "queue_allrows": f"{_ENV} --ytarget --all-rows --queue --unmatched-weight 1,10 --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_queue_allrows.console.log",
+    "allrows_day": f"{_ENV} --ytarget --all-rows --dayfeats --unmatched-weight 1,10 --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_allrows_day.console.log",
+    "queue_allrows_day": f"{_ENV} --ytarget --all-rows --queue --dayfeats --unmatched-weight 1,10 --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_queue_allrows_day.console.log",
 }
 ESTIMATE = (
     "full run ~1.4 h (range 1.2-2 h), peak RSS ~5 GB, 4 threads; writes reports/lgbm_fold_v4.json, "
@@ -257,6 +348,53 @@ ESTIMATES = {
         "load + encodings ~3 min; bootstrap (pooled + 10 airports + 2 subsets + 3 LIRF cuts, 2,000 draws) ~3 min. "
         "With --refit-baseline add the full v4 run (~1.9 h with --pa-trees es). Writes "
         "reports/lgbm_fold_fillhead.{json,log} and data/cache_stand/fold_preds_fillhead.parquet."),
+    "day": (
+        "~1.7 h (range 1.4-2.2 h), peak RSS ~4.5 GB (the v4 footprint + 9 float32 columns), 4 threads; run ALONE. "
+        "The v4 per-row/iter rates x1.13 for 77 columns: load + encodings + the day join ~3 min; ES ~17 min; 3 refits "
+        "at ~22k trees ~16 min + holdout predict ~6 min each (~66 min); bootstrap (pooled + 10 airports + 5 bands, "
+        "2,000 draws) ~3 min. With --baseline A3 --pa-trees es add ~35 min for the treatment's per-airport models. "
+        "The baseline is READ from the v4 record (no refit). Writes reports/lgbm_fold_day.{json,log} and "
+        "data/cache_stand/fold_preds_day.parquet."),
+    "queue_day": (
+        "~2.0 h (range 1.6-2.6 h), peak RSS ~5 GB (the queue fold's 4.8 GB + 9 float32 columns), 4 threads; run "
+        "ALONE. x1.3 for 89 columns: load + the two joins ~3 min; ES ~20 min; 3 refits ~19 min + predict ~6 min each "
+        "(~75 min); bootstrap ~3 min. The baseline is READ from the queue record (fold_preds_queue.parquet's "
+        "treatment column; no refit). Writes reports/lgbm_fold_queue_day.{json,log} and "
+        "data/cache_stand/fold_preds_queue_day.parquet."),
+    "ytarget": (
+        "~1.4 h (range 1.1-2 h), peak RSS ~4.2 GB (the v4 footprint), 4 threads; run ALONE. The round count of a "
+        "y-target early stop is UNMEASURED (the label's variance is larger than delta's; at lr 0.01 a best_iter "
+        "near the delta arm's 17.5k is the guess): ES ~15 min; 3 refits ~14 min + holdout predict ~5.5 min each "
+        "(~58 min); bootstrap (2 pairs x (pooled + 10 airports + 5 bands), 2,000 draws) ~5 min. The delta arm is "
+        "READ from the v4 record. Writes reports/lgbm_fold_ytarget.{json,log} and "
+        "data/cache_stand/fold_preds_ytarget.parquet."),
+    "queue_ytarget": (
+        "~1.6 h (range 1.3-2.3 h), peak RSS ~4.8 GB (the queue fold's footprint), 4 threads; run ALONE. x1.15 for "
+        "80 columns: ES ~16 min; 3 refits ~21 min each; bootstrap ~5 min. The delta arm is READ from the queue "
+        "record (fold_preds_queue.parquet's treatment column). Writes reports/lgbm_fold_queue_ytarget.{json,log} "
+        "and data/cache_stand/fold_preds_queue_ytarget.parquet."),
+    "allrows": (
+        "~2.7 h (range 2.2-3.5 h) for --unmatched-weight 1,10: two unified arms, each an ES run (~15 min) + 3 refits "
+        "(~14 min + 5.5 min predict each) on 1.75M rows at 69 columns; load (12 stand + 12 unmatched caches) + "
+        "encodings ~4 min; bootstrap (3 subsets x 4 pairs x (pooled + per airport) + the stratified total + 5 bands, "
+        "2,000 draws) ~6 min. Peak RSS ~4.5 GB (the v4 footprint + ~22k rows + is_unmatched), 4 threads; run ALONE. "
+        "PREREQUISITES: data/cache_unmatched/ (stand_ab.py unmatched-cache, 12 months + --ranking: UNMEASURED, expect "
+        "~3-6 s and ~0.5 GB per month - two reads, the unmatched rows filtered at the Arrow level) and "
+        "data/cache_stand/stratum_fold_v7_preds.parquet (scripts/stratum_fold.py, ~5 min, ~3-4 GB, ALONE). The round "
+        "count of a y-target early stop is UNMEASURED. The matched pipeline is READ from the v4 record. Writes "
+        "reports/lgbm_fold_allrows.{json,log} and data/cache_stand/fold_preds_allrows.parquet."),
+    "queue_allrows": (
+        "~3.1 h (range 2.5-4 h): the allrows estimate x1.15 for 81 columns; peak RSS ~4.9 GB. The matched pipeline is "
+        "READ from the queue record; prerequisites as for allrows plus data/cache_queue/. Writes "
+        "reports/lgbm_fold_queue_allrows.{json,log} and data/cache_stand/fold_preds_queue_allrows.parquet."),
+    "allrows_day": (
+        "~3.0 h (range 2.4-3.9 h): the allrows estimate x1.13 for 78 columns; peak RSS ~4.7 GB; prerequisites as for "
+        "allrows plus data/cache_day/. Writes reports/lgbm_fold_allrows_day.{json,log} and "
+        "data/cache_stand/fold_preds_allrows_day.parquet."),
+    "queue_allrows_day": (
+        "~3.5 h (range 2.8-4.5 h): the allrows estimate x1.3 for 90 columns; peak RSS ~5.1 GB; prerequisites as for "
+        "queue_allrows plus data/cache_day/. Writes reports/lgbm_fold_queue_allrows_day.{json,log} and "
+        "data/cache_stand/fold_preds_queue_allrows_day.parquet."),
 }
 
 _T0 = time.time()
@@ -319,6 +457,22 @@ def parse_setting(text: str) -> tuple:
     return setting
 
 
+def parse_weights(text: str) -> tuple:
+    """"1,10" -> (1.0, 10.0): positive finite floats, in the order given, no repeats."""
+    parts = [p.strip() for p in str(text).split(",")]
+    if not parts or any(p == "" for p in parts):
+        raise argparse.ArgumentTypeError(f"--unmatched-weight must be a comma list of weights, got {text!r}")
+    try:
+        ws = tuple(float(p) for p in parts)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"--unmatched-weight must be numbers, got {text!r}")
+    if any(not np.isfinite(w) or w <= 0 for w in ws):
+        raise argparse.ArgumentTypeError(f"--unmatched-weight must be positive finite numbers, got {text!r}")
+    if len(set(ws)) != len(ws):
+        raise argparse.ArgumentTypeError(f"--unmatched-weight repeats a weight: {text!r}")
+    return ws
+
+
 def setting_params(params: dict, setting) -> dict:
     """The measured P with exactly num_leaves / min_data_in_leaf / feature_fraction replaced."""
     nl, md, ff = setting
@@ -351,9 +505,17 @@ def parse_args(argv=None) -> argparse.Namespace:
                           "('num_leaves,min_data_in_leaf,feature_fraction') against the incumbent")
     arm.add_argument("--fillhead", action="store_true",
                      help="Amendment 16: baseline + the schedule-fill mixture head (lgbm_submit.fit_fill_head)")
-    base = ap.add_argument_group("baseline (queue / catboost / confirm / fillhead)")
-    base.add_argument("--baseline", choices=BASELINE_ARMS, default="A3",
-                      help="the v4 arm that shipped per Amendment 12.3 (default A3)")
+    arm.add_argument("--dayfeats", action="store_true",
+                     help="Amendment 19.1 arm D: the current best design + DAY_FEATS (composes with --queue, which "
+                          "then names the queue treatment as the design and reads its record)")
+    arm.add_argument("--ytarget", action="store_true",
+                     help="Amendment 19.2 arm Y: the current best design fitted with target y, and its 0.5/0.5 blend "
+                          "with the delta arm (composes with --queue like --dayfeats)")
+    base = ap.add_argument_group("baseline (queue / catboost / confirm / fillhead / dayfeats / ytarget)")
+    base.add_argument("--baseline", "--blend-with", dest="baseline", choices=BASELINE_ARMS, default="A3",
+                      help="the v4 arm that shipped per Amendment 12.3 (default A3); under --queue the queue "
+                           "treatment built on that arm. --blend-with is the same knob: 19.2's blend partner IS the "
+                           "delta arm the Y arm is paired against")
     base.add_argument("--seeds", type=L.parse_seeds, default="0,1,2",
                       help="the treatment's seeds; the baseline is rebuilt over the same seeds (default 0,1,2)")
     base.add_argument("--baseline-preds", default=None,
@@ -362,6 +524,21 @@ def parse_args(argv=None) -> argparse.Namespace:
     base.add_argument("--refit-baseline", action="store_true",
                       help="fit the baseline in-process instead of reading the v4 record (a smoke "
                            "without --baseline-preds/--v4-json does this automatically)")
+    base.add_argument("--queue-preds", default=None,
+                      help=f"under --queue with --dayfeats/--ytarget: the queue fold's predictions parquet (default {QUEUE_PREDS})")
+    base.add_argument("--queue-json", default=None,
+                      help=f"under --queue with --dayfeats/--ytarget: the queue fold's record (default {QUEUE_JSON})")
+    uni = ap.add_argument_group("the unified all-rows arm (--ytarget --all-rows)")
+    uni.add_argument("--all-rows", action="store_true",
+                     help="with --ytarget: ONE y-target regressor on matched AND unmatched training rows "
+                          "(data/cache_unmatched), paired against the current pipeline three ways; --queue and "
+                          "--dayfeats then name the design (FEATS + blocks)")
+    uni.add_argument("--unmatched-weight", type=parse_weights, default="1",
+                     help="the sample weight(s) of the unmatched training rows, a comma list; each is its own arm "
+                          "(default 1; the registered run: 1,10)")
+    uni.add_argument("--stratum-preds", default=None,
+                     help=f"the stratum fold's predictions parquet whose fold-A S0 is the unmatched rows' pipeline "
+                          f"prediction (default {STRATUM_PREDS})")
     ap.add_argument("--n-perm", type=int, default=N_PERM,
                     help=f"queue arm: permutations in the negative control (default {N_PERM})")
     ap.add_argument("--catboost-python", default=str(CATBOOST_PYTHON),
@@ -369,20 +546,36 @@ def parse_args(argv=None) -> argparse.Namespace:
     ap.add_argument("--catboost-worker", default=str(CATBOOST_WORKER), help="the worker script")
     args = ap.parse_args(argv)
     on = [m for m, flag in _arm_flags(args) if flag]
-    if len(on) > 1:
-        ap.error(f"one arm per run: {on}")
+    if args.all_rows:
+        if not args.ytarget:
+            ap.error("--all-rows is the unified y-target arm: it needs --ytarget")
+        if not set(on) <= {"ytarget", "queue", "day"}:
+            ap.error(f"--all-rows composes only with --queue and --dayfeats as its design: {on}")
+    elif len(on) > 1 and set(on) not in COMPOSITIONS:
+        ap.error(f"one arm per run: {on} (--queue composes only with --dayfeats or --ytarget, Amendment 19)")
     if args.n_perm < 2:
         ap.error("--n-perm must be >= 2 (a percentile needs a distribution)")
     return args
 
 
+#: the only flag pairs one run may carry: --queue as the DESIGN of an Amendment 19 arm
+COMPOSITIONS = ({"queue", "day"}, {"queue", "ytarget"})
+
+
 def _arm_flags(args) -> tuple:
     """(mode, flag) per arm, one place, so exclusivity and mode_of cannot disagree."""
     return (("queue", args.queue), ("catboost", args.catboost), ("sweep", args.sweep),
-            ("confirm", bool(args.confirm)), ("fillhead", args.fillhead))
+            ("confirm", bool(args.confirm)), ("fillhead", args.fillhead), ("day", args.dayfeats),
+            ("ytarget", args.ytarget))
 
 
 def mode_of(args) -> str:
+    if getattr(args, "all_rows", False):
+        return ("queue_" if args.queue else "") + "allrows" + ("_day" if args.dayfeats else "")
+    if args.dayfeats:
+        return "queue_day" if args.queue else "day"
+    if args.ytarget:
+        return "queue_ytarget" if args.queue else "ytarget"
     for mode, flag in _arm_flags(args):
         if flag:
             return mode
@@ -433,10 +626,12 @@ def sweep_masks(month, train_months=SWEEP["train"], stop=SWEEP["stop"]):
     return st, tr, tr, st
 
 
-def taxi_time(proxy, delta_hat) -> np.ndarray:
+def taxi_time(proxy, delta_hat, target=L.TARGET_DELTA) -> np.ndarray:
     """y_hat = max(proxy - delta_hat, 1) in float64, unrounded (lgbm_ab scored it so); the same
-    floor-bind guard as lgbm_submit.recover_taxi_time."""
-    raw = np.asarray(proxy, dtype="float64") - np.asarray(delta_hat, dtype="float64")
+    floor-bind guard as lgbm_submit.recover_taxi_time. Under target "y" (Amendment 19.2) the
+    second argument is the y prediction itself and y_hat = max(prediction, 1) - proxy is not
+    read (lgbm_submit.raw_taxi_time)."""
+    raw = L.raw_taxi_time(delta_hat, proxy, target)
     assert np.isfinite(raw).all(), f"non-finite predictions: {int((~np.isfinite(raw)).sum())}"
     bound = float((raw < 1.0).mean())
     assert bound < 0.005, f"positivity floor binds on {100 * bound:.2f}% of rows"
@@ -534,8 +729,10 @@ def score_pairs(se: dict, rmses: dict, pairs, ap_te, airports, n_boot, sd) -> tu
     ap_te = np.asarray(ap_te)
     pooled = paired_bootstrap(se, pairs, n_boot, BOOT_SEED)
     present = [(i, a) for i, a in enumerate(airports) if (ap_te == i).any()]
-    per_airport = {a: paired_bootstrap({k: v[ap_te == i] for k, v in se.items()}, pairs, n_boot, BOOT_SEED)
-                   for i, a in present}
+    # an airport with a single row has an RMSE but no interval (a bootstrap needs two rows): the
+    # unmatched strata of the unified arm have such airports; every matched fold has thousands
+    per_airport = {a: (paired_bootstrap({k: v[ap_te == i] for k, v in se.items()}, pairs, n_boot, BOOT_SEED)
+                       if int((ap_te == i).sum()) >= 2 else None) for i, a in present}
     out = {}
     for new, ref in pairs:
         key = f"{new}_vs_{ref}"
@@ -544,7 +741,7 @@ def score_pairs(se: dict, rmses: dict, pairs, ap_te, airports, n_boot, sd) -> tu
         p["exceeds_2x_seed_sd"] = exceeds_2x_seed_sd(p["gain_s"], sd) if sd is not None else None
         p["airports_improving"] = airports_improving(rmses[new]["per_airport"], rmses[ref]["per_airport"])
         p["n_airports"] = len(present)
-        p["per_airport"] = {a: per_airport[a][key] for _, a in present}
+        p["per_airport"] = {a: (per_airport[a][key] if per_airport[a] is not None else None) for _, a in present}
         out[key] = p
     return out, present
 
@@ -766,20 +963,150 @@ def subset_record(definition: str, mask, se: dict, n_boot: int, pair=("treatment
                      if n >= 2 else None)}
 
 
+# ---- Amendment 19 arithmetic ----
+
+def delta_bands(delta) -> dict:
+    """19.0's |delta| bands as boolean masks: lt2 [0, 120), 2to10 [120, 600), 10to20 [600, 1200),
+    gt20 [1200, inf) - left-closed, right-open in seconds, a partition of the rows - and over10 =
+    10to20 | gt20 (|delta| >= OVER10_S), the "> 10 min bands" of 19.3."""
+    abs_d = np.abs(np.asarray(delta, dtype="float64"))
+    out = {name: (abs_d >= lo) & (abs_d < hi) for name, lo, hi in DELTA_BANDS}
+    assert (np.stack(list(out.values())).sum(axis=0) == 1).all(), "the |delta| bands must partition the rows"
+    out["over10"] = abs_d >= OVER10_S
+    return out
+
+
+def band_definition(name: str) -> str:
+    if name == "over10":
+        return f"|delta| >= {OVER10_S:.0f} s (10to20 + gt20)"
+    lo, hi = next((lo, hi) for n, lo, hi in DELTA_BANDS if n == name)
+    return f"|delta| >= {lo:.0f} s" if hi == float("inf") else f"{lo:.0f} s <= |delta| < {hi:.0f} s"
+
+
+def blend_taxi_times(y_hat_y, y_hat_delta, weight=YBLEND) -> np.ndarray:
+    """19.2's blend: weight x the y arm's taxi time + (1 - weight) x the delta arm's, float64,
+    row by row; both are taxi times already floored at 1 s. Shape mismatch and non-finite
+    inputs are refusals."""
+    a, b = np.asarray(y_hat_y, dtype="float64"), np.asarray(y_hat_delta, dtype="float64")
+    if a.shape != b.shape:
+        raise ValueError(f"shape mismatch: y arm {a.shape}, delta arm {b.shape}")
+    if not (np.isfinite(a).all() and np.isfinite(b).all()):
+        raise ValueError("non-finite taxi time in a blend operand")
+    return float(weight) * a + (1.0 - float(weight)) * b
+
+
+def band_record(definition: str, mask, se: dict, n_boot: int, pairs, ref: str) -> dict:
+    """One |delta| band: its row count and share, its share of the reference arm's SSE, every
+    arm's RMSE on ITS rows only, and one paired interval PER PAIR drawn on those rows only
+    (None below two rows; no RMSE at all below one) - subset_record for several pairs."""
+    mask = np.asarray(mask, dtype=bool)
+    n = int(mask.sum())
+    total = float(se[ref].sum())
+    out = {"definition": definition, "n_rows": n,
+           "share_of_holdout_rows": float(mask.mean()) if len(mask) else 0.0,
+           f"share_of_{ref}_sse": float(se[ref][mask].sum() / total) if total > 0 else None,
+           "rmse": {k: float(np.sqrt(v[mask].mean())) for k, v in se.items()} if n else None,
+           "pairs": None}
+    if n >= 2:
+        out["pairs"] = paired_bootstrap({k: v[mask] for k, v in se.items()}, list(pairs), n_boot, BOOT_SEED)
+    return out
+
+
+def band_records(delta, se: dict, n_boot: int, pairs, ref: str) -> dict:
+    """{band: band_record} over the five bands of delta_bands, cut on the TRUE delta."""
+    return {name: band_record(band_definition(name), mask, se, n_boot, pairs, ref)
+            for name, mask in delta_bands(delta).items()}
+
+
+# ---- the unified all-rows arm's arithmetic ----
+
+def total_rmse_2026(mse_matched, mse_unmatched, w_m=W_MATCHED_2026, w_u=W_UNMATCHED_2026) -> float:
+    """The fold TOTAL at the 2026 scored-file shares: sqrt(w_m x MSE_matched + w_u x MSE_unmatched)."""
+    return float(np.sqrt(w_m * float(mse_matched) + w_u * float(mse_unmatched)))
+
+
+def stratified_paired_bootstrap(se_m: dict, se_u: dict, pairs, n_draws=N_BOOT, seed=BOOT_SEED, w_m=W_MATCHED_2026,
+                                w_u=W_UNMATCHED_2026) -> dict:
+    """Paired row bootstrap of the 2026-weighted TOTAL: the matched rows and the unmatched rows
+    are each resampled within their own stratum (the same draws for every arm and pair), the
+    total per draw is total_rmse_2026 of the two resampled means, the point estimate the actual
+    total gain. Returns {"new_vs_ref": {gain_s, ci95, excludes_zero, improving, n_draws, seed,
+    n_matched, n_unmatched, w_matched, w_unmatched}}."""
+    arms = sorted({a for pair in pairs for a in pair})
+    M = np.stack([np.asarray(se_m[a], dtype="float64") for a in arms])
+    U = np.stack([np.asarray(se_u[a], dtype="float64") for a in arms])
+    n_m, n_u = M.shape[1], U.shape[1]
+    if n_m < 2 or n_u < 2:
+        raise ValueError(f"each stratum needs at least two rows: matched {n_m}, unmatched {n_u}")
+    rng = np.random.default_rng(seed)
+    tot = np.empty((n_draws, len(arms)), dtype="float64")
+    for i in range(n_draws):
+        im, iu = rng.integers(0, n_m, n_m), rng.integers(0, n_u, n_u)
+        tot[i] = np.sqrt(w_m * M[:, im].mean(axis=1) + w_u * U[:, iu].mean(axis=1))
+    point = {a: total_rmse_2026(M[j].mean(), U[j].mean(), w_m, w_u) for j, a in enumerate(arms)}
+    out = {}
+    for new, ref in pairs:
+        gains = tot[:, arms.index(ref)] - tot[:, arms.index(new)]
+        lo, hi = (float(v) for v in np.percentile(gains, [2.5, 97.5]))
+        gain = point[ref] - point[new]
+        out[f"{new}_vs_{ref}"] = dict(gain_s=gain, ci95=[lo, hi], excludes_zero=bool(lo > 0.0 or hi < 0.0),
+                                      improving=bool(gain > 0.0 and lo > 0.0), n_draws=int(n_draws), seed=int(seed),
+                                      n_matched=int(n_m), n_unmatched=int(n_u), w_matched=float(w_m), w_unmatched=float(w_u))
+    return out
+
+
+def unmatched_baseline_from_stratum(preds: pd.DataFrame, base_u: pd.DataFrame) -> dict:
+    """The unmatched holdout rows' pipeline prediction: the stratum record's fold-"A" S0 (the
+    shipped fit_unmatched), joined by MVT_ID_mvt onto `base_u` in ITS order. Every row must be
+    present exactly once among the fold-A rows and y / month must agree row by row (the same
+    fold); lomo rows are ignored. Returns dict(yhat, n_record_fold_a, n_joined)."""
+    if "S0" not in preds.columns:
+        raise ValueError("the stratum record has no S0 column (the shipped fit_unmatched): not stratum_fold's parquet")
+    fa = preds[preds.fold == "A"]
+    if not pd.Index(fa.MVT_ID_mvt).is_unique:
+        raise ValueError(f"duplicate MVT_ID among the record's fold-A rows: {int(fa.MVT_ID_mvt.duplicated().sum())}")
+    ids = base_u.MVT_ID_mvt.to_numpy(dtype="float64")
+    missing = set(ids) - set(fa.MVT_ID_mvt.to_numpy(dtype="float64"))
+    if missing:
+        raise ValueError(f"{len(missing):,} unmatched holdout rows are missing from the record's fold-A rows")
+    rec = fa.set_index("MVT_ID_mvt").loc[ids]
+    if not (np.array_equal(rec.y.to_numpy(dtype="float64"), base_u.y.to_numpy(dtype="float64"))
+            and np.array_equal(rec.month.to_numpy().astype("int64"), base_u.month.to_numpy().astype("int64"))):
+        raise ValueError("the record's fold-A rows are not the same fold as the unmatched holdout rows: y or month differs")
+    return dict(yhat=rec.S0.to_numpy(dtype="float64"), n_record_fold_a=int(len(fa)), n_joined=int(len(ids)))
+
+
+def _pad_matched(v, um_te) -> np.ndarray:
+    """A per-row column of the MATCHED holdout rows widened to every holdout row: NaN (False for
+    a boolean column) on the unmatched rows. A full-length column passes through."""
+    v = np.asarray(v)
+    if len(v) == len(um_te):
+        return v
+    if len(v) != int((~um_te).sum()):
+        raise ValueError(f"a column of {len(v):,} rows is neither the matched ({int((~um_te).sum()):,}) nor the "
+                         f"full ({len(um_te):,}) holdout")
+    out = np.zeros(len(um_te), dtype=bool) if v.dtype == bool else np.full(len(um_te), np.nan)
+    out[~um_te] = v
+    return out
+
+
 # =============================================================================================
 # the baseline: the v4 record, or an in-process refit
 # =============================================================================================
 
-def baseline_from_preds(preds: pd.DataFrame, base: pd.DataFrame, arm: str, seeds) -> dict:
+def baseline_from_preds(preds: pd.DataFrame, base: pd.DataFrame, arm: str, seeds, arm_col=None) -> dict:
     """Rebuild the v4 arm from the v4 predictions parquet on the IDENTICAL fold.
 
     A2 = mean over `seeds` of delta_hat_seed{s}; A3 = A2 blended with the mean of pa_seed{s} on
     pa_fitted rows. The fold columns (row, month, ap, y, proxy, delta) must match `base`
     exactly; when the seed set is the full v4 one the parquet's own stored arm column must
-    agree with the rebuild. Returns dict(delta, single, pa_by_seed, pa, fitted).
+    agree with the rebuild - `arm_col` names it (the arm itself in a v4 record; "treatment" in
+    the queue fold's record, whose delta_hat_seed{s} / pa_seed{s} ARE its treatment's seeds).
+    Returns dict(delta, single, pa_by_seed, pa, fitted).
     """
     if arm not in BASELINE_ARMS:
         raise ValueError(f"baseline arm must be one of {BASELINE_ARMS}, got {arm!r}")
+    arm_col = arm if arm_col is None else str(arm_col)
     need = ["row", "month", "ap", "y", "proxy", "delta"]
     for c in need:
         if c not in preds.columns:
@@ -811,10 +1138,10 @@ def baseline_from_preds(preds: pd.DataFrame, base: pd.DataFrame, arm: str, seeds
         pa = L.mean_delta([pa_by_seed[s] for s in seeds])
         fitted = preds["pa_fitted"].to_numpy(dtype=bool)
         out.update(delta=L.blend(pooled, pa, fitted), pa_by_seed=pa_by_seed, pa=pa, fitted=fitted)
-    if arm in preds.columns and sorted(seeds) == sorted(SEEDS):
-        if not np.allclose(out["delta"], preds[arm].to_numpy(dtype="float64"), atol=1e-9, rtol=0):
-            raise ValueError(f"the v4 parquet's own {arm} column disagrees with its rebuild from the per-seed "
-                             "columns: the record is inconsistent")
+    if arm_col in preds.columns and sorted(seeds) == sorted(SEEDS):
+        if not np.allclose(out["delta"], preds[arm_col].to_numpy(dtype="float64"), atol=1e-9, rtol=0):
+            raise ValueError(f"the record parquet's own {arm_col} column disagrees with its rebuild from the "
+                             "per-seed columns: the record is inconsistent")
     return out
 
 
@@ -837,10 +1164,52 @@ def check_baseline_config(v4: dict, arm: str, seeds, pa_trees: str, smoke: bool)
                          "both arms in one process, knowing the harness may be wrong")
 
 
-def _reads_v4(args, cfg) -> bool:
+def check_queue_record(qj: dict, arm: str, seeds, pa_trees: str, smoke: bool) -> None:
+    """The queue fold's record may serve as the --queue design baseline only when it IS that
+    design: a queue-mode record whose baseline_arm is the arm asked for (its treatment is that
+    arm + QUEUE_FEATS), whose design is FEATS + the twelve QUEUE_FEATS at 80 columns, and which
+    passes the v4 record's own checks (smoke flag, seeds, the per-airport rule for A3)."""
+    if qj.get("mode") != "queue":
+        raise ValueError(f"not a queue record (mode {qj.get('mode')!r}): under --queue the design baseline is the "
+                         "Amendment 14 fold's own record")
+    cfg = qj.get("config") or {}
+    if cfg.get("baseline_arm") != arm:
+        raise ValueError(f"the queue record's baseline_arm is {cfg.get('baseline_arm')!r}, this run asks for {arm!r}: "
+                         f"its treatment is {cfg.get('baseline_arm')} + QUEUE_FEATS, not {arm} + QUEUE_FEATS")
+    feats = list(cfg.get("features") or [])
+    if len(feats) != len(FEATS_QUEUE) or feats[-len(QUEUE_FEATS):] != QUEUE_FEATS:
+        raise ValueError(f"the queue record's design ({len(feats)} features) is not FEATS + the {len(QUEUE_FEATS)} "
+                         f"QUEUE_FEATS ({len(FEATS_QUEUE)} columns)")
+    check_baseline_config(qj, arm, seeds, pa_trees, smoke)
+
+
+def _reads_record(args, cfg, queue: bool = False) -> bool:
+    """Read the baseline from its record unless --refit-baseline, or a smoke that names no record."""
     if args.refit_baseline:
         return False
-    return not (cfg.smoke and args.baseline_preds is None and args.v4_json is None)
+    given = (args.queue_preds, args.queue_json) if queue else (args.baseline_preds, args.v4_json)
+    return not (cfg.smoke and all(p is None for p in given))
+
+
+def _reads_v4(args, cfg) -> bool:
+    return _reads_record(args, cfg, queue=False)
+
+
+def _queue_record(args, cfg, arm: str, seeds, pa_trees: str) -> dict:
+    """Locate and validate the queue record BEFORE any data is loaded (fail fast)."""
+    preds_path = pathlib.Path(args.queue_preds) if args.queue_preds else QUEUE_PREDS
+    json_path = pathlib.Path(args.queue_json) if args.queue_json else QUEUE_JSON
+    for p in (preds_path, json_path):
+        if not p.exists():
+            raise FileNotFoundError(f"{p} missing: run the queue fold first (Amendment 14), or pass --refit-baseline "
+                                    f"to fit the {arm} + QUEUE_FEATS baseline in-process")
+    qj = json.loads(json_path.read_text())
+    check_queue_record(qj, arm, seeds, pa_trees, smoke=cfg.smoke)
+    tr = qj.get("treatment") or {}
+    log(f"baseline: the queue record {json_path} (sha {qj.get('git_sha')}, treatment best_iter "
+        f"{tr.get('best_iter')}, n_ref {tr.get('n_ref')}, baseline_arm {qj['config'].get('baseline_arm')!r}, seeds "
+        f"{qj['config']['seeds']}, pa_trees {qj['config'].get('pa_trees')!r}); predictions {preds_path}")
+    return dict(json=qj, preds_path=preds_path, json_path=json_path, arm_col="treatment", kind="queue")
 
 
 def _v4_record(args, cfg, arm: str, seeds, pa_trees: str) -> dict:
@@ -856,26 +1225,32 @@ def _v4_record(args, cfg, arm: str, seeds, pa_trees: str) -> dict:
     log(f"baseline: the v4 record {json_path} (sha {v4.get('git_sha')}, best_iter {v4['config']['best_iter']:,}, "
         f"n_ref {v4['config']['n_ref']:,}, seeds {v4['config']['seeds']}, pa_trees {v4['config']['pa_trees']!r}, "
         f"A0 reproduction {(v4.get('a0_reproduction') or {}).get('status')!r}); predictions {preds_path}")
-    return dict(json=v4, preds_path=preds_path, json_path=json_path)
+    return dict(json=v4, preds_path=preds_path, json_path=json_path, arm_col=None, kind="v4")
 
 
 def fit_arm(fold: dict, X, params, nest, patience, pa_floor, seeds, per_airport: bool, pa_trees, name: str,
-            on_seed=None) -> dict:
+            on_seed=None, target=L.TARGET_DELTA, weight=None) -> dict:
     """One fold-A arm on the design matrix X: early stopping (seed ES_SEED) -> n_ref; a refit per
     seed predicting the holdout rows; the mean over seeds; optionally the per-airport blend.
-    `on_seed(seed, delta_hat)` runs after every seed (the callers write the parquet there)."""
+    `on_seed(seed, prediction)` runs after every seed (the callers write the parquet there).
+    `target` is lgbm_submit's formulation: delta (the label is delta, the prediction a delta_hat)
+    or y (Amendment 19.2: the label is y, the prediction a y_hat before the 1 s floor); the
+    returned "delta" is the pooled prediction on that scale."""
     te, tr, fit, es = fold["te"], fold["tr"], fold["fit"], fold["es"]
     y, dlt, proxy = fold["y"], fold["dlt"], fold["proxy"]
+    label = L.regression_label(dlt, y, target)
     X_te = X[te]
-    log(f"[{name}] early stopping on {X.shape[1]} features")
-    info = L.early_stop(X, dlt, y, proxy, tr, fit, es, dict(params, seed=L.ES_SEED), nest, patience)
+    log(f"[{name}] early stopping on {X.shape[1]} features, target {target}")
+    info = L.early_stop(X, dlt, y, proxy, tr, fit, es, dict(params, seed=L.ES_SEED), nest, patience, target=target,
+                        weight=weight)
     n_ref = int(info["n_ref"])
     single, single_rmse, timing = {}, {}, {}
     for s in seeds:
         t = time.time()
-        single.update(L.fit_seeds(X, dlt, tr, X_te, params, n_ref, (s,), n_features=X.shape[1]))
+        single.update(L.fit_seeds(X, label, tr, X_te, params, n_ref, (s,), n_features=X.shape[1], target=target,
+                                  weight=weight))
         timing[f"seed{s}_s"] = round(time.time() - t, 1)
-        single_rmse[s] = rmse(y[te], taxi_time(proxy[te], single[s]))
+        single_rmse[s] = rmse(y[te], taxi_time(proxy[te], single[s], target))
         log(f"[{name}] seed {s} alone: matched RMSE {single_rmse[s]:.4f} on {te.sum():,} holdout rows   "
             f"[{timing[f'seed{s}_s']:.0f}s]")
         if on_seed is not None:
@@ -883,12 +1258,13 @@ def fit_arm(fold: dict, X, params, nest, patience, pa_floor, seeds, per_airport:
     pooled = L.mean_delta([single[s] for s in seeds])
     out = dict(info=info, best_iter=int(info["best_iter"]), n_ref=n_ref, single=single, single_rmse=single_rmse,
                pooled=pooled, delta=pooled, pa_by_seed=None, fitted=None, pa_info=None, timing=timing,
-               n_features=int(X.shape[1]), seeds=list(seeds), per_airport=bool(per_airport))
+               n_features=int(X.shape[1]), seeds=list(seeds), per_airport=bool(per_airport), target=target)
     if per_airport:
         t = time.time()
         pa_by_seed, fitted, pa_info = L.fit_per_airport(
-            X, dlt, tr, te, fold["ap_code"], fold["airports"], params, n_ref, seeds, min_rows=L.PA_MIN_ROWS,
-            floor=pa_floor, trees=pa_trees, es=dict(y=y, proxy=proxy, fit=fit, es=es, nest=nest, patience=patience))
+            X, label, tr, te, fold["ap_code"], fold["airports"], params, n_ref, seeds, min_rows=L.PA_MIN_ROWS,
+            floor=pa_floor, trees=pa_trees, es=dict(y=y, proxy=proxy, dlt=dlt, fit=fit, es=es, nest=nest,
+                                                     patience=patience), target=target)
         timing["per_airport_s"] = round(time.time() - t, 1)
         out.update(pa_by_seed=pa_by_seed, fitted=fitted, pa_info=pa_info,
                    delta=L.blend(pooled, L.mean_delta([pa_by_seed[s] for s in seeds]), fitted))
@@ -905,15 +1281,23 @@ def resolve_baseline(args, cfg, fold: dict, X_base, arm: str, seeds, pa_trees, v
     """The baseline arm's predictions, written into `cols` as {name}_seed{s} [+ {name}_pa_*] + {name}.
     Returns (arm dict, record for the json, seed sd or None, seed sd source or None)."""
     if v4 is not None:
-        b = baseline_from_preds(pd.read_parquet(v4["preds_path"]), fold["base"], arm, seeds)
-        sd, source = float(v4["json"]["seed_sd"]["sd"]), "v4 json"
-        record = dict(source="v4 predictions", preds=str(v4["preds_path"]), json=str(v4["json_path"]), arm=arm,
-                      seeds=list(seeds), v4_git_sha=v4["json"].get("git_sha"),
-                      v4_best_iter=v4["json"]["config"]["best_iter"], v4_n_ref=v4["json"]["config"]["n_ref"],
-                      v4_pa_trees=v4["json"]["config"].get("pa_trees"),
-                      v4_a0_reproduction=v4["json"].get("a0_reproduction"))
-        log(f"[{name}] {arm} rebuilt from the v4 predictions over seeds {list(seeds)} on the identical fold "
-            f"({len(fold['base']):,} rows); seed sd {sd:.4f} s from the v4 json")
+        kind = v4.get("kind", "v4")                  # "v4": the v4 arm; "queue": the queue fold's treatment
+        b = baseline_from_preds(pd.read_parquet(v4["preds_path"]), fold["base"], arm, seeds, arm_col=v4.get("arm_col"))
+        sd, source = float(v4["json"]["seed_sd"]["sd"]), f"{kind} json"
+        cfg_j, tr_j = v4["json"].get("config") or {}, v4["json"].get("treatment") or {}
+        record = dict(source=f"{kind} predictions", preds=str(v4["preds_path"]), json=str(v4["json_path"]), arm=arm,
+                      seeds=list(seeds), record_kind=kind, record_git_sha=v4["json"].get("git_sha"),
+                      record_best_iter=cfg_j.get("best_iter", tr_j.get("best_iter")),
+                      record_n_ref=cfg_j.get("n_ref", tr_j.get("n_ref")), record_pa_trees=cfg_j.get("pa_trees"),
+                      record_a0_reproduction=v4["json"].get("a0_reproduction"),
+                      design=("FEATS + QUEUE_FEATS" if kind == "queue" else "FEATS"))
+        if kind == "v4":
+            record.update(v4_git_sha=record["record_git_sha"], v4_best_iter=record["record_best_iter"],
+                          v4_n_ref=record["record_n_ref"], v4_pa_trees=record["record_pa_trees"],
+                          v4_a0_reproduction=record["record_a0_reproduction"])
+        log(f"[{name}] {arm}{' + QUEUE_FEATS' if kind == 'queue' else ''} rebuilt from the {kind} predictions over "
+            f"seeds {list(seeds)} on the identical fold ({len(fold['base']):,} rows); seed sd {sd:.4f} s from the "
+            f"{kind} json")
     else:
         b = fit_arm(fold, X_base, cfg.params, cfg.nest, cfg.patience, cfg.pa_floor, seeds, per_airport=(arm == "A3"),
                     pa_trees=pa_trees, name=name)
@@ -941,15 +1325,10 @@ def resolve_baseline(args, cfg, fold: dict, X_base, arm: str, seeds, pa_trees, v
 # loading one fold
 # =============================================================================================
 
-def load_fold(cache, months, feats, qcache=None, split=None, check_counts=False, label="holdout",
-              derive=None) -> dict:
-    """Rows, masks, in-fold encodings and the float32 design matrix for one fold.
-
-    `split(month)` -> (holdout, train, fit, es); fold_masks by default. Queue columns among
-    `feats` are joined positionally from `qcache` per month before the concat. `derive(frame)`,
-    when given, adds derived columns to the frame after the in-fold encodings and before the
-    design matrix (the fill head's nmdelay = proxy - sp: lgbm_submit.add_nmdelay).
-    """
+def _load_months(cache, months, feats, qcache=None, dcache=None) -> tuple:
+    """The training month caches with the queue / day blocks among `feats` joined positionally
+    (the row contracts of tests/test_queue_features.py and tests/test_day_features.py); returns
+    (frames, paths)."""
     frames, paths = L.training_frames(cache, months)
     queue = [c for c in feats if c in QUEUE_FEATS]
     if queue:
@@ -962,6 +1341,32 @@ def load_fold(cache, months, feats, qcache=None, split=None, check_counts=False,
             del qf
         log(f"queue block: {len(QUEUE_FEATS)} columns joined POSITIONALLY onto {len(paths)} months from {qcache} "
             f"(row counts asserted per month; the order is the v6 builder's, proven on March both ways)")
+    day = [c for c in feats if c in DAY_FEATS]
+    if day:
+        if dcache is None:
+            raise ValueError("day features asked for without a day cache directory")
+        for f, p in zip(frames, paths):
+            df_ = L.attach_day_positional(len(f), L.read_day_cache(L.day_cache_path(dcache, p)), p.name)
+            for c in DAY_FEATS:
+                f[c] = df_[c].to_numpy()
+            del df_
+        log(f"day block: {len(DAY_FEATS)} columns joined POSITIONALLY onto {len(paths)} months from {dcache} "
+            f"(row counts asserted per month; the order is build_features's, tests/test_day_features.py)")
+    return frames, paths
+
+
+def load_fold(cache, months, feats, qcache=None, split=None, check_counts=False, label="holdout",
+              derive=None, dcache=None) -> dict:
+    """Rows, masks, in-fold encodings and the float32 design matrix for one fold.
+
+    `split(month)` -> (holdout, train, fit, es); fold_masks by default. Queue columns among
+    `feats` are joined positionally from `qcache` per month before the concat, and day columns
+    from `dcache` after them (Amendment 19.1; the same positional discipline, the row contract
+    of tests/test_day_features.py). `derive(frame)`, when given, adds derived columns to the
+    frame after the in-fold encodings and before the design matrix (the fill head's nmdelay =
+    proxy - sp: lgbm_submit.add_nmdelay).
+    """
+    frames, paths = _load_months(cache, months, feats, qcache, dcache)
     d = pd.concat(frames, ignore_index=True)
     del frames
     gc.collect()
@@ -994,6 +1399,68 @@ def load_fold(cache, months, feats, qcache=None, split=None, check_counts=False,
                          "y": y[te], "proxy": proxy[te], "delta": dlt[te], "sp": sp[te]})
     return dict(X=X, y=y, dlt=dlt, proxy=proxy, sp=sp, month=month, te=te, tr=tr, fit=fit, es=es,
                 ap_code=ap_code, airports=airports, feats=list(feats), base=base, n_months=len(paths))
+
+
+def load_fold_all_rows(cache, ucache, months, feats, qcache=None, dcache=None, check_counts=False,
+                       label="holdout") -> dict:
+    """The unified fold: the matched months (with the blocks among `feats`) followed by the
+    unmatched months from `ucache` - aligned by name (the matched caches' STAND_BLOCK columns
+    NaN on unmatched rows, the unmatched cache's own queue / day columns used where asked for),
+    every file's NaN pattern checked - with is_unmatched appended as the LAST design column and
+    the delta encodings fitted on the matched training rows only. `row` numbers the matched
+    rows exactly as load_fold does (so the v4 / queue record pairs on them) and the unmatched
+    rows after them; `base` carries is_unmatched and MVT_ID_mvt (NaN on matched rows: the stand
+    caches predate it). With check_counts the MATCHED subset must be lgbm_ab's fold."""
+    if not feats or feats[-1] != IS_UNMATCHED:
+        raise ValueError(f"the unified design ends with {IS_UNMATCHED!r}")
+    frames, paths = _load_months(cache, months, feats[:-1], qcache, dcache)
+    cols = list(frames[0].columns)
+    n_m = sum(len(f) for f in frames)
+    u_frames = []
+    for p in paths:
+        uf = L.read_unmatched_cache(L.unmatched_cache_path(ucache, p))
+        L.check_unmatched_nan_pattern(uf, p.name)
+        u_frames.append(uf)
+    d_u = pd.concat(u_frames, ignore_index=True)
+    mvt_id = np.r_[np.full(n_m, np.nan), d_u.MVT_ID_mvt.to_numpy(dtype="float64")]
+    d = pd.concat(frames + [d_u.reindex(columns=cols)], ignore_index=True)
+    del frames, u_frames, d_u
+    gc.collect()
+    is_um = np.zeros(len(d), dtype=bool)
+    is_um[n_m:] = True
+    d[IS_UNMATCHED] = is_um.astype("float64")
+    log(f"unmatched rows: {int(is_um.sum()):,} appended after the {n_m:,} matched rows from {ucache} ({len(paths)} "
+        f"files; the NaN pattern - {len(S.UNMATCHED_NAN_COLS)} AOBT_3-anchored + {len(S.UNMATCHED_FLT_COLS)} *_flt-derived "
+        f"columns - checked on each); {IS_UNMATCHED} appended as the last design column")
+    month = d.month.to_numpy()
+    te, tr, fit, es = fold_masks(month)
+    y, dlt, proxy, sp = d.y.to_numpy(), d.delta.to_numpy(), d.proxy.to_numpy(), d.sp.to_numpy()
+    ap_code, airports = L.airport_codes(d.ap)
+    log(f"loaded {len(paths)} months ({len(d):,} rows): {label} {te.sum():,} ({int((te & is_um).sum()):,} unmatched); "
+        f"training {tr.sum():,} ({int((tr & is_um).sum()):,} unmatched); fit {fit.sum():,}; early-stop {es.sum():,}; "
+        f"airports {airports}; peak RSS {L.peak_rss_gb():.2f} GB")
+    if check_counts:
+        mm = ~is_um
+        for k, want in (("n_test", int((te & mm).sum())), ("n_fit", int((fit & mm).sum())), ("n_es", int((es & mm).sum())),
+                        ("n_all", int((tr & mm).sum()))):
+            if LGBM_AB[k] != want:
+                raise RuntimeError(f"matched fold row count {k}={want:,} differs from lgbm_ab's {LGBM_AB[k]:,}: "
+                                   "not the same fold, the record cannot pair")
+    for col, vals in S.infold_encodings(d, y, dlt, tr, delta_mask=~is_um).items():
+        d[col] = vals
+    d = d.drop(columns=[c for c in set(S.ENC_KEYS) | {"ars", "ap"} if c in d.columns])
+    gc.collect()
+    X = L.design_matrix(d, feats)
+    del d
+    gc.collect()
+    log(f"design matrix {X.shape[0]:,} x {X.shape[1]} float32 ({X.nbytes / 1e9:.2f} GB); peak RSS {L.peak_rss_gb():.2f} GB")
+    te_idx = np.flatnonzero(te)
+    base = pd.DataFrame({"row": te_idx.astype("int64"), "month": month[te].astype("int32"),
+                         "ap": np.asarray(airports, dtype=object)[ap_code[te]].astype(str),
+                         "y": y[te], "proxy": proxy[te], "delta": dlt[te], "sp": sp[te],
+                         IS_UNMATCHED: is_um[te].astype("float64"), "MVT_ID_mvt": mvt_id[te]})
+    return dict(X=X, y=y, dlt=dlt, proxy=proxy, sp=sp, month=month, te=te, tr=tr, fit=fit, es=es,
+                ap_code=ap_code, airports=airports, feats=list(feats), base=base, n_months=len(paths), is_unmatched=is_um)
 
 
 # =============================================================================================
@@ -1087,8 +1554,9 @@ def _log_tables(arms: dict, rmses: dict, pairs: dict, present, ap_te, definition
     for i, a in present:
         n_a = int((np.asarray(ap_te) == i).sum())
         log(f"{a:8s}{n_a:9,d}" + "".join(f"{rmses[name]['per_airport'][a]:{aw}.2f}" for name in arms)
-            + "".join(f"{pairs[k]['per_airport'][a]['gain_s']:+{pw - 5}.2f}"
-                      f"{'*' if pairs[k]['per_airport'][a]['excludes_zero'] else ' ':<5s}" for k in pairs))
+            + "".join((f"{pairs[k]['per_airport'][a]['gain_s']:+{pw - 5}.2f}"
+                       f"{'*' if pairs[k]['per_airport'][a]['excludes_zero'] else ' ':<5s}")
+                      if pairs[k]["per_airport"][a] is not None else f"{'one row':>{pw - 5}s}     " for k in pairs))
     log("   (* = that airport's own paired interval excludes zero)")
 
 
@@ -1810,8 +2278,491 @@ def run_fillhead(args, cfg, paths, started) -> int:
     return 0
 
 
+# =============================================================================================
+# Amendment 19: arm D (--dayfeats) and arm Y (--ytarget)
+# =============================================================================================
+
+def _log_bands(bands: dict, arm_names, pair_keys, ref: str) -> None:
+    log(f"|delta| bands (19.0; left-closed, right-open; over10 = 10to20 + gt20); RMSE per arm on the band's rows, "
+        f"paired gain vs {ref} with its 95% CI (* = excludes zero):")
+    aw = max(11, max(len(a) for a in arm_names) + 1)
+    log(f"{'band':8s}{'n':>9s}{'rows%':>7s}{'SSE%':>7s}" + "".join(f"{a:>{aw}s}" for a in arm_names)
+        + "".join(f"{k:>30s}" for k in pair_keys))
+    for name, rec in bands.items():
+        if not rec["n_rows"]:
+            log(f"{name:8s}{0:9,d}   no rows")
+            continue
+        sse = rec.get(f"share_of_{ref}_sse")
+        line = (f"{name:8s}{rec['n_rows']:9,d}{100 * rec['share_of_holdout_rows']:7.2f}"
+                + (f"{100 * sse:7.1f}" if sse is not None else f"{'n/a':>7s}")
+                + "".join(f"{rec['rmse'][a]:{aw}.2f}" for a in arm_names))
+        for k in pair_keys:
+            pr = (rec["pairs"] or {}).get(k)
+            line += (f"   {pr['gain_s']:+8.2f} [{pr['ci95'][0]:+7.2f}, {pr['ci95'][1]:+7.2f}]{'*' if pr['excludes_zero'] else ' '}"
+                     if pr else f"{'no interval (one row)':>30s}")
+        log(line)
+
+
+def _design(args) -> tuple:
+    """(base feature list, queue flag, the record reader) of the current best design: FEATS with
+    the v4 record, or FEATS + QUEUE_FEATS with the queue fold's record under --queue."""
+    queue = bool(args.queue)
+    return (FEATS_QUEUE if queue else list(L.FEATS)), queue
+
+
+def _baseline_record(args, cfg, arm, seeds, queue: bool):
+    if not _reads_record(args, cfg, queue):
+        log("baseline: fitted in-process (--refit-baseline, or a smoke without a record)")
+        return None
+    return _queue_record(args, cfg, arm, seeds, args.pa_trees) if queue else _v4_record(args, cfg, arm, seeds, args.pa_trees)
+
+
+def run_day(args, cfg, paths, started) -> int:
+    json_path, log_path, preds_path = paths
+    seeds, arm = tuple(args.seeds), args.baseline
+    base_feats, queue = _design(args)
+    mode = "queue_day" if queue else "day"
+    feats, nb = base_feats + DAY_FEATS, len(base_feats)
+    pa_rule = L.PA_TREE_RULE if args.pa_trees == "share" else L.PA_TREE_RULE_ES
+    design = f"{arm}{' + QUEUE_FEATS' if queue else ''}"
+    log(f"Amendment 19.1 arm D: baseline = {design} over seeds {list(seeds)} ({nb} features, "
+        f"{'the queue record' if queue else 'the v4 record'}); treatment = baseline + {len(DAY_FEATS)} DAY_FEATS "
+        f"({len(feats)} features), best_iter re-found; per-airport rule [{args.pa_trees}] {pa_rule} (A3 only); "
+        f"bootstrap {cfg.n_boot:,} draws seed {BOOT_SEED}; bands {[b[0] for b in DELTA_BANDS]} + over10 "
+        f"(|delta| >= {OVER10_S:.0f} s); 19.3 needs >= {DAY_MIN_AIRPORTS} of 10 airports")
+    rec = _baseline_record(args, cfg, arm, seeds, queue)
+
+    fold = load_fold(CACHE, cfg.months, feats, qcache=QCACHE if queue else None, dcache=DCACHE,
+                     check_counts=not cfg.smoke, label=f"holdout (months {HOLDOUT})")
+    X, y, dlt, proxy = fold["X"], fold["y"], fold["dlt"], fold["proxy"]
+    te, tr = fold["te"], fold["tr"]
+    ap_code, airports = fold["ap_code"], fold["airports"]
+    y_te, proxy_te, dlt_te, ap_te = y[te], proxy[te], dlt[te], ap_code[te]
+    assert fold["feats"][:nb] == base_feats and fold["feats"][nb:] == DAY_FEATS
+    base, cols = fold["base"], {}
+    write = lambda: _write_preds(preds_path, base, cols)
+    timing = {}
+
+    # ---- baseline: the current best design, from its record or refit on the first nb columns ----
+    t = time.time()
+    b, b_record, sd, sd_source = resolve_baseline(args, cfg, fold, X[:, :nb], arm, seeds, args.pa_trees, rec,
+                                                  "baseline", cols, write)
+    timing["baseline_s"] = round(time.time() - t, 1)
+
+    # ---- treatment: the same procedure on base_feats + DAY_FEATS ----
+    t = time.time()
+
+    def on_seed(s, pred):
+        cols[f"delta_hat_seed{s}"] = pred
+        write()
+    tr_arm = fit_arm(fold, X, cfg.params, cfg.nest, cfg.patience, cfg.pa_floor, seeds, per_airport=(arm == "A3"),
+                     pa_trees=args.pa_trees, name="treatment", on_seed=on_seed)
+    if arm == "A3":
+        for s in seeds:
+            cols[f"pa_seed{s}"] = tr_arm["pa_by_seed"][s]
+        cols["pa_fitted"] = tr_arm["fitted"]
+    cols["treatment"] = tr_arm["delta"]
+    write()
+    timing["treatment_s"] = round(time.time() - t, 1)
+    t_sd = seed_sd(tr_arm["single_rmse"].values()) if len(seeds) == 3 else None
+    if sd is None and t_sd is not None:
+        sd, sd_source = t_sd, "treatment single seeds"
+    del X
+    fold["X"] = None
+    gc.collect()
+
+    # ---- scoring: pooled, per airport, the 6-of-10 count, the |delta| bands ----
+    t = time.time()
+    arms = {"baseline": b["delta"], "treatment": tr_arm["delta"]}
+    definitions = {"baseline": f"{design} over seeds {list(seeds)} ({b_record['source']})",
+                   "treatment": f"baseline + DAY_FEATS, best_iter {tr_arm['best_iter']:,} -> n_ref {tr_arm['n_ref']:,}"}
+    pair_list = [("treatment", "baseline")]
+    se = squared_errors(arms, y_te, proxy_te)
+    rmses = arm_rmses(se, ap_te, airports)
+    pairs, present = score_pairs(se, rmses, pair_list, ap_te, airports, cfg.n_boot, sd)
+    p = pairs["treatment_vs_baseline"]
+    p["at_least_6_airports"] = bool(p["airports_improving"] >= DAY_MIN_AIRPORTS)
+    bands = band_records(dlt_te, se, cfg.n_boot, pair_list, "baseline")
+    timing["scoring_s"] = round(time.time() - t, 1)
+
+    # ---- tables ----
+    _log_tables(arms, rmses, pairs, present, ap_te, definitions, sd,
+                f"AMENDMENT 19.1 ARM D [{mode}], fold A matched rows ({te.sum():,}), holdout months {HOLDOUT}   "
+                + (L.SMOKE_BANNER if cfg.smoke else f"treatment n_ref {tr_arm['n_ref']:,} (best_iter {tr_arm['best_iter']:,})"))
+    log(f"seed sd source: {sd_source}   treatment's own seed sd: " + (f"{t_sd:.4f} s" if t_sd is not None else "n/a"))
+    log(f"airports improving {p['airports_improving']} / {p['n_airports']} (>= {DAY_MIN_AIRPORTS}: {p['at_least_6_airports']})")
+    _log_bands(bands, list(arms), ["treatment_vs_baseline"], "baseline")
+    o10 = bands["over10"]["pairs"]["treatment_vs_baseline"] if bands["over10"]["pairs"] else None
+    log("over10 (the |delta| > 10 min bands of 19.3): "
+        + (f"gain {o10['gain_s']:+.2f} s, paired CI [{o10['ci95'][0]:+.2f}, {o10['ci95'][1]:+.2f}]" if o10 else "no interval"))
+
+    # ---- the record ----
+    result = _record_head(mode, cfg, started, fold, {"amendment": "19.1"})
+    result.update({
+        "config": {"params": cfg.params, "seeds": list(seeds), "es_seed": L.ES_SEED, "max_rounds": cfg.nest,
+                   "patience": cfg.patience, "baseline_arm": arm, "queue": queue, "design_baseline": design,
+                   "pa_trees": args.pa_trees, "pa_tree_rule": pa_rule, "pa_min_rows": L.PA_MIN_ROWS,
+                   "pa_tree_floor": cfg.pa_floor, "blend": L.BLEND, "n_boot": cfg.n_boot, "boot_seed": BOOT_SEED,
+                   "features": fold["feats"], "n_features": len(fold["feats"]), "day_feats": DAY_FEATS,
+                   "day_cache": str(DCACHE), "queue_feats": QUEUE_FEATS if queue else None,
+                   "queue_cache": str(QCACHE) if queue else None, "min_airports": DAY_MIN_AIRPORTS,
+                   "bands": {name: [lo, hi] for name, lo, hi in DELTA_BANDS}, "over10_s": OVER10_S},
+        "baseline": b_record,
+        "treatment": {"best_iter": tr_arm["best_iter"], "n_ref": tr_arm["n_ref"],
+                      "es_rmse_taxi_time_NOT_A_RESULT": tr_arm["info"]["es_rmse_taxi_time_NOT_A_RESULT"],
+                      "es_proxy_only_rmse": tr_arm["info"]["es_proxy_only_rmse"],
+                      "single_seed_rmses": {str(s): r for s, r in tr_arm["single_rmse"].items()},
+                      "per_airport_models": tr_arm["pa_info"], "timing_s": tr_arm["timing"]},
+        "arms": _arm_records(arms, rmses, definitions, proxy_te),
+        "seed_sd": {"sd": sd, "source": sd_source,
+                    "treatment_values": {str(s): r for s, r in tr_arm["single_rmse"].items()}, "treatment_sd": t_sd,
+                    "baseline_values": b_record.get("single_seed_rmses"), "ddof": 1},
+        "pairs": pairs,
+        "bands": bands,
+        "timing_s": timing,
+        "preds_parquet": str(preds_path), "log": str(log_path),
+    })
+    _write_json(json_path, result)
+    log(f"json -> {json_path}   wall {result['wall_s']:.0f}s   peak RSS {result['peak_rss_gb']:.2f} GB")
+    return 0
+
+
+def run_ytarget(args, cfg, paths, started) -> int:
+    json_path, log_path, preds_path = paths
+    seeds, arm = tuple(args.seeds), args.baseline
+    feats, queue = _design(args)
+    mode = "queue_ytarget" if queue else "ytarget"
+    pa_rule = L.PA_TREE_RULE if args.pa_trees == "share" else L.PA_TREE_RULE_ES
+    design = f"{arm}{' + QUEUE_FEATS' if queue else ''}"
+    log(f"Amendment 19.2 arm Y: delta arm = {design} over seeds {list(seeds)} ({len(feats)} features, "
+        f"{'the queue record' if queue else 'the v4 record'}); Y = the same design, configuration and seeds with "
+        f"target {L.TARGET_Y} (y_hat_Y = max(prediction, 1), no proxy anchor); blend = {YBLEND} y_hat_Y + "
+        f"{1 - YBLEND} y_hat_delta; per-airport rule [{args.pa_trees}] {pa_rule} (A3 only); named airports "
+        f"{list(YTARGET_NAMED_AIRPORTS)}; bootstrap {cfg.n_boot:,} draws seed {BOOT_SEED}; bands "
+        f"{[b[0] for b in DELTA_BANDS]} + over10")
+    rec = _baseline_record(args, cfg, arm, seeds, queue)
+
+    fold = load_fold(CACHE, cfg.months, feats, qcache=QCACHE if queue else None, check_counts=not cfg.smoke,
+                     label=f"holdout (months {HOLDOUT})")
+    X, y, dlt, proxy = fold["X"], fold["y"], fold["dlt"], fold["proxy"]
+    te, tr = fold["te"], fold["tr"]
+    ap_code, airports = fold["ap_code"], fold["airports"]
+    y_te, proxy_te, dlt_te, ap_te = y[te], proxy[te], dlt[te], ap_code[te]
+    assert fold["feats"] == feats
+    base, cols = fold["base"], {}
+    write = lambda: _write_preds(preds_path, base, cols)
+    timing = {}
+
+    # ---- the delta arm: from its record, or refit in-process ----
+    t = time.time()
+    b, b_record, sd, sd_source = resolve_baseline(args, cfg, fold, X, arm, seeds, args.pa_trees, rec, "baseline",
+                                                  cols, write)
+    timing["baseline_s"] = round(time.time() - t, 1)
+
+    # ---- the Y arm: the same procedure with target y ----
+    t = time.time()
+
+    def on_seed(s, pred):
+        cols[f"y_seed{s}"] = pred
+        write()
+    y_arm = fit_arm(fold, X, cfg.params, cfg.nest, cfg.patience, cfg.pa_floor, seeds, per_airport=(arm == "A3"),
+                    pa_trees=args.pa_trees, name="Y", on_seed=on_seed, target=L.TARGET_Y)
+    if arm == "A3":
+        for s in seeds:
+            cols[f"y_pa_seed{s}"] = y_arm["pa_by_seed"][s]
+        cols["y_pa_fitted"] = y_arm["fitted"]
+    del X
+    fold["X"] = None
+    gc.collect()
+    yh_base = taxi_time(proxy_te, b["delta"])
+    yh_y = taxi_time(proxy_te, y_arm["delta"], target=L.TARGET_Y)
+    yh_blend = blend_taxi_times(yh_y, yh_base, YBLEND)
+    cols["Y"], cols["blend"] = proxy_te - yh_y, proxy_te - yh_blend      # the delta form every arm's column uses
+    write()
+    timing["y_arm_s"] = round(time.time() - t, 1)
+    y_sd = seed_sd(y_arm["single_rmse"].values()) if len(seeds) == 3 else None
+    if sd is None and y_sd is not None:
+        sd, sd_source = y_sd, "Y single seeds"
+
+    # ---- scoring: pooled, per airport (LTFM / EDDM named), the |delta| bands, both pairs ----
+    t = time.time()
+    arms = {"baseline": b["delta"], "Y": cols["Y"], "blend": cols["blend"]}
+    definitions = {"baseline": f"the delta arm {design} over seeds {list(seeds)} ({b_record['source']})",
+                   "Y": f"target y, best_iter {y_arm['best_iter']:,} -> n_ref {y_arm['n_ref']:,}, mean over seeds "
+                        f"{list(seeds)}, y_hat = max(prediction, 1); stored as proxy - y_hat",
+                   "blend": f"{YBLEND} y_hat_Y + {1 - YBLEND} y_hat_delta; stored as proxy - y_hat"}
+    pair_list = [("blend", "baseline"), ("Y", "baseline")]
+    se = squared_errors(arms, y_te, proxy_te)
+    rmses = arm_rmses(se, ap_te, airports)
+    pairs, present = score_pairs(se, rmses, pair_list, ap_te, airports, cfg.n_boot, sd)
+    for new, ref in pair_list:
+        pairs[f"{new}_vs_{ref}"]["named_airports"] = {
+            a: bool(rmses[new]["per_airport"][a] < rmses[ref]["per_airport"][a])
+            for a in YTARGET_NAMED_AIRPORTS if a in rmses[ref]["per_airport"]}
+    bands = band_records(dlt_te, se, cfg.n_boot, pair_list, "baseline")
+    timing["scoring_s"] = round(time.time() - t, 1)
+
+    # ---- tables ----
+    _log_tables(arms, rmses, pairs, present, ap_te, definitions, sd,
+                f"AMENDMENT 19.2 ARM Y [{mode}], fold A matched rows ({te.sum():,}), holdout months {HOLDOUT}   "
+                + (L.SMOKE_BANNER if cfg.smoke else f"Y n_ref {y_arm['n_ref']:,} (best_iter {y_arm['best_iter']:,})"))
+    log(f"seed sd source: {sd_source}   Y's own seed sd: " + (f"{y_sd:.4f} s" if y_sd is not None else "n/a"))
+    for key in ("Y_vs_baseline", "blend_vs_baseline"):
+        log(f"named airports (19.2) for {key}: " + ", ".join(
+            f"{a} {rmses['baseline']['per_airport'][a]:.2f} -> {rmses[key.split('_vs_')[0]]['per_airport'][a]:.2f} "
+            f"({'improves' if v else 'does not'})" for a, v in pairs[key]["named_airports"].items()))
+    _log_bands(bands, list(arms), ["Y_vs_baseline", "blend_vs_baseline"], "baseline")
+
+    # ---- the record ----
+    result = _record_head(mode, cfg, started, fold, {"amendment": "19.2"})
+    result.update({
+        "config": {"params": cfg.params, "seeds": list(seeds), "es_seed": L.ES_SEED, "max_rounds": cfg.nest,
+                   "patience": cfg.patience, "baseline_arm": arm, "queue": queue, "design_baseline": design,
+                   "target": L.TARGET_Y, "blend": YBLEND, "pa_trees": args.pa_trees, "pa_tree_rule": pa_rule,
+                   "pa_min_rows": L.PA_MIN_ROWS, "pa_tree_floor": cfg.pa_floor, "n_boot": cfg.n_boot,
+                   "boot_seed": BOOT_SEED, "features": fold["feats"], "n_features": len(fold["feats"]),
+                   "queue_feats": QUEUE_FEATS if queue else None, "named_airports": list(YTARGET_NAMED_AIRPORTS),
+                   "bands": {name: [lo, hi] for name, lo, hi in DELTA_BANDS}, "over10_s": OVER10_S,
+                   "columns": "y_seed{s}: the per-seed y predictions (y scale); Y and blend: proxy - y_hat (the "
+                              "delta form), so max(proxy - col, 1) recovers the taxi time"},
+        "baseline": b_record,
+        "y_arm": {"target": L.TARGET_Y, "best_iter": y_arm["best_iter"], "n_ref": y_arm["n_ref"],
+                  "es_rmse_taxi_time_NOT_A_RESULT": y_arm["info"]["es_rmse_taxi_time_NOT_A_RESULT"],
+                  "es_proxy_only_rmse": y_arm["info"]["es_proxy_only_rmse"],
+                  "single_seed_rmses": {str(s): r for s, r in y_arm["single_rmse"].items()},
+                  "per_airport_models": y_arm["pa_info"], "timing_s": y_arm["timing"],
+                  "floor_bind_rate": float((np.asarray(y_arm["delta"], dtype="float64") < 1.0).mean())},
+        "arms": _arm_records(arms, rmses, definitions, proxy_te),
+        "seed_sd": {"sd": sd, "source": sd_source, "y_values": {str(s): r for s, r in y_arm["single_rmse"].items()},
+                    "y_sd": y_sd, "baseline_values": b_record.get("single_seed_rmses"), "ddof": 1},
+        "pairs": pairs,
+        "bands": bands,
+        "timing_s": timing,
+        "preds_parquet": str(preds_path), "log": str(log_path),
+    })
+    _write_json(json_path, result)
+    log(f"json -> {json_path}   wall {result['wall_s']:.0f}s   peak RSS {result['peak_rss_gb']:.2f} GB")
+    return 0
+
+
+# =============================================================================================
+# The unified all-rows arm: --ytarget --all-rows
+# =============================================================================================
+
+def _subset_report(name: str, definition: str, mask, se: dict, ap_te, airports, pair_list, n_boot, sd) -> tuple:
+    """One subset of the holdout: its row count and share, every arm's RMSE, the per-airport
+    RMSEs, and score_pairs' paired intervals on the subset's rows. Returns (record, rmses, pairs,
+    present) - the last three for the log tables."""
+    mask = np.asarray(mask, dtype=bool)
+    se_s = {k: v[mask] for k, v in se.items()}
+    rm = arm_rmses(se_s, ap_te[mask], airports)
+    pr, present = score_pairs(se_s, rm, pair_list, ap_te[mask], airports, n_boot, sd)
+    rec = {"definition": definition, "n_rows": int(mask.sum()), "share_of_holdout_rows": float(mask.mean()),
+           "rmse": {k: rm[k]["pooled"] for k in se}, "per_airport": {k: rm[k]["per_airport"] for k in se},
+           "pairs": pr, "airports": [a for _, a in present]}
+    return rec, rm, pr, present
+
+
+def run_allrows(args, cfg, paths, started) -> int:
+    json_path, log_path, preds_path = paths
+    seeds, arm = tuple(args.seeds), args.baseline
+    queue, day = bool(args.queue), bool(args.dayfeats)
+    mode = mode_of(args)
+    base_feats = list(L.FEATS) + (QUEUE_FEATS if queue else []) + (DAY_FEATS if day else [])
+    feats = base_feats + [IS_UNMATCHED]
+    nb = len(list(L.FEATS) + (QUEUE_FEATS if queue else []))       # the matched pipeline's design width
+    weights = tuple(args.unmatched_weight)
+    design = f"{arm}{' + QUEUE_FEATS' if queue else ''}"
+    log(f"UNIFIED all-rows arm: ONE y-target regressor on matched + unmatched training rows, design FEATS"
+        f"{' + QUEUE_FEATS' if queue else ''}{' + DAY_FEATS' if day else ''} + {IS_UNMATCHED} ({len(feats)} features); "
+        f"unmatched weights {list(weights)} (one arm each, seeds {list(seeds)}); y_hat = max(prediction, 1), no proxy; "
+        f"pipeline = matched {design} ({'the queue record' if queue else 'the v4 record'}) + unmatched S0 of the "
+        f"stratum record; blend {YBLEND}; bootstrap {cfg.n_boot:,} draws seed {BOOT_SEED}; 2026 weights "
+        f"{W_MATCHED_2026:.6f} / {W_UNMATCHED_2026:.6f}; monsters y > {MONSTER_S:.0f} s")
+    rec = _baseline_record(args, cfg, arm, seeds, queue)
+    strat_path = pathlib.Path(args.stratum_preds) if args.stratum_preds else STRATUM_PREDS
+    if not strat_path.exists():
+        raise FileNotFoundError(f"{strat_path} missing: the unmatched rows' pipeline prediction is the stratum fold's "
+                                "S0 (run scripts/stratum_fold.py first, or pass --stratum-preds)")
+    strat = pd.read_parquet(strat_path)
+
+    fold = load_fold_all_rows(CACHE, UCACHE, cfg.months, feats, qcache=QCACHE if queue else None,
+                              dcache=DCACHE if day else None, check_counts=not cfg.smoke, label=f"holdout (months {HOLDOUT})")
+    X, y, dlt, proxy = fold["X"], fold["y"], fold["dlt"], fold["proxy"]
+    te, tr, is_um = fold["te"], fold["tr"], fold["is_unmatched"]
+    ap_code, airports = fold["ap_code"], fold["airports"]
+    um_te = is_um[te]
+    y_te, proxy_te, dlt_te, ap_te = y[te], proxy[te], dlt[te], ap_code[te]
+    n_te, n_u = int(te.sum()), int(um_te.sum())
+    if n_u < 2 or n_te - n_u < 2:
+        raise ValueError(f"the holdout needs both strata: {n_te - n_u:,} matched, {n_u:,} unmatched rows")
+    base = fold["base"]
+    base_m = base[~um_te].reset_index(drop=True)
+    base_u = base[um_te].reset_index(drop=True)
+    cols = {}
+    write = lambda: _write_preds(preds_path, base, {k: _pad_matched(v, um_te) for k, v in cols.items()})
+    timing = {}
+
+    # ---- the matched pipeline: the record, or refit in-process on the matched rows only ----
+    t = time.time()
+    mm = ~is_um
+    fold_m = dict(te=te[mm], tr=tr[mm], fit=fold["fit"][mm], es=fold["es"][mm], y=y[mm], dlt=dlt[mm], proxy=proxy[mm],
+                  ap_code=ap_code[mm], airports=airports, base=base_m)
+    X_m = None if rec is not None else X[mm][:, :nb]
+    b, b_record, sd, sd_source = resolve_baseline(args, cfg, fold_m, X_m, arm, seeds, args.pa_trees, rec, "baseline",
+                                                  cols, write)
+    del X_m, fold_m
+    gc.collect()
+    yhat_pipe = np.empty(n_te, dtype="float64")
+    yhat_pipe[~um_te] = taxi_time(proxy_te[~um_te], b["delta"])
+    ub = unmatched_baseline_from_stratum(strat, base_u)
+    yhat_pipe[um_te] = ub["yhat"]
+    cols["pipeline"] = yhat_pipe
+    write()
+    timing["pipeline_s"] = round(time.time() - t, 1)
+    log(f"pipeline: matched rows from {b_record['source']}, unmatched rows from {strat_path} (fold A: "
+        f"{ub['n_record_fold_a']:,} rows, {ub['n_joined']:,} joined by id, y and month identical)")
+
+    # ---- the unified arms, one per weight ----
+    arms, u_arms, definitions = {"pipeline": yhat_pipe}, {}, {}
+    definitions["pipeline"] = f"matched: {design} ({b_record['source']}); unmatched: the stratum record's S0"
+    for W in weights:
+        key = f"w{W:g}"
+        t = time.time()
+        w = L.row_weights(is_um, W)
+
+        def on_seed(s, pred, key=key):
+            cols[f"U_{key}_seed{s}"] = pred
+            write()
+        try:
+            ua = fit_arm(fold, X, cfg.params, cfg.nest, cfg.patience, cfg.pa_floor, seeds, per_airport=False, pa_trees=None,
+                         name=f"U_{key}", on_seed=on_seed, target=L.TARGET_Y, weight=w)
+        except RuntimeError as e:                     # the stopping-set breakage guard: recorded, the run goes on
+            log(f"[U_{key}] NOT FITTED: {e}")
+            u_arms[key] = dict(target=L.TARGET_Y, weight=float(W), error=str(e), fitted=False,
+                               wall_s=round(time.time() - t, 1))
+            continue
+        raw = np.asarray(ua["delta"], dtype="float64")
+        yhat_u = np.maximum(raw, 1.0)                                   # y_hat = max(prediction, 1): nothing else
+        yhat_bl = blend_taxi_times(yhat_u, yhat_pipe, YBLEND)
+        cols[f"U_{key}"], cols[f"Ublend_{key}"] = yhat_u, yhat_bl
+        write()
+        arms[f"U_{key}"], arms[f"Ublend_{key}"] = yhat_u, yhat_bl
+        definitions[f"U_{key}"] = (f"unified y-target regressor, unmatched weight {W:g}, best_iter {ua['best_iter']:,} -> "
+                                   f"n_ref {ua['n_ref']:,}, mean over seeds {list(seeds)}, max(., 1)")
+        definitions[f"Ublend_{key}"] = f"{YBLEND} U_{key} + {1 - YBLEND} pipeline"
+        per_seed_total = {}
+        for s in seeds:
+            yh = np.maximum(np.asarray(ua["single"][s], dtype="float64"), 1.0)
+            e = (y_te - yh) ** 2
+            per_seed_total[str(s)] = total_rmse_2026(e[~um_te].mean(), e[um_te].mean())
+        u_arms[key] = dict(target=L.TARGET_Y, weight=float(W), fitted=True, best_iter=ua["best_iter"], n_ref=ua["n_ref"],
+                           n_features=ua["n_features"], single_seed_rmses=str_keys(ua["single_rmse"]),
+                           single_seed_rmses_total=per_seed_total,
+                           seed_sd_total=(seed_sd(per_seed_total.values()) if len(seeds) == 3 else None),
+                           es_rmse_taxi_time_NOT_A_RESULT=ua["info"]["es_rmse_taxi_time_NOT_A_RESULT"],
+                           es_proxy_only_rmse=ua["info"]["es_proxy_only_rmse"], es_guard_rows=ua["info"].get("es_guard_rows"),
+                           floor_bind_rate=float((raw < 1.0).mean()), timing_s=ua["timing"], wall_s=round(time.time() - t, 1))
+        log(f"[U_{key}] done in {time.time() - t:.0f}s; floor binds on {100 * u_arms[key]['floor_bind_rate']:.3f}% of rows")
+    del X
+    fold["X"] = None
+    gc.collect()
+    fitted_w = [W for W in weights if u_arms[f"w{W:g}"].get("fitted")]
+    if not fitted_w:
+        _write_json(json_path, {**_record_head(mode, cfg, started, fold, {"amendment": UNIFIED_AMENDMENT}), "u_arms": u_arms,
+                                "note": "no unified arm cleared the stopping-set breakage guard; nothing was scored"})
+        log(f"STOP: no unified arm fitted; partial json -> {json_path}")
+        return 2
+    if sd is None:
+        first = u_arms[f"w{fitted_w[0]:g}"]
+        if first["seed_sd_total"] is not None:
+            sd, sd_source = first["seed_sd_total"], f"U_w{fitted_w[0]:g} single seeds (2026 total)"
+
+    # ---- scoring: the three subsets, the total, the bands ----
+    t = time.time()
+    se = {k: (y_te - v) ** 2 for k, v in arms.items()}
+    pair_list = [(f"{kind}_w{W:g}", "pipeline") for W in fitted_w for kind in ("U", "Ublend")]
+    exm = um_te & (y_te <= MONSTER_S)
+    subsets, tables = {}, {}
+    for name, mask, definition in (("matched", ~um_te, "rows with an NM off-block (the matched record's fold)"),
+                                   ("unmatched", um_te, "rows without one (the stratum), pooled"),
+                                   ("unmatched_exmonster", exm, f"unmatched rows with y <= {MONSTER_S:.0f} s (ex-monster)")):
+        rec_s, rm, pr, present = _subset_report(name, definition, mask, se, ap_te, airports, pair_list, cfg.n_boot, sd)
+        subsets[name], tables[name] = rec_s, (rm, pr, present)
+    assert subsets["matched"]["n_rows"] + subsets["unmatched"]["n_rows"] == n_te, "matched + unmatched != holdout"
+    assert subsets["unmatched_exmonster"]["n_rows"] <= subsets["unmatched"]["n_rows"]
+    total = dict(definition="sqrt(w_m x MSE_matched + w_u x MSE_unmatched) at the 2026 scored-file shares "
+                            "339,551 / 5,290 of 344,841, stratified paired row bootstrap",
+                 w_matched=W_MATCHED_2026, w_unmatched=W_UNMATCHED_2026,
+                 rmse={k: total_rmse_2026(v[~um_te].mean(), v[um_te].mean()) for k, v in se.items()},
+                 pairs=stratified_paired_bootstrap({k: v[~um_te] for k, v in se.items()}, {k: v[um_te] for k, v in se.items()},
+                                                   pair_list, cfg.n_boot, BOOT_SEED))
+    bands = band_records(dlt_te[~um_te], {k: v[~um_te] for k, v in se.items()}, cfg.n_boot, pair_list, "pipeline")
+    timing["scoring_s"] = round(time.time() - t, 1)
+
+    # ---- tables ----
+    for name in ("matched", "unmatched", "unmatched_exmonster"):
+        rm, pr, present = tables[name]
+        _log_tables(arms, rm, pr, present, ap_te[{"matched": ~um_te, "unmatched": um_te, "unmatched_exmonster": exm}[name]],
+                    definitions, sd, f"UNIFIED ALL-ROWS ARM [{mode}] - {name.upper().replace('_', ' ')} rows "
+                                     f"({subsets[name]['n_rows']:,}), holdout months {HOLDOUT}   "
+                    + (L.SMOKE_BANNER if cfg.smoke else ""))
+    log("=" * 100)
+    log(f"TOTAL at the 2026 weights (w_m {W_MATCHED_2026:.6f}, w_u {W_UNMATCHED_2026:.6f}; stratified paired bootstrap):")
+    for k, v in total["rmse"].items():
+        log(f"  {k:14s} {v:10.4f}")
+    for k, pr in total["pairs"].items():
+        log(f"  {k:28s} gain {pr['gain_s']:+8.4f} s   95% CI [{pr['ci95'][0]:+8.4f}, {pr['ci95'][1]:+8.4f}]   "
+            f"excludes 0: {pr['excludes_zero']}")
+    log(f"ex-monster: {subsets['unmatched_exmonster']['n_rows']:,} of the {n_u:,} unmatched holdout rows have y <= "
+        f"{MONSTER_S:.0f} s; seed sd source: {sd_source}")
+    log(f"NaN pattern on the unmatched rows: {len(S.UNMATCHED_NAN_COLS)} AOBT_3-anchored columns "
+        f"{S.UNMATCHED_NAN_COLS} + {len(S.UNMATCHED_FLT_COLS)} *_flt-derived columns NaN, checked on every unmatched cache file")
+    _log_bands(bands, list(arms), [f"{new}_vs_{ref}" for new, ref in pair_list], "pipeline")
+
+    # ---- the record ----
+    result = _record_head(mode, cfg, started, fold, {"amendment": UNIFIED_AMENDMENT})
+    result["fold"]["n_unmatched_test"] = n_u
+    result["fold"]["n_unmatched_all"] = int((tr & is_um).sum())
+    result.update({
+        "config": {"params": cfg.params, "seeds": list(seeds), "es_seed": L.ES_SEED, "max_rounds": cfg.nest,
+                   "patience": cfg.patience, "baseline_arm": arm, "queue": queue, "day": day, "design_baseline": design,
+                   "target": L.TARGET_Y, "blend": YBLEND, "unmatched_weights": [float(W) for W in weights],
+                   "pa_trees": args.pa_trees, "n_boot": cfg.n_boot, "boot_seed": BOOT_SEED, "features": fold["feats"],
+                   "n_features": len(fold["feats"]), "is_unmatched_column": IS_UNMATCHED,
+                   "unmatched_cache": str(UCACHE), "unmatched_nan_cols": list(S.UNMATCHED_NAN_COLS),
+                   "unmatched_flt_cols": list(S.UNMATCHED_FLT_COLS), "w_matched_2026": W_MATCHED_2026,
+                   "w_unmatched_2026": W_UNMATCHED_2026, "monster_s": MONSTER_S, "stratum_preds": str(strat_path),
+                   "columns": "every arm column is a TAXI TIME (the unmatched rows have no proxy); U_w{W}_seed{s} the "
+                              "per-seed y predictions before the 1 s floor; baseline_* the matched record in the delta "
+                              "form, NaN on unmatched rows"},
+        "baseline": b_record,
+        "unmatched_baseline": {"source": str(strat_path), "arm": "S0 (the shipped fit_unmatched)",
+                               "n_record_fold_a": ub["n_record_fold_a"], "n_joined": ub["n_joined"]},
+        "u_arms": u_arms,
+        "arms": {k: {"definition": definitions[k], "rmse_total_2026": total["rmse"][k],
+                     "rmse_matched": subsets["matched"]["rmse"][k], "rmse_unmatched": subsets["unmatched"]["rmse"][k],
+                     "rmse_unmatched_exmonster": subsets["unmatched_exmonster"]["rmse"][k]} for k in arms},
+        "subsets": subsets,
+        "total_2026": total,
+        "bands": bands,
+        "seed_sd": {"sd": sd, "source": sd_source, "baseline_values": b_record.get("single_seed_rmses"),
+                    "u_arms_total_sd": {k: v.get("seed_sd_total") for k, v in u_arms.items()}, "ddof": 1},
+        "timing_s": timing,
+        "preds_parquet": str(preds_path), "log": str(log_path),
+    })
+    _write_json(json_path, result)
+    log(f"json -> {json_path}   wall {result['wall_s']:.0f}s   peak RSS {result['peak_rss_gb']:.2f} GB")
+    return 0
+
+
+def str_keys(d: dict) -> dict:
+    return {str(k): v for k, v in d.items()}
+
+
 RUNNERS = {"v4": run_v4, "queue": run_queue, "catboost": run_catboost, "sweep": run_sweep, "confirm": run_confirm,
-           "fillhead": run_fillhead}
+           "fillhead": run_fillhead, "day": run_day, "queue_day": run_day, "ytarget": run_ytarget,
+           "queue_ytarget": run_ytarget, **{m: run_allrows for m in ALLROWS_MODES}}
 
 
 # =============================================================================================
