@@ -1783,3 +1783,21 @@ MSE vs v3's 291.6317**, from the 5,290 unmatched rows alone. The LOMO pooled str
 would be ~800 MSE at a 1:1 transfer; realised 1,138 — the stratum lane transferred at ~1.4×, the
 opposite sign of Amendment 9's warning about fold TOTALS (which remain untrustworthy; this is a
 paired relative gain, like RESULT 5's). First board improvement from the stratum in this project.
+
+
+### R9 board · 2026-09-09 20:45 local · v5 = 288.1406, rank 19 of 94
+
+v5 (v4 + RESULT 7's seed averaging + RESULT 9's queue block on the 339,551 matched rows; the 5,290
+unmatched rows byte-identical to v4, verified before upload) scored **288.1406**: **-1.53 s /
+-886 MSE vs v4's 289.6732.** Fold projection at a 1:1 transfer of the matched-row MSE gains
+(queue 705 + seeds 219 matched MSE, × w_m 0.98466) = -910 MSE;
+realised -886 → transfer **0.97×**. Third consecutive matched-side fold gain to land
+on the board at ~1:1 in MSE (RESULT 5: 1.17×; this: 0.97×). Board at 20:45: 94 teams, leader 245.29,
+10th **276.51** (278.21 at 13:55, 277.90 at 20:33 — the cut is falling ~1.5 s per day today).
+Fit: `lgbm_submit.py --version 5 --seeds 0,1,2 --queue --base v4`, 2 h 15 min, peak RSS 5.07 GB,
+best_iter 24,517 → n_ref 29,439 per seed, 80 features; log `reports/lgbm_submit_v5.log`, meta
+`submissions/merry-quicksand_v5.meta.json`. Matched-row shift vs v4: mean +0.6 s, RMS 39.0 s.
+
+Standing after v5: **288.14 − 276.51 = 11.6 s = ~6,400 MSE to the current 10th place**, more by the
+freeze. Amendments 19 (D, Y) and 20 (U) are the open arms; the sweep (15.2) and CatBoost (15.1) run
+regardless. Next free version: v6.

@@ -369,3 +369,17 @@ rows is arithmetically a bootstrap over ~23 observations. The mangle interval
 - A lever whose measured value is below 1,000 MSE is closed, and the reason is recorded here so it
   is not reopened by a later session with the same estimator.
 - Family B is never counted as a lever.
+
+
+## Board entries · 2026-09-09 evening (the board is the instrument; fold numbers are relative gains only)
+
+| version | board RMSE | board MSE | Δ MSE vs prev | lane | fold projection (matched MSE × w_m) | transfer |
+|---|---|---|---|---|---|---|
+| v3 | 291.6317 | 85,049 | −5,975 vs v2 | LightGBM on the E1 cache, matched rows | −5,123 | 1.17× |
+| v4 | 289.6732 | 83,911 | −1,138 | stratum hybrid (Amendment 18), unmatched rows only | not projected (stratum) | — |
+| **v5** | **288.1406** | **83,025** | **−886** | seeds (RESULT 7) + queue block (RESULT 9), matched rows only | −910 | **0.97×** |
+
+Rule confirmed a third time: a matched-side paired fold gain, in MSE, lands on the board at ~1:1.
+Stratum gains are not projected (Amendment 9). The 10th place at 20:45 was 276.51 (= 76,458 MSE):
+**6,567 MSE below v5**, and the cut is still falling. Every remaining matched-side gain must be
+measured as a paired interval on the fold and then banked here in MSE, never in seconds.
