@@ -1,0 +1,539 @@
+{
+  "mode": "queue_order",
+  "smoke": false,
+  "git_sha": "8d6d2caf1f1c9a7e2df4af2629d6f44e0f641df3",
+  "git_dirty": true,
+  "started_utc": "2026-09-10T08:27:01.116937+00:00",
+  "finished_utc": "2026-09-10T10:19:37.185294+00:00",
+  "wall_s": 6756.1,
+  "peak_rss_gb": 4.84,
+  "command": "cd ~/Projects/prc-challenge && PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 nice -n 19 /usr/bin/time -l python3.11 -B -u scripts/lgbm_fold.py --orderfeats --queue --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_queue_order.console.log",
+  "estimate": "~1.9 h (range 1.5-2.5 h), peak RSS ~4.9 GB (the queue fold's 4.8 GB + 3 float32 columns), 4 threads; run ALONE. x1.22 for 83 columns: load + the two joins ~3 min; ES ~19 min; 3 refits ~18 min + predict ~6 min each (~72 min); bootstrap ~3 min. The baseline is READ from the queue record. Writes reports/lgbm_fold_queue_order.{json,log} and data/cache_stand/fold_preds_queue_order.parquet.",
+  "fold": {
+    "holdout_months": [
+      1,
+      7
+    ],
+    "es_months": [
+      3,
+      9
+    ],
+    "months": "all twelve",
+    "n_test": 339015,
+    "n_fit": 1378585,
+    "n_es": 344840,
+    "n_all": 1723425,
+    "airports": [
+      "EDDF",
+      "EDDM",
+      "EGLL",
+      "EHAM",
+      "LEBL",
+      "LEMD",
+      "LFPG",
+      "LIRF",
+      "LSZH",
+      "LTFM"
+    ]
+  },
+  "amendment": "22",
+  "config": {
+    "params": {
+      "objective": "regression",
+      "metric": "rmse",
+      "learning_rate": 0.01,
+      "num_leaves": 255,
+      "min_data_in_leaf": 40,
+      "feature_fraction": 0.8,
+      "bagging_fraction": 0.8,
+      "bagging_freq": 1,
+      "cat_smooth": 20,
+      "min_data_per_group": 100,
+      "max_cat_threshold": 64,
+      "num_threads": 4,
+      "verbosity": -1,
+      "seed": 0
+    },
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "es_seed": 0,
+    "max_rounds": 50000,
+    "patience": 200,
+    "baseline_arm": "A2",
+    "queue": true,
+    "design_baseline": "A2 + QUEUE_FEATS",
+    "pa_trees": "es",
+    "pa_tree_rule": "per-airport early stopping on the airport's own fit/ES rows (same ES months, seed 0); n_ref_a = max(50, int(best_iter_a * n_all_a / n_fit_a))",
+    "pa_min_rows": 20000,
+    "pa_tree_floor": 200,
+    "blend": 0.5,
+    "n_boot": 2000,
+    "boot_seed": 0,
+    "features": [
+      "proxy",
+      "sp",
+      "eobt_p",
+      "lobt_p",
+      "iobt_p",
+      "aobt_sched",
+      "eobt_sched",
+      "aobt_eobt",
+      "lobt_sched",
+      "eobt_lobt",
+      "iobt_lobt",
+      "airborne3",
+      "airborne1",
+      "arvt_diff",
+      "aobt_sec",
+      "mvt_sec",
+      "sched_sec",
+      "hr",
+      "tmin",
+      "dow",
+      "doy",
+      "actype_null",
+      "f_callsign",
+      "f_ades",
+      "f_type",
+      "f_rule",
+      "n_push",
+      "rwy_b30",
+      "apt_b30",
+      "arr_b30",
+      "sched_prev60",
+      "sched_next60",
+      "sched_day",
+      "rwy_rate",
+      "dep_dur",
+      "rwy_dur",
+      "arr_dur",
+      "arr_ob60_taxiin",
+      "arr_ob60_cdiff",
+      "arr_ob180_cdiff",
+      "prev_arr_gap",
+      "prev_arr_taxiin",
+      "prev_arr_cdiff",
+      "prev_dep_gap",
+      "te_ADEP_mvt",
+      "de_ADEP_mvt",
+      "te_STAND_mvt",
+      "de_STAND_mvt",
+      "te_stand_pref",
+      "de_stand_pref",
+      "te_airline",
+      "de_airline",
+      "te_ADES_mvt",
+      "de_ADES_mvt",
+      "te_AIRCRAFT_TYPE_mvt",
+      "de_AIRCRAFT_TYPE_mvt",
+      "te_RUNWAY_mvt",
+      "de_RUNWAY_mvt",
+      "te_AIRCRAFT_OPERATOR_flt",
+      "de_AIRCRAFT_OPERATOR_flt",
+      "te_MARKET_SEGMENT_flt",
+      "de_MARKET_SEGMENT_flt",
+      "te_WK_TBL_CAT_flt",
+      "de_WK_TBL_CAT_flt",
+      "te_FLIGHT_TYPE_flt",
+      "de_FLIGHT_TYPE_flt",
+      "te_ars",
+      "de_ars",
+      "q_apt_at_push",
+      "q_rwy_at_push",
+      "q_pushed_after_me",
+      "q_rwy_tko_in_taxi",
+      "q_rwy_push_pre20",
+      "q_dep_tko_sym15",
+      "q_rwy_tko_sym10",
+      "q_arr_taxiing_at_push",
+      "q_arr_taxiin_sym30_push",
+      "q_arr_taxiin_sym30_tko",
+      "q_rwy_ambient_proxy",
+      "q_next_arr_onblock_gap",
+      "o_dev_mvt",
+      "o_dev_flt",
+      "o_n_line"
+    ],
+    "n_features": 83,
+    "order_feats": [
+      "o_dev_mvt",
+      "o_dev_flt",
+      "o_n_line"
+    ],
+    "order_cache": "/Users/saurabhdxt/Projects/prc-challenge/data/cache_order",
+    "queue_feats": [
+      "q_apt_at_push",
+      "q_rwy_at_push",
+      "q_pushed_after_me",
+      "q_rwy_tko_in_taxi",
+      "q_rwy_push_pre20",
+      "q_dep_tko_sym15",
+      "q_rwy_tko_sym10",
+      "q_arr_taxiing_at_push",
+      "q_arr_taxiin_sym30_push",
+      "q_arr_taxiin_sym30_tko",
+      "q_rwy_ambient_proxy",
+      "q_next_arr_onblock_gap"
+    ],
+    "queue_cache": "/Users/saurabhdxt/Projects/prc-challenge/data/cache_queue",
+    "min_airports": null,
+    "bands": {
+      "lt2": [
+        0.0,
+        120.0
+      ],
+      "2to10": [
+        120.0,
+        600.0
+      ],
+      "10to20": [
+        600.0,
+        1200.0
+      ],
+      "gt20": [
+        1200.0,
+        Infinity
+      ]
+    },
+    "over10_s": 600.0
+  },
+  "baseline": {
+    "source": "queue predictions",
+    "preds": "/Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/fold_preds_queue.parquet",
+    "json": "/Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_queue.json",
+    "arm": "A2",
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "record_kind": "queue",
+    "record_git_sha": "58b785bb6cb8ff222198d0637f2fc45c8761c656",
+    "record_best_iter": 21316,
+    "record_n_ref": 26647,
+    "record_pa_trees": "es",
+    "record_a0_reproduction": null,
+    "design": "FEATS + QUEUE_FEATS"
+  },
+  "treatment": {
+    "best_iter": 21722,
+    "n_ref": 27155,
+    "es_rmse_taxi_time_NOT_A_RESULT": 198.10910484218826,
+    "es_proxy_only_rmse": 366.24960618281534,
+    "single_seed_rmses": {
+      "0": 223.1960349193375,
+      "1": 223.09306671742414,
+      "2": 222.9421530842783
+    },
+    "per_airport_models": null,
+    "timing_s": {
+      "seed0_s": 1772.5,
+      "seed1_s": 1764.7,
+      "seed2_s": 1800.4
+    }
+  },
+  "arms": {
+    "baseline": {
+      "definition": "A2 + QUEUE_FEATS over seeds [0, 1, 2] (queue predictions)",
+      "rmse": 224.25762647868322,
+      "per_airport": {
+        "EDDF": 177.91877411532215,
+        "EDDM": 166.51724603458035,
+        "EGLL": 229.0671035705999,
+        "EHAM": 163.11576384179327,
+        "LEBL": 220.29320708734454,
+        "LEMD": 174.70589534550064,
+        "LFPG": 244.46367157714883,
+        "LIRF": 384.06601284171705,
+        "LSZH": 174.1629127894265,
+        "LTFM": 243.63817110942952
+      },
+      "floor_bind_rate": 7.079332772886156e-05
+    },
+    "treatment": {
+      "definition": "baseline + ORDER_FEATS, best_iter 21,722 -> n_ref 27,155",
+      "rmse": 222.56316251601282,
+      "per_airport": {
+        "EDDF": 176.5074999085297,
+        "EDDM": 164.43961150934936,
+        "EGLL": 229.0030840740809,
+        "EHAM": 163.21569708153822,
+        "LEBL": 218.92369347593586,
+        "LEMD": 173.93502512536918,
+        "LFPG": 244.6071033992495,
+        "LIRF": 375.89764314246776,
+        "LSZH": 174.0552799364623,
+        "LTFM": 242.14102064066216
+      },
+      "floor_bind_rate": 6.489388375145643e-05
+    }
+  },
+  "seed_sd": {
+    "sd": 0.14537539376166125,
+    "source": "queue json",
+    "treatment_values": {
+      "0": 223.1960349193375,
+      "1": 223.09306671742414,
+      "2": 222.9421530842783
+    },
+    "treatment_sd": 0.1276932270767118,
+    "baseline_values": null,
+    "ddof": 1
+  },
+  "pairs": {
+    "treatment_vs_baseline": {
+      "gain_s": 1.6944639626703974,
+      "ci95": [
+        1.4068504663356278,
+        1.9930390271780296
+      ],
+      "excludes_zero": true,
+      "improving": true,
+      "n_draws": 2000,
+      "seed": 0,
+      "gain_over_seed_sd": 11.655782445882293,
+      "exceeds_2x_seed_sd": true,
+      "airports_improving": 8,
+      "n_airports": 10,
+      "per_airport": {
+        "EDDF": {
+          "gain_s": 1.4112742067924557,
+          "ci95": [
+            0.5658139174053055,
+            2.3122594835113714
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "EDDM": {
+          "gain_s": 2.077634525230991,
+          "ci95": [
+            1.333454225179557,
+            2.790784880877869
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "EGLL": {
+          "gain_s": 0.06401949651899486,
+          "ci95": [
+            -0.6618497075179952,
+            0.8455770451886833
+          ],
+          "excludes_zero": false,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "EHAM": {
+          "gain_s": -0.09993323974495638,
+          "ci95": [
+            -0.4398604683074872,
+            0.2261193831958016
+          ],
+          "excludes_zero": false,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "LEBL": {
+          "gain_s": 1.3695136114086779,
+          "ci95": [
+            0.40126708743065437,
+            2.435898505334657
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "LEMD": {
+          "gain_s": 0.7708702201314566,
+          "ci95": [
+            0.3116549184804164,
+            1.2224583031301708
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "LFPG": {
+          "gain_s": -0.1434318221006663,
+          "ci95": [
+            -0.7711912175680148,
+            0.5375578089902726
+          ],
+          "excludes_zero": false,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "LIRF": {
+          "gain_s": 8.168369699249297,
+          "ci95": [
+            6.618042829378967,
+            9.62657454869134
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "LSZH": {
+          "gain_s": 0.10763285296420122,
+          "ci95": [
+            -0.590126962331518,
+            0.8614486041092778
+          ],
+          "excludes_zero": false,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "LTFM": {
+          "gain_s": 1.4971504687673587,
+          "ci95": [
+            0.8718197918004613,
+            2.1023605912515024
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0
+        }
+      }
+    }
+  },
+  "bands": {
+    "lt2": {
+      "definition": "0 s <= |delta| < 120 s",
+      "n_rows": 127466,
+      "share_of_holdout_rows": 0.3759892630119611,
+      "share_of_baseline_sse": 0.13703536898971683,
+      "rmse": {
+        "baseline": 135.3866482256557,
+        "treatment": 137.44612959328185
+      },
+      "pairs": {
+        "treatment_vs_baseline": {
+          "gain_s": -2.059481367626148,
+          "ci95": [
+            -2.386736829774467,
+            -1.7482969491268627
+          ],
+          "excludes_zero": true,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0
+        }
+      }
+    },
+    "2to10": {
+      "definition": "120 s <= |delta| < 600 s",
+      "n_rows": 185229,
+      "share_of_holdout_rows": 0.5463740542453873,
+      "share_of_baseline_sse": 0.3782326208949141,
+      "rmse": {
+        "baseline": 186.58712736294626,
+        "treatment": 186.96820172753112
+      },
+      "pairs": {
+        "treatment_vs_baseline": {
+          "gain_s": -0.38107436458486177,
+          "ci95": [
+            -0.5938379433924084,
+            -0.15393500863707893
+          ],
+          "excludes_zero": true,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0
+        }
+      }
+    },
+    "10to20": {
+      "definition": "600 s <= |delta| < 1200 s",
+      "n_rows": 20667,
+      "share_of_holdout_rows": 0.060961904340515904,
+      "share_of_baseline_sse": 0.17391627846603075,
+      "rmse": {
+        "baseline": 378.78090344072933,
+        "treatment": 371.66738352264366
+      },
+      "pairs": {
+        "treatment_vs_baseline": {
+          "gain_s": 7.113519918085672,
+          "ci95": [
+            6.290348771137021,
+            7.970407038053382
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0
+        }
+      }
+    },
+    "gt20": {
+      "definition": "|delta| >= 1200 s",
+      "n_rows": 5653,
+      "share_of_holdout_rows": 0.0166747784021356,
+      "share_of_baseline_sse": 0.31081573164933846,
+      "rmse": {
+        "baseline": 968.208033535301,
+        "treatment": 945.623596171923
+      },
+      "pairs": {
+        "treatment_vs_baseline": {
+          "gain_s": 22.5844373633779,
+          "ci95": [
+            19.103499691629942,
+            25.881708333012554
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0
+        }
+      }
+    },
+    "over10": {
+      "definition": "|delta| >= 600 s (10to20 + gt20)",
+      "n_rows": 26320,
+      "share_of_holdout_rows": 0.07763668274265151,
+      "share_of_baseline_sse": 0.48473201011536915,
+      "rmse": {
+        "baseline": 560.3567219655578,
+        "treatment": 548.2011600203047
+      },
+      "pairs": {
+        "treatment_vs_baseline": {
+          "gain_s": 12.155561945253112,
+          "ci95": [
+            10.823474642937493,
+            13.466051581660968
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0
+        }
+      }
+    }
+  },
+  "timing_s": {
+    "baseline_s": 0.1,
+    "treatment_s": 6728.8,
+    "scoring_s": 20.8
+  },
+  "preds_parquet": "/Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/fold_preds_queue_order.parquet",
+  "log": "/Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_queue_order.log"
+}

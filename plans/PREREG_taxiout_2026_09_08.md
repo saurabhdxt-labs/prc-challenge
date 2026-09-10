@@ -2250,3 +2250,513 @@ paired row bootstrap 2,000 draws seed 0, per airport and on 19.0's |delta| bands
   was, and the ship decision is the owner's.
 - Reported additionally: January vs July separately (the de-icing season against the convective
   one), because a pooled number would hide a mechanism that only exists in one of them.
+
+
+---
+
+# RESULT 15 · 2026-09-10 00:16 local · Arm U under 20.5 — NOT WORKING; the standard approach loses
+
+`lgbm_fold.py --ytarget --all-rows --unmatched-weight 1,10 --queue --baseline A2 --pa-trees es` at
+commit 427d82c/8d6d2ca with the 20.5 stopping rule (the metric on the MATCHED stopping rows only),
+fold A, 2 h 58 min, peak 4.95 GB. Records `reports/lgbm_fold_queue_allrows.{json,log,console.log}`,
+predictions `data/cache_stand/fold_preds_queue_allrows.parquet`. Baseline = the queue record
+(matched 224.258; unmatched S0 of the stratum record). **The amendment worked as intended:** w1
+stopped at best_iter 7,375 → n_ref 9,220 and w10 at 23,621 → 29,532, against U-20.2's 1,354 and
+1,047, and every arm improved against U-20.2 (matched 268.6 → 263.5 at w1, 283.9 → 273.5 at w10).
+
+| subset | pipeline | U_w1 | Ublend_w1 | U_w10 | Ublend_w10 |
+|---|---|---|---|---|---|
+| matched (n 339,015) | **224.258** | 263.500 | 234.154 | 273.550 | 237.036 |
+| unmatched ex-monster (5,265) | **995.60** | 1324.32 | 1048.66 | 1221.81 | 1010.88 |
+| unmatched pooled (5,321) | **1867.9** | 2965.0 | 2161.9 | 2946.9 | 2159.6 |
+
+**No clause of 20.3 holds for any arm.** Matched: no interval excludes zero in the arm's favour
+(U_w1 −39.24 [−101.65, −1.38]; the 0.5 blend −9.90 [−29.43, +0.66]); 0–5 of 10 airports improve.
+Unmatched: ex-monster and pooled both decisively worse. LIRF is again the discriminator —
+384.07 → 622.84 (U_w1) and 665.94 (U_w10) — the unified model carries the stratum's monsters into
+matched LIRF rows.
+
+**VERDICT: NOT WORKING.** H-20 is refuted: the standard approach — one gradient-boosted model over
+all rows with taxi time as the target — does NOT beat this project's two-part pipeline on this
+design, at capacity, with the stopping rule corrected in its favour. **The delta formulation and the
+matched/unmatched split are both retained**, and 20.4's "re-run every later arm on U's design" is
+NOT triggered. The sweep (15.2) and the CatBoost blend (15.1) still run: they are the rest of
+"the standard approach" and are independent of this result.
+
+### 15a · the one signal inside a refuted arm, recorded for Amendment 25
+
+The blend's per-band table inverts with |delta|, and the two intervals that exclude zero do so in
+**opposite directions**:
+
+| band | n | share of SSE | Ublend_w1 gain vs pipeline |
+|---|---|---|---|
+| < 2 min | 127,466 | 13.7% | +0.21 [−0.03, +0.44] |
+| 2–10 min | 185,229 | 37.8% | **−22.23 [−60.33, −0.21]** |
+| 10–20 min | 20,667 | 17.4% | +0.45 [−0.20, +1.11] |
+| **> 20 min** | 5,653 | 31.1% | **+6.98 [+2.10, +11.53]** |
+| **over10 (10–20 + >20)** | 26,320 | 48.5% | **+2.83 [+1.00, +4.51]** |
+
+The y-target model is **better than the pipeline on the rows where the clocks disagree most** and
+worse on the body — mechanically what Amendment 19.2 predicted, because the `proxy` anchor is
+exactly what fails on a held row. A blend applied everywhere pays for the tail gain out of the body.
+A blend applied only where the pipeline's OWN predicted |delta_hat| is large would not — and
+`delta_hat` is observable at serve time. That is Amendment 25's hypothesis; it costs no new fit,
+only a rule over two prediction columns that both records already contain.
+
+
+---
+
+# AMENDMENT 25 — the gated blend: use the y-target model only where the anchor is failing
+
+**2026-09-10 00:25 local. Written BEFORE the rule is evaluated on any row.** Nothing above this
+line is edited. RESULT 15 refuted Arm U pooled but left one measured, mechanism-shaped fact: the
+0.5 blend of the y-target model with the pipeline **gains +6.98 s [+2.10, +11.53] on the |delta| >
+20 min band and +2.83 s [+1.00, +4.51] on the over-10-min bands**, while losing −22.23 s on the
+2–10 min band. The `proxy` anchor is what fails on a held row, so a model that does not use it is
+better exactly there — and a blend applied everywhere pays for that gain out of the body.
+
+## 25.1 Hypothesis H-25
+
+> Applying the 0.5 blend ONLY on rows where the pipeline's own predicted |delta_hat| exceeds a
+> threshold — a quantity observable at serve time — captures the tail gain without paying the body
+> cost, and improves matched RMSE against the pipeline.
+
+## 25.2 The rule, fixed
+
+`y_hat = pipeline` where `|delta_hat| <= T`; `y_hat = w * U_w1 + (1 - w) * pipeline` where
+`|delta_hat| > T`. `delta_hat` is the queue arm's own three-seed mean delta (`baseline` in
+`data/cache_stand/fold_preds_queue_allrows.parquet`); `U_w1` is the unified arm's taxi time from the
+same record and the same fold, so every comparison is paired on identical rows.
+
+**Primary setting, chosen before measuring and not tunable afterwards: T = 600 s and w = 0.5.**
+T = 600 s is Amendment 19.0's over-10-min band edge, defined on 2026-09-09 before this arm existed;
+w = 0.5 is Amendment 19.2's registered blend weight, unchanged. On the fold, |delta_hat| > 600 s
+selects **4.64%** of matched rows (the true |delta| > 600 s rate is 7.63%: the mean-regressing model
+under-selects, which is the conservative direction).
+
+## 25.3 Thresholds, locked
+
+Paired row bootstrap, 2,000 draws, seed 0, on the 339,015 matched holdout rows, against the queue
+pipeline:
+- **ESTABLISHED** iff (i) the paired interval at the primary setting excludes zero in the rule's
+  favour, (ii) point gain >= **+1.0 s**, (iii) gain > 2 x seed sd (0.145 s), AND (iv) the negative
+  control below is cleared.
+- **NOT WORKING** iff (i) fails.
+- (i)–(iii) holding with (iv) failing is **NOT WORKING**: the gate would not be doing the work.
+
+**(iv) Negative control, specified before running.** Apply the identical blend to a RANDOM subset of
+matched rows of the same size, 1,000 draws, and compare the real rule's gain against that null
+distribution. The rule must exceed the **95th percentile** of the permuted gains. This is what
+separates "the gate finds the rows where the anchor fails" from "blending anything helps".
+
+**Sensitivity, reported but NOT decisional:** T in {300, 900, 1200} s and w in {0.25, 0.75}. A
+better number at a non-primary setting is reported as sensitivity and does NOT change the verdict —
+choosing T after seeing the grid is the exact failure this pre-registration exists to prevent.
+
+## 25.4 What a positive result licenses, and what it does not
+
+It licenses ONE thing: fitting the y-target model on all twelve training months and predicting the
+scored rows (~2.5 h), so the rule can be applied to a submission. It does NOT license shipping on
+this evidence alone — the fold record's `U_w1` is a fold-A fit, and Amendment 9's rule stands: fold
+TOTALS do not transfer, only paired relative gains on matched rows do (RESULT 5, 0.97–1.17x).
+
+
+---
+
+# RESULT 16 · 2026-09-10 00:30 local · Amendment 25 (the gated blend) — NOT WORKING as registered
+
+Evaluated exactly as 25.2/25.3 fixed it, on the 339,015 matched holdout rows of
+`data/cache_stand/fold_preds_queue_allrows.parquet` (no new fit; both prediction columns are in the
+record). Primary setting T = 600 s, w = 0.5: the gate selects **15,743 rows (4.64%)**, of which
+**77.3% truly have |delta| > 600 s** — the gate does identify held rows.
+
+| clause | measured | passes |
+|---|---|---|
+| (i) interval excludes zero in the rule's favour | **−9.844 [−29.366, +0.696]** | no |
+| (ii) point gain >= +1.0 s | −9.844 | no |
+| (iii) gain > 2 x seed sd | −9.844 vs 0.290 | no |
+| (iv) gain > p95 of 1,000 random-subset blends | −9.844 vs +0.079 | no |
+
+**VERDICT: NOT WORKING.** Sensitivity (reported, not decisional): every T in {300, 600, 900, 1200}
+and w in {0.25, 0.5, 0.75} is negative pooled, and smaller w is uniformly better — the ordering of a
+blend weight that should be zero.
+
+**Where it fails is one airport.** Per-airport gain at the primary setting: EGLL **+2.295**,
+EDDF +0.736, LEBL +0.640, LTFM +0.511, LFPG +0.372, EDDM +0.215, LEMD +0.042, LSZH +0.004,
+EHAM −0.840, **LIRF −72.754** (gate 11.58% of its rows). Nine of ten airports improve; LIRF alone
+moves the pooled number by more than the other nine combined, because the unified model is
+catastrophically worse there (RESULT 15: LIRF 384.07 → 622.84).
+
+---
+
+# AMENDMENT 26 — the gated blend, ex-LIRF
+
+**2026-09-10 00:32 local. Written BEFORE the ex-LIRF number is computed.** RESULT 16's per-airport
+table is the evidence: the rule is positive at nine of ten airports and LIRF alone sinks it.
+Amendment 12.3 and Amendment 17 set the precedent — LIRF is where per-airport decisions have
+repeatedly diverged from the pool, because its error is dominated by fills and monsters rather than
+by taxi dynamics.
+
+## 26.1 Hypothesis H-26
+
+> The Amendment 25 rule, applied at every airport EXCEPT LIRF, improves matched RMSE against the
+> pipeline on those nine airports and on the full matched set.
+
+## 26.2 The rule
+
+Amendment 25.2 unchanged (T = 600 s, w = 0.5, `delta_hat` from the queue arm), with the gate forced
+to False on LIRF rows. LIRF keeps the pipeline exactly as it ships today.
+
+## 26.3 Thresholds, locked — DELIBERATELY STRICTER THAN 25.3
+
+This is the fourth variant evaluated on one fold record (U pooled, the 0.5 blend, the gate, now the
+ex-LIRF gate). Testing repeatedly on the same rows inflates the chance of a false positive, so the
+bar rises rather than falls:
+- **ESTABLISHED** iff (i) the paired interval on the FULL matched set (LIRF included, scored with
+  the pipeline there) excludes zero in the rule's favour, (ii) point gain >= **+1.5 s** (above
+  25.3's +1.0 s), (iii) gain > **3 x** seed sd (above 2x), (iv) the gain exceeds the **99th**
+  percentile (above the 95th) of 1,000 random-subset blends of the same size drawn from the nine
+  airports, AND (v) **at least 7 of the 9 airports improve individually**.
+- **NOT WORKING** iff (i) fails.
+- Anything between is INCONCLUSIVE and is reported with every number, not shipped.
+
+## 26.4 What it licenses
+
+A positive result licenses only the twelve-month y-target fit needed to apply the rule to a
+submission (~2.5 h), never a ship on fold evidence alone (Amendment 9).
+
+
+---
+
+# RESULT 17 · 2026-09-10 00:35 local · Amendment 26 (the gated blend, ex-LIRF) — INCONCLUSIVE: real, controlled, and small
+
+Same record, same paired bootstrap, LIRF forced to the pipeline. The gate selects **12,718 rows
+(3.75% of matched)**, of which **79.8% truly have |delta| > 600 s**.
+
+| clause (26.3) | measured | passes |
+|---|---|---|
+| (i) interval excludes zero in the rule's favour | **+0.454 [+0.132, +0.758]** | **yes** |
+| (ii) point gain >= +1.5 s | +0.454 | **no** |
+| (iii) gain > 3 x seed sd (0.435) | +0.454 | yes |
+| (iv) gain > p99 of 1,000 random 9-airport subsets | **+0.454 vs p99 +0.101** (null mean +0.017, max +0.133) | **yes** |
+| (v) >= 7 of the 9 airports improve | **8 / 9** | yes |
+
+**VERDICT: INCONCLUSIVE.** Four clauses of five hold, including the negative control decisively —
+the real rule's gain is **4.5x the 99th percentile** of blending the same number of randomly chosen
+rows, and above the null's maximum over 1,000 draws. **The gate is doing the work, not the
+blending.** The point bar fails under BOTH the strict 26.3 bar (+1.5 s) and 25.3's original
+(+1.0 s), so there is no reading of the pre-registration under which this clears.
+
+Per airport: EGLL +2.295, EDDF +0.736, LEBL +0.640, LTFM +0.511, LFPG +0.372, EDDM +0.215,
+LEMD +0.042, LSZH +0.004, EHAM −0.840, LIRF untouched. Nine-airport pooled 205.359 → 204.822.
+
+**Honest size and cost.** +0.454 s of matched RMSE is **~200 board MSE** at the 2026 weight
+(224.2576² − 223.8037² = 203.4 matched MSE x w_m) — smaller than the seed-averaging lane's ~215 and
+**3% of the 6,884 MSE that separates us from tenth place**. Shipping it requires the twelve-month
+y-target fit (~2.5 h) that 26.4 licenses, for that ~200 MSE. Below-bar but real: the ship decision
+is the owner's, on RESULT 9's precedent, and it is not step-sized either way.
+
+### 17a · a stopping note on multiplicity, recorded against myself
+
+Four variants have now been evaluated on this one fold record (U pooled, the flat 0.5 blend, the
+gate, the ex-LIRF gate). Each additional cut of the same rows raises the chance that a surviving
+interval is noise, which is why 26.3 raised its bars rather than lowering them. **No further
+variant of this rule will be evaluated on this record.** A fifth cut would be fishing, and the
+honest next step for this idea is not another threshold but the twelve-month fit and a fresh fold.
+
+
+---
+
+# RESULT 18 · 2026-09-10 02:38 local · Amendment 19.1 arm D (the airport-day regime block) — NOT WORKING
+
+`lgbm_fold.py --dayfeats --queue --baseline A2 --pa-trees es`, fold A, 2 h 04 min, peak 4.86 GB.
+Records `reports/lgbm_fold_queue_day.{json,log,console.log}`, predictions
+`data/cache_stand/fold_preds_queue_day.parquet`. Baseline = the queue record (224.258); treatment =
+the same design plus the nine DAY_FEATS (89 columns), best_iter re-found → n_ref 27,634.
+
+| clause (19.3) | measured | passes |
+|---|---|---|
+| (i) paired interval excludes zero in the block's favour | **−0.054 [−0.311, +0.210]** | no |
+| (ii) point gain >= +1.0 s | −0.054 | no |
+| (iii) gain > 2 x seed sd (0.291) | −0.054 | no |
+| (iv) >= 6 of 10 airports improve | 5 / 10 | no |
+| (v) the >10 min bands improve by >= +5 s | −0.907 [−2.079, +0.260] | no |
+
+**VERDICT: NOT WORKING.** The block is flat: the interval is centred on zero and the point estimate
+is negative. By band it gains a little on the rows that agree (+0.391 [+0.075, +0.685] under two
+minutes) and loses on the ones that matter (−2.837 [−5.793, +0.128] beyond twenty minutes) — the
+exact inverse of the mechanism 19.1 claimed for it.
+
+**This is what Amendment 19.0 predicted and the arm confirms it.** The mode clusters on days — a
+top-decile day carries 2.3–3.7x the mode rate of a bottom-decile day — but *within* a day the
+signal reaches only AUC 0.63. Regime shifts a base rate; it does not identify a row. A day-level
+block hands the model information it already reconstructs from the 80 columns it has, and the
+holding tail is untouched. **Day-level regime is closed as a source of matched-row gain.**
+
+
+---
+
+# RESULT 19 · 2026-09-10 04:26 local · Amendment 19.2 arm Y (taxi time as the target, blended) — NOT WORKING pooled; the band inversion is stronger than Arm U's
+
+`lgbm_fold.py --ytarget --queue --baseline A2 --pa-trees es`, fold A, 1 h 47 min, peak 4.71 GB.
+Records `reports/lgbm_fold_queue_ytarget.{json,log,console.log}`. Baseline = the queue record
+(224.258). Y alone 260.651; the registered 0.5 blend 233.341.
+
+| clause (19.3) | measured | passes |
+|---|---|---|
+| (i) the blend's paired interval excludes zero | **−9.083 [−27.996, +1.094]** | no |
+| (ii) gain >= +1.0 s | −9.083 | no |
+| (iii) gain > 2 x seed sd (0.291) | −9.083 | no |
+
+**VERDICT: NOT WORKING** on the registered pooled clause.
+
+### 19a · what the bands say, which 19.2 required be reported
+
+| band | share of matched SSE | blend vs baseline | Y alone vs baseline |
+|---|---|---|---|
+| < 2 min | 13.7% | −0.011 [−0.193, +0.161] | −1.010 [−1.397, −0.642]* |
+| 2–10 min | 37.8% | **−21.083** [−58.016, +0.141] | −73.096 [−176.747, −0.867]* |
+| 10–20 min | 17.4% | **+1.420 [+0.807, +2.009]*** | +0.058 [−1.225, +1.258] |
+| **> 20 min** | 31.1% | **+9.992 [+5.628, +14.348]*** | +8.585 [+0.107, +16.658]* |
+| **over10** | 48.5% | **+4.459 [+2.835, +6.058]*** | +3.212 [+0.043, +6.202]* |
+
+Three of the blend's band intervals exclude zero in its favour, and they are **the three that carry
+48.5% of matched error**. This is the same inversion RESULT 15a found on the unified arm, and it is
+**larger here**: over10 +4.459 against the unified arm's +2.83, gt20 +9.99 against +6.98. A
+matched-only y-target model is a better tail model than the all-rows one, which is what Amendment
+19.2 predicted and Amendment 20 muddied by mixing the strata.
+
+**Per airport, the blend:** EDDF 177.9→176.8, EDDM 166.5→165.8, EGLL 229.1→226.4, LEBL 220.3→219.6,
+LEMD 174.7→174.4, LFPG 244.5→243.4, LSZH 174.2→173.6, LTFM 243.6→242.6 — eight improve, EHAM
+163.1→163.8 does not, and **LIRF 384.1→453.9 costs more than the other nine gain**. The third arm
+in a row where Rome alone reverses the pooled sign.
+
+
+---
+
+# AMENDMENT 27 — the gated blend on arm Y's predictions: ONE test, no new knobs
+
+**2026-09-10 04:32 local. Written BEFORE the rule touches arm Y's record.**
+
+RESULT 17 measured the gated blend at +0.454 s using the UNIFIED arm's predictions. RESULT 19 then
+showed the matched-only y-target model is a **better tail model than the unified one** (over10
++4.459 [+2.835, +6.058] against +2.83; gt20 +9.99 against +6.98) — and it fails pooled for the same
+two reasons: the 2–10 min band and LIRF. The gate and the LIRF exclusion address exactly those two.
+
+## 27.1 Hypothesis H-27
+
+> Amendment 26's rule, unchanged, applied to arm Y's predictions instead of the unified arm's,
+> improves matched RMSE against the pipeline.
+
+## 27.2 No parameter is chosen here
+
+`T = 600 s`, `w = 0.5`, LIRF excluded — **every one inherited from Amendment 26**, which inherited T
+from 19.0's band edge (fixed 2026-09-09) and w from 19.2. `delta_hat` is arm Y's own three-seed
+baseline column; the pipeline is `max(proxy − delta_hat, 1)` from the same record, so the comparison
+is paired on identical rows. **No grid is searched and no sensitivity sweep is run** — a sweep here
+would be the fishing this amendment exists to prevent.
+
+## 27.3 Thresholds, locked — corrected for the family of tests
+
+This is the **sixth** test in the blend family on the same fold-A holdout (U pooled, U's flat blend,
+the gate, the gate ex-LIRF, arm Y's flat blend, this). A nominal 95% interval no longer carries 95%
+across a family that size, so:
+- **ESTABLISHED** iff (i) the paired **99%** interval excludes zero in the rule's favour — a
+  Bonferroni-style correction for six tests, not the 95% every earlier clause used — AND (ii) point
+  gain >= **+1.5 s**, (iii) gain > 3 x seed sd, (iv) the gain exceeds the **99th** percentile of
+  1,000 random-subset blends of the same size drawn from the nine airports, (v) **>= 7 of the 9
+  airports improve**.
+- **NOT WORKING** iff (i) fails.
+- Anything between is INCONCLUSIVE, reported with every number, and shipped only on an explicit
+  owner decision (RESULT 9's precedent).
+- Both the 95% and the 99% intervals are reported, so the effect of the correction is visible rather
+  than hidden.
+
+## 27.4 The family stops here
+
+Whatever this returns, **no seventh test of this family runs on fold A.** If it clears, the next step
+is the twelve-month fit and the board; if it does not, the blend family is closed.
+
+
+---
+
+# RESULT 20 · 2026-09-10 04:45 local · Amendment 27 — INCONCLUSIVE, and a scale error caught by its own control
+
+### 20a · the error, recorded first
+
+The first run of this test reported a gain of **−109.0 s** and is **VOID**. Cause: the two fold
+records use different conventions and I assumed one. `fold_preds_queue_allrows.parquet` stores arm
+columns as **taxi times** (its unmatched rows have no proxy, so it must);
+`fold_preds_queue_ytarget.parquet` stores them on the **delta scale**, recovered as
+`max(proxy − col, 1)` — the convention its own harness tests use. Reading the second as if it were
+the first turned every prediction into nonsense.
+
+**What caught it was the negative control, not the result.** A random-subset blend scored −23.9 s
+where it must score ~0 by construction, because a random subset of a *correct* blend cannot be
+systematically harmful. A wrong number that large in the control is unmissable; the same bug in a
+lane without a control would have been reported as a finding. Both records are now verified against
+their own JSON (`baseline` 224.2576, `Y` 260.6511, `blend` 233.3405 all reproduce exactly), and
+**RESULTS 16 and 17 are unaffected** — they used the all-rows record under its correct convention,
+re-verified here.
+
+### 20b · the corrected result
+
+Amendment 26's rule, parameters unchanged, on arm Y's predictions. The gate selects **12,718 rows
+(3.75%)**, of which **79.8% are truly held**.
+
+| clause (27.3) | measured | passes |
+|---|---|---|
+| (i) **99%** interval excludes zero (corrected for six tests) | **+0.527 [+0.114, +0.915]** | **yes** |
+| (ii) point gain >= +1.5 s | +0.527 | **no** |
+| (iii) gain > 3 x seed sd (0.436) | +0.527 | yes |
+| (iv) gain > p99 of 1,000 random 9-airport subsets | **+0.527 vs +0.115** (mean +0.032, max +0.150) | **yes** |
+| (v) >= 7 of the 9 airports improve | **8 / 9** | yes |
+
+95% interval for comparison: [+0.234, +0.820]. **VERDICT: INCONCLUSIVE** — the same shape as
+RESULT 17 and slightly better (+0.527 against +0.454), surviving a Bonferroni-corrected interval and
+a control it beats 4.6x, but failing the point bar under every registered reading.
+
+Per airport: EGLL +2.394, EDDF +0.779, LTFM +0.666, LEBL +0.579, EDDM +0.461, LSZH +0.241,
+LFPG +0.202, LEMD +0.194, EHAM −0.586, LIRF untouched. On the gated rows the pipeline scores 418.79,
+the y-model 416.49 and the blend **411.21** — the blend beats both parents there, which is what a
+real variance reduction looks like.
+
+**Size: ~232 board MSE, 3.4% of the 6,884 needed for tenth**, and it costs a twelve-month y-target
+fit (~2.5 h) to ship. Per 27.4 **the blend family is now closed on fold A**: six tests, one
+consistent picture — the y-target model is the better tail model, the gate finds the tail, Rome
+must be excluded, and the whole thing is worth a few hundred MSE. It is not the step.
+
+
+---
+
+# RESULT 21 · 2026-09-10 06:20 local · Amendment 22 arm F (the record-ordering block) — ESTABLISHED, and the first arm to pass a mechanism clause
+
+`lgbm_fold.py --orderfeats --queue --baseline A2 --pa-trees es`, fold A, 1 h 53 min, peak 4.84 GB.
+Records `reports/lgbm_fold_queue_order.{json,log,console.log}`. Baseline = the queue record
+(224.258); treatment = the same design plus the three ORDER_FEATS (83 columns), n_ref 27,155.
+
+| clause (22.3) | measured | passes |
+|---|---|---|
+| (i) paired interval excludes zero in the block's favour | **+1.694 [+1.407, +1.993]** | yes |
+| (ii) point gain >= +1.0 s | +1.694 | yes |
+| (iii) gain > 2 x seed sd (0.291) | 11.6x | yes |
+| (iv) **the over-10-min band's own interval excludes zero** | **+12.156 [+10.823, +13.466]** | **yes** |
+
+**VERDICT: ESTABLISHED**, all four clauses.
+
+**It is the first arm in this project to pass its mechanism clause.** Every other lane either moved
+the body and not the tail (the queue block, RESULT 9) or moved nothing (arm D, RESULT 18). This one
+moves the rows the diagnosis named:
+
+| band | share of matched SSE | gain |
+|---|---|---|
+| < 2 min | 13.7% | −2.059 [−2.387, −1.748] |
+| 2–10 min | 37.8% | −0.381 [−0.594, −0.154] |
+| 10–20 min | 17.4% | **+7.114 [+6.290, +7.970]** |
+| **> 20 min** | 31.1% | **+22.584 [+19.103, +25.882]** |
+| **over10** | 48.5% | **+12.156 [+10.823, +13.466]** |
+
+It is a genuine trade — small, real losses on the body against large gains on the tail — and the net
+is positive by a wide margin. Per airport: **LIRF +8.17** (the airport that has reversed the sign of
+four other lanes), EDDM +2.08, LTFM +1.50, EDDF +1.41, LEBL +1.37, LEMD +0.77, LSZH +0.11,
+EGLL +0.06; LFPG −0.14 and EHAM −0.10. **8 of 10 improve.**
+
+### 21a · the transfer check, and a correction to my first reading of it
+
+A feature whose serve-time distribution differs from training wins on the fold and loses on the
+board, so the block's distribution was compared before anything was shipped. **The correct reference
+is the FIT months** — what the model actually saw — not one arbitrary training month:
+
+| | \|o_dev_flt\| p90 | ratio to fit |
+|---|---|---|
+| fit months (2025, excluding 1 and 7) | 0.0248 | — |
+| fold holdout (2025, months 1 and 7) | 0.0277 | 1.12 |
+| **scored file (2026, months 1 and 7)** | **0.0256** | **1.03** |
+
+The fold measured this gain **through a wider shift than the scored file presents**, so the transfer
+rule applies without a discount. My first pass compared the scored file against March alone and
+reported ratios of 1.2–1.9x; that reference was a single noisy month and the reading is withdrawn.
+Per airport the scored/fit ratio is 0.94–1.09 everywhere except LSZH at 1.41, whose gain (+0.11) is
+immaterial either way. `o_dev_mvt` p90: fit 0.5054, holdout 0.5241, scored 0.5008.
+
+**Board scale:** +1.694 s of matched RMSE is **~745 MSE** at the 2026 weight — the largest matched
+lane since the queue block, 11% of the 6,884 to tenth place. **It ships as v6** under the
+established-lane rule, after arm W clears the machine.
+
+
+---
+
+# RESULT 22 · 2026-09-10 08:02 local · Amendment 24 arm W (weather) — INCONCLUSIVE, and it refutes the mechanism I argued for it
+
+`lgbm_fold.py --weatherfeats --queue --baseline A2 --pa-trees es`, fold A, 1 h 42 min, peak 5.00 GB.
+Records `reports/lgbm_fold_queue_weather.{json,log,console.log}`. Baseline = the queue record
+(224.258); treatment = the same design plus the ten WEATHER_FEATS (90 columns), n_ref 24,438.
+
+| clause (24.4) | measured | passes |
+|---|---|---|
+| (i) paired interval excludes zero in the block's favour | **+0.725 [+0.495, +0.947]** | yes |
+| (ii) point gain >= +1.0 s | +0.725 | no |
+| (iii) gain > 2 x seed sd (0.291) | 5.0x | yes |
+| (iv) **the over-10-min band's own interval excludes zero** | **−0.544 [−1.578, +0.439]** | **no** |
+
+**VERDICT: INCONCLUSIVE**, and the mechanism clause fails in an instructive direction.
+
+| band | share of matched SSE | gain |
+|---|---|---|
+| < 2 min | 13.7% | **+1.220 [+0.957, +1.487]** |
+| 2–10 min | 37.8% | **+1.221 [+1.027, +1.423]** |
+| 10–20 min | 17.4% | +0.846 [+0.079, +1.584] |
+| **> 20 min** | 31.1% | **−2.673 [−5.178, −0.095]** |
+| over10 | 48.5% | −0.544 [−1.578, +0.439] |
+
+**Weather improves ordinary taxi time and does not touch the holds.** It gains on the body, where
+visibility and wind plausibly change how fast an aircraft actually taxis, and it is *worse* on the
+rows beyond twenty minutes with an interval that excludes zero. The seasonal split 24.4 required
+makes it plainer: **January +1.739 s pooled** (the de-icing season, and the block's best case) but
+only **+0.932 s on January's held rows**; **July +0.045 s pooled and −1.357 s on July's held rows.**
+
+**This refutes the reasoning I used to justify the lane.** I argued weather was the remaining lane
+"with a physical mechanism behind it" because 78% of held rows are pushed-back-then-held and holds
+are caused by de-icing and flow control. The block does carry the de-icing signal — January is where
+all of its gain is — but **naming the weather does not name the held row**. Freezing conditions cover
+1.92% of scored rows while held rows are 7.6%: the mechanism is real, too rare, and evidently not
+what separates the two clocks. The earlier +0.49 s result was not an artifact of low capacity after
+all; at capacity with 80 columns beside it the block is worth +0.725 s, and the difference is body,
+not tail.
+
+**Board scale: ~320 MSE, 5% of the gap.** Below its point bar and failing its mechanism clause, so
+it does not ship on the established-lane rule; per RESULT 9's precedent that is the owner's call.
+**Its gains are complementary to arm F's** — W moves the body (+1.22 / +1.22), F moves the tail
+(+7.11 / +22.58) — which makes a combined design the obvious next fold arm rather than a second
+submission.
+
+
+---
+
+# NOTE · 2026-09-10 16:20 local · RESULT 13 — SUPERSEDED IN PART by the date-slip prereg
+
+RESULT 13 described the remainder of the unmatched lane as **"4 stale-BLOCK rows in two months on four
+distinct airport-days with no shared signature."** The last clause is **wrong**, and this note records
+that rather than editing the block above it (the file is append-only).
+
+The 24-hour tail rows DO share a signature, found by a parallel session and pre-registered in
+`plans/PREREG_rome_dateslip_2026_09_10.md` (H-DS): the airport's actual off-block **clock time stamped
+under the schedule's date**, so the label is the taxi time plus exactly 86,400 s. On 2025 LIRF unmatched
+rows with `dayoff = 1`, above `sp` 56,000 s there are 10 date-slips against 5 fills, and `y − 86,400`
+on the date-slips has p10/50/90 of 771 / 1,020 / 1,679 s — an ordinary taxi time. I looked at the same
+rows and read four unrelated stale stamps; the structure was the date, not the time. Its verdict and its
+disclosed boundary-fragility belong to that file and to `reports/GAP_LOCATED_2026_09_10.md`, not here.
+
+What of RESULT 13 still stands: the oracle fill decision is worth 13,497 MSE and all of it is at LIRF;
+the shipped `p` scores AUC 0.944 pooled; tail insurance is priced and refused (break-even P = 23%).
+
+# NOTE · 2026-09-10 16:20 local · a validation defect in this harness, recorded where its results live
+
+The overnight audit (`plans/TOP_PATH_2026_09_10.md`, Priority 0; `reports/bug_classes.md` BC-1) found
+that `lgbm_fold.py::load_fold` builds target encodings over `tr`, which INCLUDES the inner early-stopping
+months, so early-stopping rows' encodings were fitted on their own labels. **Every `best_iter` in every
+RESULT above — and every shipped version — was selected against that biased signal.** The outer
+January/July holdout was never contaminated, so every held-out RMSE and every paired interval recorded
+in this file remains a valid measurement of the model that was fitted; what is not established is that
+those models were tuned as well as they could have been. The repair is `prc/encoding.py`, built and
+tested by the auditing session and deliberately not wired while this file's arms were running.

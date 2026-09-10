@@ -1,0 +1,2501 @@
+{
+  "mode": "queue_allrows",
+  "smoke": false,
+  "git_sha": "8d6d2caf1f1c9a7e2df4af2629d6f44e0f641df3",
+  "git_dirty": true,
+  "started_utc": "2026-09-10T01:18:22.872156+00:00",
+  "finished_utc": "2026-09-10T04:16:40.050124+00:00",
+  "wall_s": 10697.2,
+  "peak_rss_gb": 4.95,
+  "command": "cd ~/Projects/prc-challenge && PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 nice -n 19 /usr/bin/time -l python3.11 -B -u scripts/lgbm_fold.py --ytarget --all-rows --queue --unmatched-weight 1,10 --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_queue_allrows.console.log",
+  "estimate": "~3.1 h (range 2.5-4 h): the allrows estimate x1.15 for 81 columns; peak RSS ~4.9 GB. The matched pipeline is READ from the queue record; prerequisites as for allrows plus data/cache_queue/. Writes reports/lgbm_fold_queue_allrows.{json,log} and data/cache_stand/fold_preds_queue_allrows.parquet.",
+  "fold": {
+    "holdout_months": [
+      1,
+      7
+    ],
+    "es_months": [
+      3,
+      9
+    ],
+    "months": "all twelve",
+    "n_test": 344336,
+    "n_fit": 1391970,
+    "n_es": 348353,
+    "n_all": 1740323,
+    "airports": [
+      "EDDF",
+      "EDDM",
+      "EGLL",
+      "EHAM",
+      "LEBL",
+      "LEMD",
+      "LFPG",
+      "LIRF",
+      "LSZH",
+      "LTFM"
+    ],
+    "n_unmatched_test": 5321,
+    "n_unmatched_all": 16898
+  },
+  "amendment": "19-unified",
+  "config": {
+    "params": {
+      "objective": "regression",
+      "metric": "rmse",
+      "learning_rate": 0.01,
+      "num_leaves": 255,
+      "min_data_in_leaf": 40,
+      "feature_fraction": 0.8,
+      "bagging_fraction": 0.8,
+      "bagging_freq": 1,
+      "cat_smooth": 20,
+      "min_data_per_group": 100,
+      "max_cat_threshold": 64,
+      "num_threads": 4,
+      "verbosity": -1,
+      "seed": 0
+    },
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "es_seed": 0,
+    "max_rounds": 50000,
+    "patience": 200,
+    "baseline_arm": "A2",
+    "queue": true,
+    "day": false,
+    "design_baseline": "A2 + QUEUE_FEATS",
+    "target": "y",
+    "blend": 0.5,
+    "unmatched_weights": [
+      1.0,
+      10.0
+    ],
+    "pa_trees": "es",
+    "n_boot": 2000,
+    "boot_seed": 0,
+    "features": [
+      "proxy",
+      "sp",
+      "eobt_p",
+      "lobt_p",
+      "iobt_p",
+      "aobt_sched",
+      "eobt_sched",
+      "aobt_eobt",
+      "lobt_sched",
+      "eobt_lobt",
+      "iobt_lobt",
+      "airborne3",
+      "airborne1",
+      "arvt_diff",
+      "aobt_sec",
+      "mvt_sec",
+      "sched_sec",
+      "hr",
+      "tmin",
+      "dow",
+      "doy",
+      "actype_null",
+      "f_callsign",
+      "f_ades",
+      "f_type",
+      "f_rule",
+      "n_push",
+      "rwy_b30",
+      "apt_b30",
+      "arr_b30",
+      "sched_prev60",
+      "sched_next60",
+      "sched_day",
+      "rwy_rate",
+      "dep_dur",
+      "rwy_dur",
+      "arr_dur",
+      "arr_ob60_taxiin",
+      "arr_ob60_cdiff",
+      "arr_ob180_cdiff",
+      "prev_arr_gap",
+      "prev_arr_taxiin",
+      "prev_arr_cdiff",
+      "prev_dep_gap",
+      "te_ADEP_mvt",
+      "de_ADEP_mvt",
+      "te_STAND_mvt",
+      "de_STAND_mvt",
+      "te_stand_pref",
+      "de_stand_pref",
+      "te_airline",
+      "de_airline",
+      "te_ADES_mvt",
+      "de_ADES_mvt",
+      "te_AIRCRAFT_TYPE_mvt",
+      "de_AIRCRAFT_TYPE_mvt",
+      "te_RUNWAY_mvt",
+      "de_RUNWAY_mvt",
+      "te_AIRCRAFT_OPERATOR_flt",
+      "de_AIRCRAFT_OPERATOR_flt",
+      "te_MARKET_SEGMENT_flt",
+      "de_MARKET_SEGMENT_flt",
+      "te_WK_TBL_CAT_flt",
+      "de_WK_TBL_CAT_flt",
+      "te_FLIGHT_TYPE_flt",
+      "de_FLIGHT_TYPE_flt",
+      "te_ars",
+      "de_ars",
+      "q_apt_at_push",
+      "q_rwy_at_push",
+      "q_pushed_after_me",
+      "q_rwy_tko_in_taxi",
+      "q_rwy_push_pre20",
+      "q_dep_tko_sym15",
+      "q_rwy_tko_sym10",
+      "q_arr_taxiing_at_push",
+      "q_arr_taxiin_sym30_push",
+      "q_arr_taxiin_sym30_tko",
+      "q_rwy_ambient_proxy",
+      "q_next_arr_onblock_gap",
+      "is_unmatched"
+    ],
+    "n_features": 81,
+    "is_unmatched_column": "is_unmatched",
+    "unmatched_cache": "/Users/saurabhdxt/Projects/prc-challenge/data/cache_unmatched",
+    "unmatched_nan_cols": [
+      "proxy",
+      "aobt_sched",
+      "aobt_eobt",
+      "aobt_sec",
+      "q_apt_at_push",
+      "q_rwy_at_push",
+      "q_pushed_after_me",
+      "q_rwy_tko_in_taxi",
+      "q_rwy_push_pre20",
+      "q_arr_taxiing_at_push",
+      "q_arr_taxiin_sym30_push",
+      "q_next_arr_onblock_gap",
+      "d_prx_minus_p50"
+    ],
+    "unmatched_flt_cols": [
+      "eobt_p",
+      "lobt_p",
+      "iobt_p",
+      "eobt_sched",
+      "lobt_sched",
+      "eobt_lobt",
+      "iobt_lobt",
+      "airborne3",
+      "airborne1",
+      "arvt_diff"
+    ],
+    "w_matched_2026": 0.9846595967416868,
+    "w_unmatched_2026": 0.015340403258313252,
+    "monster_s": 10800.0,
+    "stratum_preds": "/Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/stratum_fold_v7_preds.parquet",
+    "columns": "every arm column is a TAXI TIME (the unmatched rows have no proxy); U_w{W}_seed{s} the per-seed y predictions before the 1 s floor; baseline_* the matched record in the delta form, NaN on unmatched rows"
+  },
+  "baseline": {
+    "source": "queue predictions",
+    "preds": "/Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/fold_preds_queue.parquet",
+    "json": "/Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_queue.json",
+    "arm": "A2",
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "record_kind": "queue",
+    "record_git_sha": "58b785bb6cb8ff222198d0637f2fc45c8761c656",
+    "record_best_iter": 21316,
+    "record_n_ref": 26647,
+    "record_pa_trees": "es",
+    "record_a0_reproduction": null,
+    "design": "FEATS + QUEUE_FEATS"
+  },
+  "unmatched_baseline": {
+    "source": "/Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/stratum_fold_v7_preds.parquet",
+    "arm": "S0 (the shipped fit_unmatched)",
+    "n_record_fold_a": 5321,
+    "n_joined": 5321
+  },
+  "u_arms": {
+    "w1": {
+      "target": "y",
+      "weight": 1.0,
+      "fitted": true,
+      "best_iter": 7375,
+      "n_ref": 9220,
+      "n_es": 344840,
+      "n_es_months": 348353,
+      "n_features": 81,
+      "single_seed_rmses": {
+        "0": 454.00968946312673,
+        "1": 452.00425725137154,
+        "2": 452.41567530282657
+      },
+      "single_seed_rmses_total": {
+        "0": 452.9136823334495,
+        "1": 450.91815038238843,
+        "2": 451.3274907548025
+      },
+      "seed_sd_total": 1.0540170011567191,
+      "es_rmse_taxi_time_NOT_A_RESULT": 202.7594806370188,
+      "es_proxy_only_rmse": 366.24960618281534,
+      "es_guard_rows": 344840,
+      "floor_bind_rate": 0.00018296082895776218,
+      "timing_s": {
+        "seed0_s": 706.6,
+        "seed1_s": 701.9,
+        "seed2_s": 696.0
+      },
+      "wall_s": 2669.8
+    },
+    "w10": {
+      "target": "y",
+      "weight": 10.0,
+      "fitted": true,
+      "best_iter": 23621,
+      "n_ref": 29532,
+      "n_es": 344840,
+      "n_es_months": 348353,
+      "n_features": 81,
+      "single_seed_rmses": {
+        "0": 459.8920407795713,
+        "1": 456.21385848309194,
+        "2": 456.2598670703906
+      },
+      "single_seed_rmses_total": {
+        "0": 458.8175339935717,
+        "1": 455.1522350583345,
+        "2": 455.19898039763063
+      },
+      "seed_sd_total": 2.102797007880025,
+      "es_rmse_taxi_time_NOT_A_RESULT": 207.02037269478066,
+      "es_proxy_only_rmse": 366.24960618281534,
+      "es_guard_rows": 344840,
+      "floor_bind_rate": 0.0003368802564936574,
+      "timing_s": {
+        "seed0_s": 2212.9,
+        "seed1_s": 2107.0,
+        "seed2_s": 2062.1
+      },
+      "wall_s": 7984.1
+    }
+  },
+  "arms": {
+    "pipeline": {
+      "definition": "matched: A2 + QUEUE_FEATS (queue predictions); unmatched: the stratum record's S0",
+      "rmse_total_2026": 321.0042019101183,
+      "rmse_matched": 224.25762647868322,
+      "rmse_unmatched": 1867.9046408675038,
+      "rmse_unmatched_exmonster": 995.5974635299707
+    },
+    "U_w1": {
+      "definition": "unified y-target regressor, unmatched weight 1, best_iter 7,375 -> n_ref 9,220, mean over seeds [0, 1, 2], max(., 1)",
+      "rmse_total_2026": 450.80453139721715,
+      "rmse_matched": 263.4998505441276,
+      "rmse_unmatched": 2964.964110063508,
+      "rmse_unmatched_exmonster": 1324.3186878184547
+    },
+    "Ublend_w1": {
+      "definition": "0.5 U_w1 + 0.5 pipeline",
+      "rmse_total_2026": 354.5176639519269,
+      "rmse_matched": 234.1537607703697,
+      "rmse_unmatched": 2161.865608948969,
+      "rmse_unmatched_exmonster": 1048.6608725540495
+    },
+    "U_w10": {
+      "definition": "unified y-target regressor, unmatched weight 10, best_iter 23,621 -> n_ref 29,532, mean over seeds [0, 1, 2], max(., 1)",
+      "rmse_total_2026": 454.8620784157527,
+      "rmse_matched": 273.5497476166626,
+      "rmse_unmatched": 2946.883733738984,
+      "rmse_unmatched_exmonster": 1221.806895106455
+    },
+    "Ublend_w10": {
+      "definition": "0.5 U_w10 + 0.5 pipeline",
+      "rmse_total_2026": 356.1915718066226,
+      "rmse_matched": 237.0360792121752,
+      "rmse_unmatched": 2159.638798934741,
+      "rmse_unmatched_exmonster": 1010.8798904035139
+    }
+  },
+  "subsets": {
+    "matched": {
+      "definition": "rows with an NM off-block (the matched record's fold)",
+      "n_rows": 339015,
+      "share_of_holdout_rows": 0.9845470703034246,
+      "rmse": {
+        "pipeline": 224.25762647868322,
+        "U_w1": 263.4998505441276,
+        "Ublend_w1": 234.1537607703697,
+        "U_w10": 273.5497476166626,
+        "Ublend_w10": 237.0360792121752
+      },
+      "per_airport": {
+        "pipeline": {
+          "EDDF": 177.91877411532215,
+          "EDDM": 166.51724603458035,
+          "EGLL": 229.0671035705999,
+          "EHAM": 163.11576384179327,
+          "LEBL": 220.29320708734454,
+          "LEMD": 174.70589534550064,
+          "LFPG": 244.46367157714883,
+          "LIRF": 384.06601284171705,
+          "LSZH": 174.1629127894265,
+          "LTFM": 243.63817110942952
+        },
+        "U_w1": {
+          "EDDF": 178.43699513814056,
+          "EDDM": 168.80217293200587,
+          "EGLL": 227.84970258337086,
+          "EHAM": 170.67147293658041,
+          "LEBL": 220.1901684336193,
+          "LEMD": 176.17424510612008,
+          "LFPG": 245.7286524324761,
+          "LIRF": 622.8426159249072,
+          "LSZH": 179.76136285392528,
+          "LTFM": 244.3544501985772
+        },
+        "Ublend_w1": {
+          "EDDF": 177.35786527286538,
+          "EDDM": 166.68784789436583,
+          "EGLL": 226.6897327675034,
+          "EHAM": 164.5858287329497,
+          "LEBL": 219.63280044557388,
+          "LEMD": 174.76153945110258,
+          "LFPG": 243.52900924558426,
+          "LIRF": 456.8426902999297,
+          "LSZH": 174.9486118212584,
+          "LTFM": 243.07626716740066
+        },
+        "U_w10": {
+          "EDDF": 178.3082475445147,
+          "EDDM": 173.2619802180956,
+          "EGLL": 231.8513864279604,
+          "EHAM": 172.3765241002004,
+          "LEBL": 223.83559869971285,
+          "LEMD": 177.22200077072952,
+          "LFPG": 249.4275486981973,
+          "LIRF": 665.9446755774792,
+          "LSZH": 186.24097006732225,
+          "LTFM": 247.04215072027867
+        },
+        "Ublend_w10": {
+          "EDDF": 177.1029016029399,
+          "EDDM": 167.60230786920837,
+          "EGLL": 227.86485702128186,
+          "EHAM": 164.87233043723688,
+          "LEBL": 220.58512698238562,
+          "LEMD": 174.95632879725792,
+          "LFPG": 244.32857580740665,
+          "LIRF": 472.37187666848644,
+          "LSZH": 176.02646146480154,
+          "LTFM": 243.7799816336742
+        }
+      },
+      "pairs": {
+        "U_w1_vs_pipeline": {
+          "gain_s": -39.24222406544436,
+          "ci95": [
+            -101.64684034257839,
+            -1.3844582739556992
+          ],
+          "excludes_zero": true,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0,
+          "gain_over_seed_sd": -269.93718159608807,
+          "exceeds_2x_seed_sd": false,
+          "airports_improving": 2,
+          "n_airports": 10,
+          "per_airport": {
+            "EDDF": {
+              "gain_s": -0.518221022818409,
+              "ci95": [
+                -2.15471897824225,
+                0.9429287567582644
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EDDM": {
+              "gain_s": -2.284926897425521,
+              "ci95": [
+                -3.410049662909117,
+                -1.1008128046083934
+              ],
+              "excludes_zero": true,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EGLL": {
+              "gain_s": 1.2174009872290412,
+              "ci95": [
+                -1.4341133619609423,
+                4.2032697280200635
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EHAM": {
+              "gain_s": -7.555709094787147,
+              "ci95": [
+                -12.966001768479245,
+                -3.9401196326812875
+              ],
+              "excludes_zero": true,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LEBL": {
+              "gain_s": 0.10303865372523546,
+              "ci95": [
+                -0.6140920540307164,
+                0.8284473119071682
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LEMD": {
+              "gain_s": -1.4683497606194464,
+              "ci95": [
+                -2.2262177871188635,
+                -0.6174794499035611
+              ],
+              "excludes_zero": true,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LFPG": {
+              "gain_s": -1.2649808553272806,
+              "ci95": [
+                -3.073871547241663,
+                0.43774147954988823
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LIRF": {
+              "gain_s": -238.7766030831902,
+              "ci95": [
+                -548.7070792639612,
+                -2.4573481362756313
+              ],
+              "excludes_zero": true,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LSZH": {
+              "gain_s": -5.598450064498763,
+              "ci95": [
+                -11.638898144435846,
+                -1.0087533854439905
+              ],
+              "excludes_zero": true,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LTFM": {
+              "gain_s": -0.7162790891476902,
+              "ci95": [
+                -1.62622422011708,
+                0.2855801141868899
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            }
+          }
+        },
+        "Ublend_w1_vs_pipeline": {
+          "gain_s": -9.89613429168648,
+          "ci95": [
+            -29.433305419228905,
+            0.6556147217069245
+          ],
+          "excludes_zero": false,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0,
+          "gain_over_seed_sd": -68.07296637772761,
+          "exceeds_2x_seed_sd": false,
+          "airports_improving": 5,
+          "n_airports": 10,
+          "per_airport": {
+            "EDDF": {
+              "gain_s": 0.5609088424567688,
+              "ci95": [
+                -0.31736507271835424,
+                1.4148569262529014
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EDDM": {
+              "gain_s": -0.17060185978547793,
+              "ci95": [
+                -0.7514601228884409,
+                0.47158559109444886
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EGLL": {
+              "gain_s": 2.377370803096511,
+              "ci95": [
+                0.9417304700195445,
+                4.054507615889897
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EHAM": {
+              "gain_s": -1.4700648911564258,
+              "ci95": [
+                -4.108344698836977,
+                0.24488725449202617
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LEBL": {
+              "gain_s": 0.6604066417706633,
+              "ci95": [
+                0.2692236828121743,
+                1.0804726701765364
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LEMD": {
+              "gain_s": -0.05564410560194233,
+              "ci95": [
+                -0.46112481684485473,
+                0.42694190544257027
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LFPG": {
+              "gain_s": 0.9346623315645672,
+              "ci95": [
+                0.04902988844005165,
+                1.8307159320401467
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LIRF": {
+              "gain_s": -72.77667745821265,
+              "ci95": [
+                -193.878229074469,
+                0.736961581108147
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LSZH": {
+              "gain_s": -0.7856990318318822,
+              "ci95": [
+                -2.8269166664886156,
+                0.753454506481849
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LTFM": {
+              "gain_s": 0.561903942028863,
+              "ci95": [
+                0.0913923785459545,
+                1.1039746655219689
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            }
+          }
+        },
+        "U_w10_vs_pipeline": {
+          "gain_s": -49.29212113797939,
+          "ci95": [
+            -112.53430541115793,
+            -9.865746186446108
+          ],
+          "excludes_zero": true,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0,
+          "gain_over_seed_sd": -339.06784265563124,
+          "exceeds_2x_seed_sd": false,
+          "airports_improving": 0,
+          "n_airports": 10,
+          "per_airport": {
+            "EDDF": {
+              "gain_s": -0.3894734291925488,
+              "ci95": [
+                -3.0106095256529612,
+                1.7133380222180956
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EDDM": {
+              "gain_s": -6.744734183515249,
+              "ci95": [
+                -12.014498632782471,
+                -3.026691209053004
+              ],
+              "excludes_zero": true,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EGLL": {
+              "gain_s": -2.7842828573604947,
+              "ci95": [
+                -5.624420633872236,
+                0.178320864507379
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EHAM": {
+              "gain_s": -9.260760258407146,
+              "ci95": [
+                -15.885494368160566,
+                -4.328290601247319
+              ],
+              "excludes_zero": true,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LEBL": {
+              "gain_s": -3.5423916123683057,
+              "ci95": [
+                -5.936042799102059,
+                -1.711354911263769
+              ],
+              "excludes_zero": true,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LEMD": {
+              "gain_s": -2.5161054252288864,
+              "ci95": [
+                -3.8756500567756107,
+                -1.312059205156646
+              ],
+              "excludes_zero": true,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LFPG": {
+              "gain_s": -4.963877121048483,
+              "ci95": [
+                -9.20270902476646,
+                -1.4371886495220512
+              ],
+              "excludes_zero": true,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LIRF": {
+              "gain_s": -281.87866273576213,
+              "ci95": [
+                -590.9185819986634,
+                -45.97912659527046
+              ],
+              "excludes_zero": true,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LSZH": {
+              "gain_s": -12.078057277895738,
+              "ci95": [
+                -22.70808958949948,
+                -4.577800719386435
+              ],
+              "excludes_zero": true,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LTFM": {
+              "gain_s": -3.4039796108491487,
+              "ci95": [
+                -5.534922743238795,
+                -1.49425314767443
+              ],
+              "excludes_zero": true,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            }
+          }
+        },
+        "Ublend_w10_vs_pipeline": {
+          "gain_s": -12.778452733491974,
+          "ci95": [
+            -32.93991558765395,
+            -1.5924971162260488
+          ],
+          "excludes_zero": true,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0,
+          "gain_over_seed_sd": -87.89969473404747,
+          "exceeds_2x_seed_sd": false,
+          "airports_improving": 3,
+          "n_airports": 10,
+          "per_airport": {
+            "EDDF": {
+              "gain_s": 0.8158725123822421,
+              "ci95": [
+                -0.2112576027203985,
+                1.8019237093324731
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EDDM": {
+              "gain_s": -1.0850618346280214,
+              "ci95": [
+                -2.7113590098436475,
+                0.16303244938610312
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EGLL": {
+              "gain_s": 1.2022465493180334,
+              "ci95": [
+                -0.26425965114152417,
+                2.816799347698478
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EHAM": {
+              "gain_s": -1.7565665954436156,
+              "ci95": [
+                -4.721277725594439,
+                0.28716928446976325
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LEBL": {
+              "gain_s": -0.29191989504107596,
+              "ci95": [
+                -1.0128867467622258,
+                0.3504131647470903
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LEMD": {
+              "gain_s": -0.2504334517572886,
+              "ci95": [
+                -0.7687065080721872,
+                0.2953789073800293
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LFPG": {
+              "gain_s": 0.13509576974217907,
+              "ci95": [
+                -1.4997723543040622,
+                1.5774809105029355
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LIRF": {
+              "gain_s": -88.30586382676938,
+              "ci95": [
+                -210.9372123355432,
+                -11.284527296148694
+              ],
+              "excludes_zero": true,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LSZH": {
+              "gain_s": -1.8635486753750286,
+              "ci95": [
+                -5.0684262019250514,
+                0.3951067033904118
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LTFM": {
+              "gain_s": -0.14181052424467566,
+              "ci95": [
+                -0.8376550754785562,
+                0.6011202769255368
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            }
+          }
+        }
+      },
+      "airports": [
+        "EDDF",
+        "EDDM",
+        "EGLL",
+        "EHAM",
+        "LEBL",
+        "LEMD",
+        "LFPG",
+        "LIRF",
+        "LSZH",
+        "LTFM"
+      ]
+    },
+    "unmatched": {
+      "definition": "rows without one (the stratum), pooled",
+      "n_rows": 5321,
+      "share_of_holdout_rows": 0.015452929696575439,
+      "rmse": {
+        "pipeline": 1867.9046408675038,
+        "U_w1": 2964.964110063508,
+        "Ublend_w1": 2161.865608948969,
+        "U_w10": 2946.883733738984,
+        "Ublend_w10": 2159.638798934741
+      },
+      "per_airport": {
+        "pipeline": {
+          "EDDF": 418.2552014496059,
+          "EDDM": 670.8075033091893,
+          "EGLL": 1174.8290197758347,
+          "EHAM": 663.7412800405011,
+          "LEBL": 362.0822038570456,
+          "LEMD": 339.37851326588157,
+          "LFPG": 3456.280404042984,
+          "LIRF": 3931.358565781036,
+          "LSZH": 690.8098950425782,
+          "LTFM": 805.7265438636678
+        },
+        "U_w1": {
+          "EDDF": 337.21776157210627,
+          "EDDM": 636.4195757508145,
+          "EGLL": 1096.9178141623058,
+          "EHAM": 561.3384669450498,
+          "LEBL": 332.5236641125389,
+          "LEMD": 341.1469427801929,
+          "LFPG": 3453.857175694195,
+          "LIRF": 9356.180824938549,
+          "LSZH": 772.6276050312521,
+          "LTFM": 578.7401326760781
+        },
+        "Ublend_w1": {
+          "EDDF": 347.3932675681322,
+          "EDDM": 618.9577043843444,
+          "EGLL": 1112.7186589304886,
+          "EHAM": 584.5759189573604,
+          "LEBL": 318.00597134208374,
+          "LEMD": 296.8685632502514,
+          "LFPG": 3448.618955943771,
+          "LIRF": 5694.495776338441,
+          "LSZH": 681.3955984243595,
+          "LTFM": 631.6243664152177
+        },
+        "U_w10": {
+          "EDDF": 327.97900842819104,
+          "EDDM": 653.3540244995523,
+          "EGLL": 1096.3983885468558,
+          "EHAM": 568.0252553103765,
+          "LEBL": 329.22055004903615,
+          "LEMD": 296.9136378978946,
+          "LFPG": 3453.3344445970943,
+          "LIRF": 9271.365152202967,
+          "LSZH": 863.7648965844244,
+          "LTFM": 569.9725148056514
+        },
+        "Ublend_w10": {
+          "EDDF": 347.1909383963484,
+          "EDDM": 625.7435797240843,
+          "EGLL": 1120.2216233789948,
+          "EHAM": 586.7417290772778,
+          "LEBL": 314.5445331156146,
+          "LEMD": 287.5095222832769,
+          "LFPG": 3449.0113042291828,
+          "LIRF": 5677.505603213617,
+          "LSZH": 712.1293782390311,
+          "LTFM": 624.0420851322598
+        }
+      },
+      "pairs": {
+        "U_w1_vs_pipeline": {
+          "gain_s": -1097.0594691960043,
+          "ci95": [
+            -1769.3289143007612,
+            -597.5790162063626
+          ],
+          "excludes_zero": true,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0,
+          "gain_over_seed_sd": -7546.390354027873,
+          "exceeds_2x_seed_sd": false,
+          "airports_improving": 7,
+          "n_airports": 10,
+          "per_airport": {
+            "EDDF": {
+              "gain_s": 81.03743987749965,
+              "ci95": [
+                40.49610236835719,
+                118.0003470599146
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EDDM": {
+              "gain_s": 34.38792755837483,
+              "ci95": [
+                -28.73051423321643,
+                141.37157767045886
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EGLL": {
+              "gain_s": 77.91120561352886,
+              "ci95": [
+                17.191884763855793,
+                128.42971336893527
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EHAM": {
+              "gain_s": 102.40281309545128,
+              "ci95": [
+                56.50799388291997,
+                169.3871559605936
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LEBL": {
+              "gain_s": 29.55853974450673,
+              "ci95": [
+                -0.019748124332785708,
+                57.80020964527255
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LEMD": {
+              "gain_s": -1.7684295143113218,
+              "ci95": [
+                -70.04248124867796,
+                60.28758711030733
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LFPG": {
+              "gain_s": 2.4232283487890527,
+              "ci95": [
+                -12.49843907281154,
+                119.24311790811264
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LIRF": {
+              "gain_s": -5424.822259157512,
+              "ci95": [
+                -7595.50517923233,
+                -3123.056745923702
+              ],
+              "excludes_zero": true,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LSZH": {
+              "gain_s": -81.81770998867387,
+              "ci95": [
+                -210.1667210381941,
+                0.170087192507341
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LTFM": {
+              "gain_s": 226.98641118758962,
+              "ci95": [
+                141.35426263624862,
+                334.95938305408947
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            }
+          }
+        },
+        "Ublend_w1_vs_pipeline": {
+          "gain_s": -293.96096808146535,
+          "ci95": [
+            -599.5206421799588,
+            -75.93742284300653
+          ],
+          "excludes_zero": true,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0,
+          "gain_over_seed_sd": -2022.0820076567143,
+          "exceeds_2x_seed_sd": false,
+          "airports_improving": 9,
+          "n_airports": 10,
+          "per_airport": {
+            "EDDF": {
+              "gain_s": 70.8619338814737,
+              "ci95": [
+                54.495077926029865,
+                87.4333989411855
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EDDM": {
+              "gain_s": 51.84979892484489,
+              "ci95": [
+                8.429074421539692,
+                127.76666807375517
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EGLL": {
+              "gain_s": 62.11036084534612,
+              "ci95": [
+                39.39688735590761,
+                84.91419236626456
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EHAM": {
+              "gain_s": 79.16536108314074,
+              "ci95": [
+                50.1202232944008,
+                119.94607262781916
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LEBL": {
+              "gain_s": 44.07623251496187,
+              "ci95": [
+                30.668226293245965,
+                57.6930730465319
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LEMD": {
+              "gain_s": 42.50995001563018,
+              "ci95": [
+                20.067576909553928,
+                64.3108369420198
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LFPG": {
+              "gain_s": 7.661448099212976,
+              "ci95": [
+                -2.364916721549275,
+                103.8727478014281
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LIRF": {
+              "gain_s": -1763.137210557405,
+              "ci95": [
+                -2902.7791376129167,
+                -518.6958674273158
+              ],
+              "excludes_zero": true,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LSZH": {
+              "gain_s": 9.414296618218714,
+              "ci95": [
+                -32.72707864487261,
+                47.74640417362018
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LTFM": {
+              "gain_s": 174.1021774484501,
+              "ci95": [
+                124.01948930847091,
+                234.121833447745
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            }
+          }
+        },
+        "U_w10_vs_pipeline": {
+          "gain_s": -1078.9790928714804,
+          "ci95": [
+            -1769.7923068433627,
+            -504.57501801341147
+          ],
+          "excludes_zero": true,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0,
+          "gain_over_seed_sd": -7422.020088491972,
+          "exceeds_2x_seed_sd": false,
+          "airports_improving": 8,
+          "n_airports": 10,
+          "per_airport": {
+            "EDDF": {
+              "gain_s": 90.27619302141488,
+              "ci95": [
+                62.88345013432826,
+                119.10026292440234
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EDDM": {
+              "gain_s": 17.453478809636977,
+              "ci95": [
+                -83.73756371275354,
+                151.41065898074493
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EGLL": {
+              "gain_s": 78.43063122897888,
+              "ci95": [
+                38.18292429825949,
+                118.70919675556439
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EHAM": {
+              "gain_s": 95.71602473012467,
+              "ci95": [
+                50.899636008230026,
+                159.07099052405204
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LEBL": {
+              "gain_s": 32.861653808009464,
+              "ci95": [
+                5.159582206964667,
+                60.60084973993553
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LEMD": {
+              "gain_s": 42.46487536798696,
+              "ci95": [
+                -6.6696827555519995,
+                91.734160627393
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LFPG": {
+              "gain_s": 2.945959445889912,
+              "ci95": [
+                -11.0384056589161,
+                115.85883336231551
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LIRF": {
+              "gain_s": -5340.0065864219305,
+              "ci95": [
+                -7746.604315294297,
+                -2670.4108272422027
+              ],
+              "excludes_zero": true,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LSZH": {
+              "gain_s": -172.95500154184617,
+              "ci95": [
+                -343.91656176430587,
+                -31.377047396053936
+              ],
+              "excludes_zero": true,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LTFM": {
+              "gain_s": 235.75402905801639,
+              "ci95": [
+                146.4578920522342,
+                347.34317362736067
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            }
+          }
+        },
+        "Ublend_w10_vs_pipeline": {
+          "gain_s": -291.7341580672371,
+          "ci95": [
+            -611.789677312023,
+            -49.01955870949439
+          ],
+          "excludes_zero": true,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0,
+          "gain_over_seed_sd": -2006.7643534333383,
+          "exceeds_2x_seed_sd": false,
+          "airports_improving": 8,
+          "n_airports": 10,
+          "per_airport": {
+            "EDDF": {
+              "gain_s": 71.06426305325755,
+              "ci95": [
+                58.051197180888586,
+                84.98945673246166
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EDDM": {
+              "gain_s": 45.063923585105044,
+              "ci95": [
+                2.5750006551249216,
+                118.61298910984053
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EGLL": {
+              "gain_s": 54.60739639683993,
+              "ci95": [
+                36.96487877287398,
+                73.94554754106014
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EHAM": {
+              "gain_s": 76.99955096322333,
+              "ci95": [
+                49.76423469824016,
+                116.38716339064828
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LEBL": {
+              "gain_s": 47.537670741430986,
+              "ci95": [
+                34.55043471844436,
+                61.369341694578445
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LEMD": {
+              "gain_s": 51.86899098260466,
+              "ci95": [
+                28.16491317757346,
+                74.68594991061401
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LFPG": {
+              "gain_s": 7.269099813801404,
+              "ci95": [
+                -2.067577296766626,
+                95.55196022033374
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LIRF": {
+              "gain_s": -1746.1470374325813,
+              "ci95": [
+                -2994.106327242658,
+                -347.2582660045709
+              ],
+              "excludes_zero": true,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LSZH": {
+              "gain_s": -21.319483196452893,
+              "ci95": [
+                -89.35040823562156,
+                32.64152451546327
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LTFM": {
+              "gain_s": 181.68445873140797,
+              "ci95": [
+                130.16364156032915,
+                242.46569787164236
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            }
+          }
+        }
+      },
+      "airports": [
+        "EDDF",
+        "EDDM",
+        "EGLL",
+        "EHAM",
+        "LEBL",
+        "LEMD",
+        "LFPG",
+        "LIRF",
+        "LSZH",
+        "LTFM"
+      ]
+    },
+    "unmatched_exmonster": {
+      "definition": "unmatched rows with y <= 10800 s (ex-monster)",
+      "n_rows": 5265,
+      "share_of_holdout_rows": 0.015290297848612983,
+      "rmse": {
+        "pipeline": 995.5974635299707,
+        "U_w1": 1324.3186878184547,
+        "Ublend_w1": 1048.6608725540495,
+        "U_w10": 1221.806895106455,
+        "Ublend_w10": 1010.8798904035139
+      },
+      "per_airport": {
+        "pipeline": {
+          "EDDF": 418.2552014496059,
+          "EDDM": 670.8075033091893,
+          "EGLL": 1089.8791115047795,
+          "EHAM": 542.9715040216433,
+          "LEBL": 362.0822038570456,
+          "LEMD": 339.37851326588157,
+          "LFPG": 588.5964050123617,
+          "LIRF": 3026.4341407322677,
+          "LSZH": 690.8098950425782,
+          "LTFM": 805.7265438636678
+        },
+        "U_w1": {
+          "EDDF": 337.21776157210627,
+          "EDDM": 636.4195757508145,
+          "EGLL": 1016.2468497114721,
+          "EHAM": 410.1076267777995,
+          "LEBL": 332.5236641125389,
+          "LEMD": 341.1469427801929,
+          "LFPG": 487.04763007026077,
+          "LIRF": 4709.366821680843,
+          "LSZH": 772.6276050312521,
+          "LTFM": 578.7401326760781
+        },
+        "Ublend_w1": {
+          "EDDF": 347.3932675681322,
+          "EDDM": 618.9577043843444,
+          "EGLL": 1027.9919833970414,
+          "EHAM": 441.99683129716396,
+          "LEBL": 318.00597134208374,
+          "LEMD": 296.8685632502514,
+          "LFPG": 497.2387612237966,
+          "LIRF": 3489.5809689683033,
+          "LSZH": 681.3955984243595,
+          "LTFM": 631.6243664152177
+        },
+        "U_w10": {
+          "EDDF": 327.97900842819104,
+          "EDDM": 653.3540244995523,
+          "EGLL": 1015.636261928955,
+          "EHAM": 421.67109507840695,
+          "LEBL": 329.22055004903615,
+          "LEMD": 296.9136378978946,
+          "LFPG": 492.7396259798204,
+          "LIRF": 4242.343157777418,
+          "LSZH": 863.7648965844244,
+          "LTFM": 569.9725148056514
+        },
+        "Ublend_w10": {
+          "EDDF": 347.1909383963484,
+          "EDDM": 625.7435797240843,
+          "EGLL": 1036.1014494303713,
+          "EHAM": 446.0154076357811,
+          "LEBL": 314.5445331156146,
+          "LEMD": 287.5095222832769,
+          "LFPG": 504.5266575179598,
+          "LIRF": 3301.7918746361747,
+          "LSZH": 712.1293782390311,
+          "LTFM": 624.0420851322598
+        }
+      },
+      "pairs": {
+        "U_w1_vs_pipeline": {
+          "gain_s": -328.721224288484,
+          "ci95": [
+            -551.7723760092015,
+            -111.8852970857662
+          ],
+          "excludes_zero": true,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0,
+          "gain_over_seed_sd": -2261.1888833636654,
+          "exceeds_2x_seed_sd": false,
+          "airports_improving": 7,
+          "n_airports": 10,
+          "per_airport": {
+            "EDDF": {
+              "gain_s": 81.03743987749965,
+              "ci95": [
+                40.49610236835719,
+                118.0003470599146
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EDDM": {
+              "gain_s": 34.38792755837483,
+              "ci95": [
+                -28.73051423321643,
+                141.37157767045886
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EGLL": {
+              "gain_s": 73.6322617933074,
+              "ci95": [
+                13.297217930962839,
+                126.75728286658583
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EHAM": {
+              "gain_s": 132.86387724384383,
+              "ci95": [
+                88.70349741454037,
+                178.37743950350333
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LEBL": {
+              "gain_s": 29.55853974450673,
+              "ci95": [
+                -0.019748124332785708,
+                57.80020964527255
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LEMD": {
+              "gain_s": -1.7684295143113218,
+              "ci95": [
+                -70.04248124867796,
+                60.28758711030733
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LFPG": {
+              "gain_s": 101.54877494210098,
+              "ci95": [
+                69.04193921641132,
+                140.76629328469454
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LIRF": {
+              "gain_s": -1682.9326809485751,
+              "ci95": [
+                -2596.186876005487,
+                -775.3332164340159
+              ],
+              "excludes_zero": true,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LSZH": {
+              "gain_s": -81.81770998867387,
+              "ci95": [
+                -210.1667210381941,
+                0.170087192507341
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LTFM": {
+              "gain_s": 226.98641118758962,
+              "ci95": [
+                141.35426263624862,
+                334.95938305408947
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            }
+          }
+        },
+        "Ublend_w1_vs_pipeline": {
+          "gain_s": -53.06340902407885,
+          "ci95": [
+            -160.44348617203093,
+            42.82451635894474
+          ],
+          "excludes_zero": false,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0,
+          "gain_over_seed_sd": -365.0095635240361,
+          "exceeds_2x_seed_sd": false,
+          "airports_improving": 9,
+          "n_airports": 10,
+          "per_airport": {
+            "EDDF": {
+              "gain_s": 70.8619338814737,
+              "ci95": [
+                54.495077926029865,
+                87.4333989411855
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EDDM": {
+              "gain_s": 51.84979892484489,
+              "ci95": [
+                8.429074421539692,
+                127.76666807375517
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EGLL": {
+              "gain_s": 61.887128107738135,
+              "ci95": [
+                36.70382612825282,
+                84.99257915288743
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EHAM": {
+              "gain_s": 100.97467272447938,
+              "ci95": [
+                77.88540577498216,
+                125.00112676878872
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LEBL": {
+              "gain_s": 44.07623251496187,
+              "ci95": [
+                30.668226293245965,
+                57.6930730465319
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LEMD": {
+              "gain_s": 42.50995001563018,
+              "ci95": [
+                20.067576909553928,
+                64.3108369420198
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LFPG": {
+              "gain_s": 91.35764378856516,
+              "ci95": [
+                68.89731240622075,
+                117.56025704611896
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LIRF": {
+              "gain_s": -463.1468282360356,
+              "ci95": [
+                -937.0976913001222,
+                -19.318224566133363
+              ],
+              "excludes_zero": true,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LSZH": {
+              "gain_s": 9.414296618218714,
+              "ci95": [
+                -32.72707864487261,
+                47.74640417362018
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LTFM": {
+              "gain_s": 174.1021774484501,
+              "ci95": [
+                124.01948930847091,
+                234.121833447745
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            }
+          }
+        },
+        "U_w10_vs_pipeline": {
+          "gain_s": -226.20943157648423,
+          "ci95": [
+            -414.97435940704264,
+            -54.94498926568338
+          ],
+          "excludes_zero": true,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0,
+          "gain_over_seed_sd": -1556.036587232555,
+          "exceeds_2x_seed_sd": false,
+          "airports_improving": 8,
+          "n_airports": 10,
+          "per_airport": {
+            "EDDF": {
+              "gain_s": 90.27619302141488,
+              "ci95": [
+                62.88345013432826,
+                119.10026292440234
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EDDM": {
+              "gain_s": 17.453478809636977,
+              "ci95": [
+                -83.73756371275354,
+                151.41065898074493
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EGLL": {
+              "gain_s": 74.2428495758245,
+              "ci95": [
+                29.28416339549136,
+                115.90820381042678
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EHAM": {
+              "gain_s": 121.30040894323639,
+              "ci95": [
+                70.47033064105706,
+                170.43988904641617
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LEBL": {
+              "gain_s": 32.861653808009464,
+              "ci95": [
+                5.159582206964667,
+                60.60084973993553
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LEMD": {
+              "gain_s": 42.46487536798696,
+              "ci95": [
+                -6.6696827555519995,
+                91.734160627393
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LFPG": {
+              "gain_s": 95.85677903254134,
+              "ci95": [
+                63.1156484270217,
+                136.15966098558263
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LIRF": {
+              "gain_s": -1215.9090170451504,
+              "ci95": [
+                -2022.659014671546,
+                -420.62217885562006
+              ],
+              "excludes_zero": true,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LSZH": {
+              "gain_s": -172.95500154184617,
+              "ci95": [
+                -343.91656176430587,
+                -31.377047396053936
+              ],
+              "excludes_zero": true,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LTFM": {
+              "gain_s": 235.75402905801639,
+              "ci95": [
+                146.4578920522342,
+                347.34317362736067
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            }
+          }
+        },
+        "Ublend_w10_vs_pipeline": {
+          "gain_s": -15.282426873543159,
+          "ci95": [
+            -103.74097310294837,
+            64.66997072390024
+          ],
+          "excludes_zero": false,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0,
+          "gain_over_seed_sd": -105.12388980076129,
+          "exceeds_2x_seed_sd": false,
+          "airports_improving": 8,
+          "n_airports": 10,
+          "per_airport": {
+            "EDDF": {
+              "gain_s": 71.06426305325755,
+              "ci95": [
+                58.051197180888586,
+                84.98945673246166
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EDDM": {
+              "gain_s": 45.063923585105044,
+              "ci95": [
+                2.5750006551249216,
+                118.61298910984053
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EGLL": {
+              "gain_s": 53.77766207440823,
+              "ci95": [
+                33.66961189148048,
+                73.33182367163403
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "EHAM": {
+              "gain_s": 96.95609638586222,
+              "ci95": [
+                73.58623100588883,
+                122.97137612115782
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LEBL": {
+              "gain_s": 47.537670741430986,
+              "ci95": [
+                34.55043471844436,
+                61.369341694578445
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LEMD": {
+              "gain_s": 51.86899098260466,
+              "ci95": [
+                28.16491317757346,
+                74.68594991061401
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LFPG": {
+              "gain_s": 84.06974749440195,
+              "ci95": [
+                62.758353962577964,
+                107.8411370600089
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LIRF": {
+              "gain_s": -275.35773390390705,
+              "ci95": [
+                -686.5311256638171,
+                106.05631258963602
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LSZH": {
+              "gain_s": -21.319483196452893,
+              "ci95": [
+                -89.35040823562156,
+                32.64152451546327
+              ],
+              "excludes_zero": false,
+              "improving": false,
+              "n_draws": 2000,
+              "seed": 0
+            },
+            "LTFM": {
+              "gain_s": 181.68445873140797,
+              "ci95": [
+                130.16364156032915,
+                242.46569787164236
+              ],
+              "excludes_zero": true,
+              "improving": true,
+              "n_draws": 2000,
+              "seed": 0
+            }
+          }
+        }
+      },
+      "airports": [
+        "EDDF",
+        "EDDM",
+        "EGLL",
+        "EHAM",
+        "LEBL",
+        "LEMD",
+        "LFPG",
+        "LIRF",
+        "LSZH",
+        "LTFM"
+      ]
+    }
+  },
+  "total_2026": {
+    "definition": "sqrt(w_m x MSE_matched + w_u x MSE_unmatched) at the 2026 scored-file shares 339,551 / 5,290 of 344,841, stratified paired row bootstrap",
+    "w_matched": 0.9846595967416868,
+    "w_unmatched": 0.015340403258313252,
+    "rmse": {
+      "pipeline": 321.0042019101183,
+      "U_w1": 450.80453139721715,
+      "Ublend_w1": 354.5176639519269,
+      "U_w10": 454.8620784157527,
+      "Ublend_w10": 356.1915718066226
+    },
+    "pairs": {
+      "U_w1_vs_pipeline": {
+        "gain_s": -129.80032948709885,
+        "ci95": [
+          -202.14386761141608,
+          -65.73315976885873
+        ],
+        "excludes_zero": true,
+        "improving": false,
+        "n_draws": 2000,
+        "seed": 0,
+        "n_matched": 339015,
+        "n_unmatched": 5321,
+        "w_matched": 0.9846595967416868,
+        "w_unmatched": 0.015340403258313252
+      },
+      "Ublend_w1_vs_pipeline": {
+        "gain_s": -33.51346204180862,
+        "ci95": [
+          -61.593594651117485,
+          -10.004888691103956
+        ],
+        "excludes_zero": true,
+        "improving": false,
+        "n_draws": 2000,
+        "seed": 0,
+        "n_matched": 339015,
+        "n_unmatched": 5321,
+        "w_matched": 0.9846595967416868,
+        "w_unmatched": 0.015340403258313252
+      },
+      "U_w10_vs_pipeline": {
+        "gain_s": -133.8578765056344,
+        "ci95": [
+          -213.12766755751628,
+          -64.92302856776104
+        ],
+        "excludes_zero": true,
+        "improving": false,
+        "n_draws": 2000,
+        "seed": 0,
+        "n_matched": 339015,
+        "n_unmatched": 5321,
+        "w_matched": 0.9846595967416868,
+        "w_unmatched": 0.015340403258313252
+      },
+      "Ublend_w10_vs_pipeline": {
+        "gain_s": -35.18736989650432,
+        "ci95": [
+          -66.57176218906706,
+          -9.711753036942484
+        ],
+        "excludes_zero": true,
+        "improving": false,
+        "n_draws": 2000,
+        "seed": 0,
+        "n_matched": 339015,
+        "n_unmatched": 5321,
+        "w_matched": 0.9846595967416868,
+        "w_unmatched": 0.015340403258313252
+      }
+    }
+  },
+  "bands": {
+    "lt2": {
+      "definition": "0 s <= |delta| < 120 s",
+      "n_rows": 127466,
+      "share_of_holdout_rows": 0.3759892630119611,
+      "share_of_pipeline_sse": 0.13703536898971683,
+      "rmse": {
+        "pipeline": 135.3866482256557,
+        "U_w1": 136.738664877832,
+        "Ublend_w1": 135.17726602223382,
+        "U_w10": 147.6649029861703,
+        "Ublend_w10": 138.43630990140434
+      },
+      "pairs": {
+        "U_w1_vs_pipeline": {
+          "gain_s": -1.352016652176303,
+          "ci95": [
+            -1.9649314066548562,
+            -0.8322692079266525
+          ],
+          "excludes_zero": true,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "Ublend_w1_vs_pipeline": {
+          "gain_s": 0.20938220342188174,
+          "ci95": [
+            -0.022867559900394237,
+            0.43031409870182724
+          ],
+          "excludes_zero": false,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "U_w10_vs_pipeline": {
+          "gain_s": -12.278254760514585,
+          "ci95": [
+            -15.07538403744837,
+            -9.821833017358193
+          ],
+          "excludes_zero": true,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "Ublend_w10_vs_pipeline": {
+          "gain_s": -3.049661675748638,
+          "ci95": [
+            -3.876548200458642,
+            -2.30120706321722
+          ],
+          "excludes_zero": true,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0
+        }
+      }
+    },
+    "2to10": {
+      "definition": "120 s <= |delta| < 600 s",
+      "n_rows": 185229,
+      "share_of_holdout_rows": 0.5463740542453873,
+      "share_of_pipeline_sse": 0.3782326208949141,
+      "rmse": {
+        "pipeline": 186.58712736294626,
+        "U_w1": 263.38418073275164,
+        "Ublend_w1": 208.81920126467796,
+        "U_w10": 275.4711477692209,
+        "Ublend_w10": 212.83431331489513
+      },
+      "pairs": {
+        "U_w1_vs_pipeline": {
+          "gain_s": -76.79705336980538,
+          "ci95": [
+            -182.86182586952148,
+            -2.465986495974745
+          ],
+          "excludes_zero": true,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "Ublend_w1_vs_pipeline": {
+          "gain_s": -22.232073901731695,
+          "ci95": [
+            -60.31856496292024,
+            -0.24187657011423175
+          ],
+          "excludes_zero": true,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "U_w10_vs_pipeline": {
+          "gain_s": -88.88402040627466,
+          "ci95": [
+            -196.46287556789585,
+            -12.315333430919297
+          ],
+          "excludes_zero": true,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "Ublend_w10_vs_pipeline": {
+          "gain_s": -26.247185951948865,
+          "ci95": [
+            -65.49487628316503,
+            -2.9450619286316964
+          ],
+          "excludes_zero": true,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0
+        }
+      }
+    },
+    "10to20": {
+      "definition": "600 s <= |delta| < 1200 s",
+      "n_rows": 20667,
+      "share_of_holdout_rows": 0.060961904340515904,
+      "share_of_pipeline_sse": 0.17391627846603075,
+      "rmse": {
+        "pipeline": 378.78090344072933,
+        "U_w1": 381.5014868776961,
+        "Ublend_w1": 378.3348769165776,
+        "U_w10": 387.0942368054948,
+        "Ublend_w10": 379.08908456354806
+      },
+      "pairs": {
+        "U_w1_vs_pipeline": {
+          "gain_s": -2.7205834369667627,
+          "ci95": [
+            -4.103847970034964,
+            -1.3528808418191507
+          ],
+          "excludes_zero": true,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "Ublend_w1_vs_pipeline": {
+          "gain_s": 0.44602652415170496,
+          "ci95": [
+            -0.2112076902634058,
+            1.0916296289697498
+          ],
+          "excludes_zero": false,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "U_w10_vs_pipeline": {
+          "gain_s": -8.31333336476547,
+          "ci95": [
+            -13.045472999186117,
+            -4.668898244351685
+          ],
+          "excludes_zero": true,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "Ublend_w10_vs_pipeline": {
+          "gain_s": -0.30818112281872345,
+          "ci95": [
+            -1.672680939343789,
+            0.8648981561655981
+          ],
+          "excludes_zero": false,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0
+        }
+      }
+    },
+    "gt20": {
+      "definition": "|delta| >= 1200 s",
+      "n_rows": 5653,
+      "share_of_holdout_rows": 0.0166747784021356,
+      "share_of_pipeline_sse": 0.31081573164933846,
+      "rmse": {
+        "pipeline": 968.208033535301,
+        "U_w1": 968.0687131778019,
+        "Ublend_w1": 961.2262385563035,
+        "U_w10": 980.6330948659636,
+        "Ublend_w10": 963.1899530854432
+      },
+      "pairs": {
+        "U_w1_vs_pipeline": {
+          "gain_s": 0.13932035749905936,
+          "ci95": [
+            -9.889280109211517,
+            9.022387394395974
+          ],
+          "excludes_zero": false,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "Ublend_w1_vs_pipeline": {
+          "gain_s": 6.981794978997414,
+          "ci95": [
+            2.1248290341159333,
+            11.518177841372724
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "U_w10_vs_pipeline": {
+          "gain_s": -12.42506133066263,
+          "ci95": [
+            -31.166297379268048,
+            3.28829085580551
+          ],
+          "excludes_zero": false,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "Ublend_w10_vs_pipeline": {
+          "gain_s": 5.0180804498577345,
+          "ci95": [
+            -1.620297690981144,
+            11.017361035252177
+          ],
+          "excludes_zero": false,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0
+        }
+      }
+    },
+    "over10": {
+      "definition": "|delta| >= 600 s (10to20 + gt20)",
+      "n_rows": 26320,
+      "share_of_holdout_rows": 0.07763668274265151,
+      "share_of_pipeline_sse": 0.48473201011536915,
+      "rmse": {
+        "pipeline": 560.3567219655578,
+        "U_w1": 561.7525035774986,
+        "Ublend_w1": 557.5313567507567,
+        "U_w10": 569.3855545368839,
+        "Ublend_w10": 558.6603868935431
+      },
+      "pairs": {
+        "U_w1_vs_pipeline": {
+          "gain_s": -1.3957816119408335,
+          "ci95": [
+            -5.155770074437794,
+            2.022864603033485
+          ],
+          "excludes_zero": false,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "Ublend_w1_vs_pipeline": {
+          "gain_s": 2.8253652148010815,
+          "ci95": [
+            1.0405516677826399,
+            4.52590561840519
+          ],
+          "excludes_zero": true,
+          "improving": true,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "U_w10_vs_pipeline": {
+          "gain_s": -9.02883257132612,
+          "ci95": [
+            -15.983937871955712,
+            -3.1007299822246326
+          ],
+          "excludes_zero": true,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0
+        },
+        "Ublend_w10_vs_pipeline": {
+          "gain_s": 1.6963350720146764,
+          "ci95": [
+            -0.7538179279745094,
+            3.9797460302971377
+          ],
+          "excludes_zero": false,
+          "improving": false,
+          "n_draws": 2000,
+          "seed": 0
+        }
+      }
+    }
+  },
+  "seed_sd": {
+    "sd": 0.14537539376166125,
+    "source": "queue json",
+    "baseline_values": null,
+    "u_arms_total_sd": {
+      "w1": 1.0540170011567191,
+      "w10": 2.102797007880025
+    },
+    "ddof": 1
+  },
+  "timing_s": {
+    "pipeline_s": 0.2,
+    "scoring_s": 36.7
+  },
+  "preds_parquet": "/Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/fold_preds_queue_allrows.parquet",
+  "log": "/Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_queue_allrows.log"
+}

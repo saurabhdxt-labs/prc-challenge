@@ -1,0 +1,160 @@
+[00:17:54 +      0s] lgbm_fold [sweep]  smoke=False  json=/Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_sweep.json  log=/Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_sweep.log  preds=None   RANKING ONLY — no magnitude from this tier is a result
+[00:17:54 +      0s] command: cd ~/Projects/prc-challenge && PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 nice -n 19 /usr/bin/time -l python3.11 -B -u scripts/lgbm_fold.py --sweep 2>&1 | tee reports/lgbm_fold_sweep.console.log   RANKING ONLY — no magnitude from this tier is a result
+[00:17:54 +      0s] estimate: ~30-45 min, peak RSS ~1.5 GB (five months), 4 threads. Per setting: early stopping at lr 0.05 on ~664k Feb-May rows (best_iter ~3.5k at lr 0.05 for 255 leaves; ~x0.6 for 127, ~x1.7 for 511) ~1 min + the 181k-row stopping-set predict ~0.5 min: ~1.5-2.5 min x 18. RANKING ONLY. Writes reports/lgbm_fold_sweep.{json,log}; no parquet.   RANKING ONLY — no magnitude from this tier is a result
+[00:17:54 +      0s] Amendment 15.2 screening tier: 18 settings {'num_leaves': (127, 255, 511), 'min_data_in_leaf': (20, 40, 100), 'feature_fraction': (0.6, 0.8)} early-stopped at lr 0.05 on the subfold train [2, 3, 4, 5] / stop 6; encodings fitted on the training months only; no refit; ranked by the stopping-set matched RMSE   RANKING ONLY — no magnitude from this tier is a result
+[00:17:54 +      0s] loaded 5 months (844,364 rows): stop month 6 180,610; training 663,754; fit 663,754; early-stop 180,610; airports ['EDDF', 'EDDM', 'EGLL', 'EHAM', 'LEBL', 'LEMD', 'LFPG', 'LIRF', 'LSZH', 'LTFM']; peak RSS 1.20 GB   RANKING ONLY — no magnitude from this tier is a result
+[00:17:56 +      3s] design matrix 844,364 x 68 float32 (0.23 GB); peak RSS 1.35 GB   RANKING ONLY — no magnitude from this tier is a result
+[00:17:56 +      3s] screen 1/18: setting 127,20,0.6   RANKING ONLY — no magnitude from this tier is a result
+[00:17:56 +      3s] early-stopping run (seed 0, target delta): fit 663,754 rows, stop on 180,610 rows (months (3, 9)), lr 0.05, max 50,000 rounds, patience 200   RANKING ONLY — no magnitude from this tier is a result
+[00:17:57 +      3s]     iter      0  valid_0 rmse (delta) 381.702   RANKING ONLY — no magnitude from this tier is a result
+[00:18:19 +     25s]     iter  1,000  valid_0 rmse (delta) 226.536   RANKING ONLY — no magnitude from this tier is a result
+[00:18:36 +     42s]     iter  2,000  valid_0 rmse (delta) 226.002   RANKING ONLY — no magnitude from this tier is a result
+[00:18:41 +     48s] best_iter 1,833   stopping-set RMSE (taxi-time) 224.93   proxy-only on the 180,610 rows with a proxy 383.03   ratio 0.587   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 1.65 GB   RANKING ONLY — no magnitude from this tier is a result
+[00:18:41 +     48s] n_ref 1,833: refit on all 663,754 training rows (best_iter 1,833 x 1.000), no early stopping   RANKING ONLY — no magnitude from this tier is a result
+[00:18:41 +     48s] screen: no refit follows; only best_iter and the stopping-set RMSE are kept   RANKING ONLY — no magnitude from this tier is a result
+[00:18:41 +     48s] screen 2/18: setting 127,20,0.8   RANKING ONLY — no magnitude from this tier is a result
+[00:18:41 +     48s] early-stopping run (seed 0, target delta): fit 663,754 rows, stop on 180,610 rows (months (3, 9)), lr 0.05, max 50,000 rounds, patience 200   RANKING ONLY — no magnitude from this tier is a result
+[00:18:42 +     48s]     iter      0  valid_0 rmse (delta) 381.701   RANKING ONLY — no magnitude from this tier is a result
+[00:19:04 +     70s]     iter  1,000  valid_0 rmse (delta) 226.691   RANKING ONLY — no magnitude from this tier is a result
+[00:19:15 +     82s] best_iter 1,247   stopping-set RMSE (taxi-time) 225.27   proxy-only on the 180,610 rows with a proxy 383.03   ratio 0.588   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 1.65 GB   RANKING ONLY — no magnitude from this tier is a result
+[00:19:15 +     82s] n_ref 1,247: refit on all 663,754 training rows (best_iter 1,247 x 1.000), no early stopping   RANKING ONLY — no magnitude from this tier is a result
+[00:19:15 +     82s] screen: no refit follows; only best_iter and the stopping-set RMSE are kept   RANKING ONLY — no magnitude from this tier is a result
+[00:19:15 +     82s] screen 3/18: setting 127,40,0.6   RANKING ONLY — no magnitude from this tier is a result
+[00:19:15 +     82s] early-stopping run (seed 0, target delta): fit 663,754 rows, stop on 180,610 rows (months (3, 9)), lr 0.05, max 50,000 rounds, patience 200   RANKING ONLY — no magnitude from this tier is a result
+[00:19:16 +     82s]     iter      0  valid_0 rmse (delta) 381.695   RANKING ONLY — no magnitude from this tier is a result
+[00:19:39 +    106s]     iter  1,000  valid_0 rmse (delta) 227.175   RANKING ONLY — no magnitude from this tier is a result
+[00:19:59 +    126s]     iter  2,000  valid_0 rmse (delta) 226.621   RANKING ONLY — no magnitude from this tier is a result
+[00:20:21 +    147s] best_iter 2,404   stopping-set RMSE (taxi-time) 225.49   proxy-only on the 180,610 rows with a proxy 383.03   ratio 0.589   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 1.65 GB   RANKING ONLY — no magnitude from this tier is a result
+[00:20:21 +    147s] n_ref 2,404: refit on all 663,754 training rows (best_iter 2,404 x 1.000), no early stopping   RANKING ONLY — no magnitude from this tier is a result
+[00:20:21 +    147s] screen: no refit follows; only best_iter and the stopping-set RMSE are kept   RANKING ONLY — no magnitude from this tier is a result
+[00:20:21 +    147s] screen 4/18: setting 127,40,0.8   RANKING ONLY — no magnitude from this tier is a result
+[00:20:21 +    147s] early-stopping run (seed 0, target delta): fit 663,754 rows, stop on 180,610 rows (months (3, 9)), lr 0.05, max 50,000 rounds, patience 200   RANKING ONLY — no magnitude from this tier is a result
+[00:20:22 +    148s]     iter      0  valid_0 rmse (delta) 381.843   RANKING ONLY — no magnitude from this tier is a result
+[00:20:48 +    175s]     iter  1,000  valid_0 rmse (delta) 227.597   RANKING ONLY — no magnitude from this tier is a result
+[00:21:06 +    192s]     iter  2,000  valid_0 rmse (delta) 227.063   RANKING ONLY — no magnitude from this tier is a result
+[00:21:12 +    198s] best_iter 1,841   stopping-set RMSE (taxi-time) 226.02   proxy-only on the 180,610 rows with a proxy 383.03   ratio 0.590   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 1.65 GB   RANKING ONLY — no magnitude from this tier is a result
+[00:21:12 +    198s] n_ref 1,841: refit on all 663,754 training rows (best_iter 1,841 x 1.000), no early stopping   RANKING ONLY — no magnitude from this tier is a result
+[00:21:12 +    198s] screen: no refit follows; only best_iter and the stopping-set RMSE are kept   RANKING ONLY — no magnitude from this tier is a result
+[00:21:12 +    198s] screen 5/18: setting 127,100,0.6   RANKING ONLY — no magnitude from this tier is a result
+[00:21:12 +    198s] early-stopping run (seed 0, target delta): fit 663,754 rows, stop on 180,610 rows (months (3, 9)), lr 0.05, max 50,000 rounds, patience 200   RANKING ONLY — no magnitude from this tier is a result
+[00:21:13 +    199s]     iter      0  valid_0 rmse (delta) 382.047   RANKING ONLY — no magnitude from this tier is a result
+[00:21:38 +    224s]     iter  1,000  valid_0 rmse (delta) 228.903   RANKING ONLY — no magnitude from this tier is a result
+[00:21:57 +    244s]     iter  2,000  valid_0 rmse (delta) 228.284   RANKING ONLY — no magnitude from this tier is a result
+[00:22:15 +    262s] best_iter 2,242   stopping-set RMSE (taxi-time) 227.20   proxy-only on the 180,610 rows with a proxy 383.03   ratio 0.593   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 1.65 GB   RANKING ONLY — no magnitude from this tier is a result
+[00:22:15 +    262s] n_ref 2,242: refit on all 663,754 training rows (best_iter 2,242 x 1.000), no early stopping   RANKING ONLY — no magnitude from this tier is a result
+[00:22:15 +    262s] screen: no refit follows; only best_iter and the stopping-set RMSE are kept   RANKING ONLY — no magnitude from this tier is a result
+[00:22:15 +    262s] screen 6/18: setting 127,100,0.8   RANKING ONLY — no magnitude from this tier is a result
+[00:22:15 +    262s] early-stopping run (seed 0, target delta): fit 663,754 rows, stop on 180,610 rows (months (3, 9)), lr 0.05, max 50,000 rounds, patience 200   RANKING ONLY — no magnitude from this tier is a result
+[00:22:16 +    262s]     iter      0  valid_0 rmse (delta) 381.896   RANKING ONLY — no magnitude from this tier is a result
+[00:22:41 +    288s]     iter  1,000  valid_0 rmse (delta) 228.572   RANKING ONLY — no magnitude from this tier is a result
+[00:23:01 +    307s]     iter  2,000  valid_0 rmse (delta) 227.804   RANKING ONLY — no magnitude from this tier is a result
+[00:23:17 +    324s] best_iter 2,229   stopping-set RMSE (taxi-time) 226.78   proxy-only on the 180,610 rows with a proxy 383.03   ratio 0.592   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 1.65 GB   RANKING ONLY — no magnitude from this tier is a result
+[00:23:17 +    324s] n_ref 2,229: refit on all 663,754 training rows (best_iter 2,229 x 1.000), no early stopping   RANKING ONLY — no magnitude from this tier is a result
+[00:23:17 +    324s] screen: no refit follows; only best_iter and the stopping-set RMSE are kept   RANKING ONLY — no magnitude from this tier is a result
+[00:23:17 +    324s] screen 7/18: setting 255,20,0.6   RANKING ONLY — no magnitude from this tier is a result
+[00:23:17 +    324s] early-stopping run (seed 0, target delta): fit 663,754 rows, stop on 180,610 rows (months (3, 9)), lr 0.05, max 50,000 rounds, patience 200   RANKING ONLY — no magnitude from this tier is a result
+[00:23:18 +    324s]     iter      0  valid_0 rmse (delta) 381.268   RANKING ONLY — no magnitude from this tier is a result
+[00:23:50 +    357s]     iter  1,000  valid_0 rmse (delta) 226.732   RANKING ONLY — no magnitude from this tier is a result
+[00:24:01 +    367s] best_iter 1,031   stopping-set RMSE (taxi-time) 225.60   proxy-only on the 180,610 rows with a proxy 383.03   ratio 0.589   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 1.65 GB   RANKING ONLY — no magnitude from this tier is a result
+[00:24:01 +    367s] n_ref 1,031: refit on all 663,754 training rows (best_iter 1,031 x 1.000), no early stopping   RANKING ONLY — no magnitude from this tier is a result
+[00:24:01 +    367s] screen: no refit follows; only best_iter and the stopping-set RMSE are kept   RANKING ONLY — no magnitude from this tier is a result
+[00:24:01 +    367s] screen 8/18: setting 255,20,0.8   RANKING ONLY — no magnitude from this tier is a result
+[00:24:01 +    367s] early-stopping run (seed 0, target delta): fit 663,754 rows, stop on 180,610 rows (months (3, 9)), lr 0.05, max 50,000 rounds, patience 200   RANKING ONLY — no magnitude from this tier is a result
+[00:24:01 +    368s]     iter      0  valid_0 rmse (delta) 381.325   RANKING ONLY — no magnitude from this tier is a result
+[00:24:34 +    401s]     iter  1,000  valid_0 rmse (delta) 227.091   RANKING ONLY — no magnitude from this tier is a result
+[00:24:42 +    408s] best_iter 928   stopping-set RMSE (taxi-time) 225.95   proxy-only on the 180,610 rows with a proxy 383.03   ratio 0.590   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 1.65 GB   RANKING ONLY — no magnitude from this tier is a result
+[00:24:42 +    408s] n_ref 928: refit on all 663,754 training rows (best_iter 928 x 1.000), no early stopping   RANKING ONLY — no magnitude from this tier is a result
+[00:24:42 +    408s] screen: no refit follows; only best_iter and the stopping-set RMSE are kept   RANKING ONLY — no magnitude from this tier is a result
+[00:24:42 +    408s] screen 9/18: setting 255,40,0.6   RANKING ONLY — no magnitude from this tier is a result
+[00:24:42 +    408s] early-stopping run (seed 0, target delta): fit 663,754 rows, stop on 180,610 rows (months (3, 9)), lr 0.05, max 50,000 rounds, patience 200   RANKING ONLY — no magnitude from this tier is a result
+[00:24:42 +    409s]     iter      0  valid_0 rmse (delta) 381.269   RANKING ONLY — no magnitude from this tier is a result
+[00:25:17 +    443s]     iter  1,000  valid_0 rmse (delta) 226.894   RANKING ONLY — no magnitude from this tier is a result
+[00:25:37 +    464s] best_iter 1,293   stopping-set RMSE (taxi-time) 225.79   proxy-only on the 180,610 rows with a proxy 383.03   ratio 0.589   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 1.65 GB   RANKING ONLY — no magnitude from this tier is a result
+[00:25:37 +    464s] n_ref 1,293: refit on all 663,754 training rows (best_iter 1,293 x 1.000), no early stopping   RANKING ONLY — no magnitude from this tier is a result
+[00:25:37 +    464s] screen: no refit follows; only best_iter and the stopping-set RMSE are kept   RANKING ONLY — no magnitude from this tier is a result
+[00:25:37 +    464s] screen 10/18: setting 255,40,0.8   RANKING ONLY — no magnitude from this tier is a result
+[00:25:37 +    464s] early-stopping run (seed 0, target delta): fit 663,754 rows, stop on 180,610 rows (months (3, 9)), lr 0.05, max 50,000 rounds, patience 200   RANKING ONLY — no magnitude from this tier is a result
+[00:25:38 +    464s]     iter      0  valid_0 rmse (delta) 381.411   RANKING ONLY — no magnitude from this tier is a result
+[00:26:13 +    499s]     iter  1,000  valid_0 rmse (delta) 227.411   RANKING ONLY — no magnitude from this tier is a result
+[00:26:31 +    517s] best_iter 1,257   stopping-set RMSE (taxi-time) 226.34   proxy-only on the 180,610 rows with a proxy 383.03   ratio 0.591   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 1.65 GB   RANKING ONLY — no magnitude from this tier is a result
+[00:26:31 +    517s] n_ref 1,257: refit on all 663,754 training rows (best_iter 1,257 x 1.000), no early stopping   RANKING ONLY — no magnitude from this tier is a result
+[00:26:31 +    517s] screen: no refit follows; only best_iter and the stopping-set RMSE are kept   RANKING ONLY — no magnitude from this tier is a result
+[00:26:31 +    517s] screen 11/18: setting 255,100,0.6   RANKING ONLY — no magnitude from this tier is a result
+[00:26:31 +    517s] early-stopping run (seed 0, target delta): fit 663,754 rows, stop on 180,610 rows (months (3, 9)), lr 0.05, max 50,000 rounds, patience 200   RANKING ONLY — no magnitude from this tier is a result
+[00:26:31 +    518s]     iter      0  valid_0 rmse (delta) 381.646   RANKING ONLY — no magnitude from this tier is a result
+[00:27:08 +    555s]     iter  1,000  valid_0 rmse (delta) 228.422   RANKING ONLY — no magnitude from this tier is a result
+[00:27:36 +    582s] best_iter 1,417   stopping-set RMSE (taxi-time) 227.22   proxy-only on the 180,610 rows with a proxy 383.03   ratio 0.593   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 1.65 GB   RANKING ONLY — no magnitude from this tier is a result
+[00:27:36 +    582s] n_ref 1,417: refit on all 663,754 training rows (best_iter 1,417 x 1.000), no early stopping   RANKING ONLY — no magnitude from this tier is a result
+[00:27:36 +    582s] screen: no refit follows; only best_iter and the stopping-set RMSE are kept   RANKING ONLY — no magnitude from this tier is a result
+[00:27:36 +    582s] screen 12/18: setting 255,100,0.8   RANKING ONLY — no magnitude from this tier is a result
+[00:27:36 +    582s] early-stopping run (seed 0, target delta): fit 663,754 rows, stop on 180,610 rows (months (3, 9)), lr 0.05, max 50,000 rounds, patience 200   RANKING ONLY — no magnitude from this tier is a result
+[00:27:37 +    583s]     iter      0  valid_0 rmse (delta) 381.563   RANKING ONLY — no magnitude from this tier is a result
+[00:28:14 +    620s]     iter  1,000  valid_0 rmse (delta) 228.757   RANKING ONLY — no magnitude from this tier is a result
+[00:28:45 +    651s]     iter  2,000  valid_0 rmse (delta) 228.282   RANKING ONLY — no magnitude from this tier is a result
+[00:29:02 +    669s] best_iter 1,860   stopping-set RMSE (taxi-time) 227.28   proxy-only on the 180,610 rows with a proxy 383.03   ratio 0.593   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 1.65 GB   RANKING ONLY — no magnitude from this tier is a result
+[00:29:02 +    669s] n_ref 1,860: refit on all 663,754 training rows (best_iter 1,860 x 1.000), no early stopping   RANKING ONLY — no magnitude from this tier is a result
+[00:29:02 +    669s] screen: no refit follows; only best_iter and the stopping-set RMSE are kept   RANKING ONLY — no magnitude from this tier is a result
+[00:29:02 +    669s] screen 13/18: setting 511,20,0.6   RANKING ONLY — no magnitude from this tier is a result
+[00:29:02 +    669s] early-stopping run (seed 0, target delta): fit 663,754 rows, stop on 180,610 rows (months (3, 9)), lr 0.05, max 50,000 rounds, patience 200   RANKING ONLY — no magnitude from this tier is a result
+[00:29:03 +    669s]     iter      0  valid_0 rmse (delta) 380.946   RANKING ONLY — no magnitude from this tier is a result
+[00:29:56 +    722s]     iter  1,000  valid_0 rmse (delta) 227.401   RANKING ONLY — no magnitude from this tier is a result
+[00:30:03 +    730s] best_iter 851   stopping-set RMSE (taxi-time) 226.21   proxy-only on the 180,610 rows with a proxy 383.03   ratio 0.591   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 1.65 GB   RANKING ONLY — no magnitude from this tier is a result
+[00:30:03 +    730s] n_ref 851: refit on all 663,754 training rows (best_iter 851 x 1.000), no early stopping   RANKING ONLY — no magnitude from this tier is a result
+[00:30:03 +    730s] screen: no refit follows; only best_iter and the stopping-set RMSE are kept   RANKING ONLY — no magnitude from this tier is a result
+[00:30:03 +    730s] screen 14/18: setting 511,20,0.8   RANKING ONLY — no magnitude from this tier is a result
+[00:30:03 +    730s] early-stopping run (seed 0, target delta): fit 663,754 rows, stop on 180,610 rows (months (3, 9)), lr 0.05, max 50,000 rounds, patience 200   RANKING ONLY — no magnitude from this tier is a result
+[00:30:04 +    730s]     iter      0  valid_0 rmse (delta) 381.028   RANKING ONLY — no magnitude from this tier is a result
+[00:30:57 +    784s] best_iter 758   stopping-set RMSE (taxi-time) 226.63   proxy-only on the 180,610 rows with a proxy 383.03   ratio 0.592   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 1.65 GB   RANKING ONLY — no magnitude from this tier is a result
+[00:30:57 +    784s] n_ref 758: refit on all 663,754 training rows (best_iter 758 x 1.000), no early stopping   RANKING ONLY — no magnitude from this tier is a result
+[00:30:57 +    784s] screen: no refit follows; only best_iter and the stopping-set RMSE are kept   RANKING ONLY — no magnitude from this tier is a result
+[00:30:57 +    784s] screen 15/18: setting 511,40,0.6   RANKING ONLY — no magnitude from this tier is a result
+[00:30:57 +    784s] early-stopping run (seed 0, target delta): fit 663,754 rows, stop on 180,610 rows (months (3, 9)), lr 0.05, max 50,000 rounds, patience 200   RANKING ONLY — no magnitude from this tier is a result
+[00:30:58 +    784s]     iter      0  valid_0 rmse (delta) 380.887   RANKING ONLY — no magnitude from this tier is a result
+[00:31:51 +    837s]     iter  1,000  valid_0 rmse (delta) 227.274   RANKING ONLY — no magnitude from this tier is a result
+[00:32:08 +    854s] best_iter 1,010   stopping-set RMSE (taxi-time) 226.23   proxy-only on the 180,610 rows with a proxy 383.03   ratio 0.591   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 1.65 GB   RANKING ONLY — no magnitude from this tier is a result
+[00:32:08 +    855s] n_ref 1,010: refit on all 663,754 training rows (best_iter 1,010 x 1.000), no early stopping   RANKING ONLY — no magnitude from this tier is a result
+[00:32:08 +    855s] screen: no refit follows; only best_iter and the stopping-set RMSE are kept   RANKING ONLY — no magnitude from this tier is a result
+[00:32:08 +    855s] screen 16/18: setting 511,40,0.8   RANKING ONLY — no magnitude from this tier is a result
+[00:32:08 +    855s] early-stopping run (seed 0, target delta): fit 663,754 rows, stop on 180,610 rows (months (3, 9)), lr 0.05, max 50,000 rounds, patience 200   RANKING ONLY — no magnitude from this tier is a result
+[00:32:09 +    855s]     iter      0  valid_0 rmse (delta) 381.105   RANKING ONLY — no magnitude from this tier is a result
+[00:33:05 +    912s] best_iter 763   stopping-set RMSE (taxi-time) 227.08   proxy-only on the 180,610 rows with a proxy 383.03   ratio 0.593   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 1.65 GB   RANKING ONLY — no magnitude from this tier is a result
+[00:33:05 +    912s] n_ref 763: refit on all 663,754 training rows (best_iter 763 x 1.000), no early stopping   RANKING ONLY — no magnitude from this tier is a result
+[00:33:05 +    912s] screen: no refit follows; only best_iter and the stopping-set RMSE are kept   RANKING ONLY — no magnitude from this tier is a result
+[00:33:05 +    912s] screen 17/18: setting 511,100,0.6   RANKING ONLY — no magnitude from this tier is a result
+[00:33:05 +    912s] early-stopping run (seed 0, target delta): fit 663,754 rows, stop on 180,610 rows (months (3, 9)), lr 0.05, max 50,000 rounds, patience 200   RANKING ONLY — no magnitude from this tier is a result
+[00:33:06 +    912s]     iter      0  valid_0 rmse (delta) 381.341   RANKING ONLY — no magnitude from this tier is a result
+[00:34:04 +    971s]     iter  1,000  valid_0 rmse (delta) 229.194   RANKING ONLY — no magnitude from this tier is a result
+[00:34:21 +    987s] best_iter 929   stopping-set RMSE (taxi-time) 227.92   proxy-only on the 180,610 rows with a proxy 383.03   ratio 0.595   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 1.65 GB   RANKING ONLY — no magnitude from this tier is a result
+[00:34:21 +    987s] n_ref 929: refit on all 663,754 training rows (best_iter 929 x 1.000), no early stopping   RANKING ONLY — no magnitude from this tier is a result
+[00:34:21 +    987s] screen: no refit follows; only best_iter and the stopping-set RMSE are kept   RANKING ONLY — no magnitude from this tier is a result
+[00:34:21 +    987s] screen 18/18: setting 511,100,0.8   RANKING ONLY — no magnitude from this tier is a result
+[00:34:21 +    987s] early-stopping run (seed 0, target delta): fit 663,754 rows, stop on 180,610 rows (months (3, 9)), lr 0.05, max 50,000 rounds, patience 200   RANKING ONLY — no magnitude from this tier is a result
+[00:34:21 +    987s]     iter      0  valid_0 rmse (delta) 381.332   RANKING ONLY — no magnitude from this tier is a result
+[00:35:19 +   1045s]     iter  1,000  valid_0 rmse (delta) 229.247   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s] best_iter 901   stopping-set RMSE (taxi-time) 228.06   proxy-only on the 180,610 rows with a proxy 383.03   ratio 0.595   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 1.65 GB   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s] n_ref 901: refit on all 663,754 training rows (best_iter 901 x 1.000), no early stopping   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s] screen: no refit follows; only best_iter and the stopping-set RMSE are kept   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s] ====================================================================================================   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s] SCREEN RANKING, subfold train [2, 3, 4, 5] / stop 6, 180,610 stopping rows      RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s] ====================================================================================================   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s]  rank  setting        best_iter   stop RMSE   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s]     1  127,20,0.6         1,833    224.9342   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s]     2  127,20,0.8         1,247    225.2662   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s]     3  127,40,0.6         2,404    225.4916   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s]     4  255,20,0.6         1,031    225.6023   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s]     5  255,40,0.6         1,293    225.7898   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s]     6  255,20,0.8           928    225.9546   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s]     7  127,40,0.8         1,841    226.0246   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s]     8  511,20,0.6           851    226.2146   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s]     9  511,40,0.6         1,010    226.2256   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s]    10  255,40,0.8         1,257    226.3367   <- incumbent   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s]    11  511,20,0.8           758    226.6265   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s]    12  127,100,0.8        2,229    226.7803   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s]    13  511,40,0.8           763    227.0835   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s]    14  127,100,0.6        2,242    227.1972   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s]    15  255,100,0.6        1,417    227.2170   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s]    16  255,100,0.8        1,860    227.2822   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s]    17  511,100,0.6          929    227.9176   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s]    18  511,100,0.8          901    228.0635   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s] incumbent 255,40,0.8 ranks 10; top two for --confirm: 127,20,0.6 127,20,0.8   RANKING ONLY — no magnitude from this tier is a result
+[00:35:33 +   1059s] json -> /Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_sweep.json   wall 1059s   peak RSS 1.65 GB   RANKING ONLY — no magnitude from this tier is a result

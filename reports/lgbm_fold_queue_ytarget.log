@@ -1,0 +1,75 @@
+[02:39:06 +      0s] lgbm_fold [queue_ytarget]  smoke=False  json=/Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_queue_ytarget.json  log=/Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_queue_ytarget.log  preds=/Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/fold_preds_queue_ytarget.parquet
+[02:39:06 +      0s] command: cd ~/Projects/prc-challenge && PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 nice -n 19 /usr/bin/time -l python3.11 -B -u scripts/lgbm_fold.py --ytarget --queue --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_queue_ytarget.console.log
+[02:39:06 +      0s] estimate: ~1.6 h (range 1.3-2.3 h), peak RSS ~4.8 GB (the queue fold's footprint), 4 threads; run ALONE. x1.15 for 80 columns: ES ~16 min; 3 refits ~21 min each; bootstrap ~5 min. The delta arm is READ from the queue record (fold_preds_queue.parquet's treatment column). Writes reports/lgbm_fold_queue_ytarget.{json,log} and data/cache_stand/fold_preds_queue_ytarget.parquet.
+[02:39:06 +      0s] Amendment 19.2 arm Y: delta arm = A2 + QUEUE_FEATS over seeds [0, 1, 2] (80 features, the queue record); Y = the same design, configuration and seeds with target y (y_hat_Y = max(prediction, 1), no proxy anchor); blend = 0.5 y_hat_Y + 0.5 y_hat_delta; per-airport rule [es] per-airport early stopping on the airport's own fit/ES rows (same ES months, seed 0); n_ref_a = max(50, int(best_iter_a * n_all_a / n_fit_a)) (A3 only); named airports ['LTFM', 'EDDM']; bootstrap 2,000 draws seed 0; bands ['lt2', '2to10', '10to20', 'gt20'] + over10
+[02:39:06 +      0s] baseline: the queue record /Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_queue.json (sha 58b785bb6cb8ff222198d0637f2fc45c8761c656, treatment best_iter 21316, n_ref 26647, baseline_arm 'A2', seeds [0, 1, 2], pa_trees 'es'); predictions /Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/fold_preds_queue.parquet
+[02:39:06 +      1s] queue block: 12 columns joined POSITIONALLY onto 12 months from /Users/saurabhdxt/Projects/prc-challenge/data/cache_queue (row counts asserted per month; the order is the v6 builder's, proven on March both ways)
+[02:39:06 +      1s] loaded 12 months (2,062,440 rows): holdout (months (1, 7)) 339,015; training 1,723,425; fit 1,378,585; early-stop 344,840; airports ['EDDF', 'EDDM', 'EGLL', 'EHAM', 'LEBL', 'LEMD', 'LFPG', 'LIRF', 'LSZH', 'LTFM']; peak RSS 2.60 GB
+[02:39:12 +      6s] design matrix 2,062,440 x 80 float32 (0.66 GB); peak RSS 3.04 GB
+[02:39:12 +      6s] [baseline] A2 + QUEUE_FEATS rebuilt from the queue predictions over seeds [0, 1, 2] on the identical fold (339,015 rows); seed sd 0.1454 s from the queue json
+[02:39:12 +      6s] [Y] early stopping on 80 features, target y
+[02:39:12 +      6s] early-stopping run (seed 0, target y): fit 1,378,585 rows, stop on 344,840 rows (months (3, 9)), lr 0.01, max 50,000 rounds, patience 200
+[02:39:13 +      7s]     iter      0  valid_0 rmse (y) 392.642
+[02:41:15 +    129s]     iter  1,000  valid_0 rmse (y) 207.498
+[02:42:43 +    217s]     iter  2,000  valid_0 rmse (y) 204.148
+[02:43:52 +    286s]     iter  3,000  valid_0 rmse (y) 202.925
+[02:44:58 +    353s]     iter  4,000  valid_0 rmse (y) 202.212
+[02:46:01 +    415s]     iter  5,000  valid_0 rmse (y) 201.759
+[02:47:02 +    477s]     iter  6,000  valid_0 rmse (y) 201.389
+[02:48:02 +    537s]     iter  7,000  valid_0 rmse (y) 201.130
+[02:49:02 +    597s]     iter  8,000  valid_0 rmse (y) 200.926
+[02:50:01 +    655s]     iter  9,000  valid_0 rmse (y) 200.758
+[02:51:00 +    714s]     iter 10,000  valid_0 rmse (y) 200.617
+[02:51:57 +    771s]     iter 11,000  valid_0 rmse (y) 200.504
+[02:52:54 +    829s]     iter 12,000  valid_0 rmse (y) 200.419
+[02:53:51 +    885s]     iter 13,000  valid_0 rmse (y) 200.351
+[02:54:49 +    943s]     iter 14,000  valid_0 rmse (y) 200.290
+[02:55:46 +   1000s]     iter 15,000  valid_0 rmse (y) 200.233
+[02:56:42 +   1057s]     iter 16,000  valid_0 rmse (y) 200.190
+[02:57:38 +   1112s]     iter 17,000  valid_0 rmse (y) 200.155
+[02:58:33 +   1167s]     iter 18,000  valid_0 rmse (y) 200.142
+[02:59:27 +   1222s]     iter 19,000  valid_0 rmse (y) 200.109
+[03:00:22 +   1277s]     iter 20,000  valid_0 rmse (y) 200.081
+[03:01:17 +   1331s]     iter 21,000  valid_0 rmse (y) 200.064
+[03:07:08 +   1682s] best_iter 20,890   stopping-set RMSE (taxi-time) 200.06   proxy-only on the 344,840 rows with a proxy 366.25   ratio 0.546   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 3.61 GB
+[03:07:08 +   1682s] n_ref 26,115: refit on all 1,723,425 training rows (best_iter 20,890 x 1.250), no early stopping
+[03:26:18 +   2832s] refit seed 0 done: 26,115 trees on 1,723,425 rows in 1150s   peak RSS 4.14 GB
+[03:33:24 +   3258s] [Y] seed 0 alone: matched RMSE 260.8560 on 339,015 holdout rows   [1576s]
+[03:52:37 +   4411s] refit seed 1 done: 26,115 trees on 1,723,425 rows in 1153s   peak RSS 4.64 GB
+[03:59:42 +   4836s] [Y] seed 1 alone: matched RMSE 261.0868 on 339,015 holdout rows   [1578s]
+[04:18:54 +   5988s] refit seed 2 done: 26,115 trees on 1,723,425 rows in 1151s   peak RSS 4.71 GB
+[04:26:02 +   6417s] [Y] seed 2 alone: matched RMSE 261.2955 on 339,015 holdout rows   [1580s]
+[04:26:25 +   6439s] ====================================================================================================
+[04:26:25 +   6439s] AMENDMENT 19.2 ARM Y [queue_ytarget], fold A matched rows (339,015), holdout months (1, 7)   Y n_ref 26,115 (best_iter 20,890)
+[04:26:25 +   6439s] ====================================================================================================
+[04:26:25 +   6439s] arm         matched RMSE   definition
+[04:26:25 +   6439s] baseline        224.2576   the delta arm A2 + QUEUE_FEATS over seeds [0, 1, 2] (queue predictions)
+[04:26:25 +   6439s] Y               260.6511   target y, best_iter 20,890 -> n_ref 26,115, mean over seeds [0, 1, 2], y_hat = max(prediction, 1); stored as proxy - y_hat
+[04:26:25 +   6439s] blend           233.3405   0.5 y_hat_Y + 0.5 y_hat_delta; stored as proxy - y_hat
+[04:26:25 +   6439s] seed sd: 0.1454 s (sample sd, ddof=1)   2 x seed sd = 0.2908 s
+[04:26:25 +   6439s] pair                  gain s         95% paired CI  excl 0  gain/sd  >2x sd  airports improving
+[04:26:25 +   6439s] blend_vs_baseline    -9.0828   [-27.9963,  +1.0937]   False   -62.48   False         8 / 10     
+[04:26:25 +   6439s] Y_vs_baseline       -36.3934   [-97.2509,  +0.3016]   False  -250.34   False         5 / 10     
+[04:26:25 +   6439s] airport         n   baseline          Y      blend  blend_vs_baseline      Y_vs_baseline
+[04:26:25 +   6439s] EDDF       36,231     177.92     177.04     176.81         +1.11*             +0.87     
+[04:26:25 +   6439s] EDDM       26,854     166.52     166.50     165.84         +0.68*             +0.02     
+[04:26:25 +   6439s] EGLL       39,744     229.07     226.76     226.37         +2.69*             +2.31     
+[04:26:25 +   6439s] EHAM       40,141     163.12     168.27     163.79         -0.68              -5.15*    
+[04:26:25 +   6439s] LEBL       28,489     220.29     219.71     219.62         +0.67*             +0.58     
+[04:26:25 +   6439s] LEMD       35,019     174.71     174.89     174.37         +0.34              -0.19     
+[04:26:25 +   6439s] LFPG       38,713     244.46     244.93     243.40         +1.06*             -0.46     
+[04:26:25 +   6439s] LIRF       26,131     384.07     613.34     453.92        -69.85            -229.28     
+[04:26:25 +   6439s] LSZH       21,811     174.16     174.74     173.56         +0.61              -0.58     
+[04:26:25 +   6439s] LTFM       45,882     243.64     242.90     242.60         +1.04*             +0.74     
+[04:26:25 +   6439s]    (* = that airport's own paired interval excludes zero)
+[04:26:25 +   6439s] seed sd source: queue json   Y's own seed sd: 0.2198 s
+[04:26:25 +   6439s] named airports (19.2) for Y_vs_baseline: LTFM 243.64 -> 242.90 (improves), EDDM 166.52 -> 166.50 (improves)
+[04:26:25 +   6439s] named airports (19.2) for blend_vs_baseline: LTFM 243.64 -> 242.60 (improves), EDDM 166.52 -> 165.84 (improves)
+[04:26:25 +   6439s] |delta| bands (19.0; left-closed, right-open; over10 = 10to20 + gt20); RMSE per arm on the band's rows, paired gain vs baseline with its 95% CI (* = excludes zero):
+[04:26:25 +   6439s] band            n  rows%   SSE%   baseline          Y      blend                 Y_vs_baseline             blend_vs_baseline
+[04:26:25 +   6439s] lt2       127,466  37.60   13.7     135.39     136.40     135.40      -1.01 [  -1.40,   -0.64]*      -0.01 [  -0.19,   +0.16] 
+[04:26:25 +   6439s] 2to10     185,229  54.64   37.8     186.59     259.68     207.67     -73.10 [-176.75,   -0.87]*     -21.08 [ -58.02,   +0.14] 
+[04:26:25 +   6439s] 10to20     20,667   6.10   17.4     378.78     378.72     377.36      +0.06 [  -1.22,   +1.26]       +1.42 [  +0.81,   +2.01]*
+[04:26:25 +   6439s] gt20        5,653   1.67   31.1     968.21     959.62     958.22      +8.58 [  +0.11,  +16.66]*      +9.99 [  +5.63,  +14.35]*
+[04:26:25 +   6439s] over10     26,320   7.76   48.5     560.36     557.14     555.90      +3.21 [  +0.04,   +6.20]*      +4.46 [  +2.83,   +6.06]*
+[04:26:25 +   6439s] json -> /Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_queue_ytarget.json   wall 6439s   peak RSS 4.71 GB

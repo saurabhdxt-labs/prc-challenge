@@ -1,0 +1,440 @@
+<title>Twenty-Nine Lanes Measured</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@400;500;600;700&family=Source+Sans+3:ital,wght@0,300;0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --paper:#F2F4F3; --surface:#FBFCFB; --sunk:#E8ECEB;
+  --ink:#161B1E; --ink-2:#3D4A4C; --ink-3:#6B797A;
+  --rule:#D3DAD9; --rule-2:#E4E9E8;
+  --accent:#12626B; --accent-soft:#DCEBEA;
+  --bad:#8C3A2E; --bad-soft:#F2E1DD;
+  --good:#2F6B3C; --good-soft:#DFEBE0;
+  --hold:#8A6110; --hold-soft:#F3E9D6;
+  --track:#DCE2E1;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#0F1416; --surface:#161D1F; --sunk:#121819;
+    --ink:#E4EAE9; --ink-2:#AFBCBB; --ink-3:#7E8D8C;
+    --rule:#2A3436; --rule-2:#212A2B;
+    --accent:#4FB3B0; --accent-soft:#14312F;
+    --bad:#D98071; --bad-soft:#31201C;
+    --good:#7FBB86; --good-soft:#1A2A1D;
+    --hold:#D3A64A; --hold-soft:#2C2416;
+    --track:#25302F;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0F1416; --surface:#161D1F; --sunk:#121819;
+  --ink:#E4EAE9; --ink-2:#AFBCBB; --ink-3:#7E8D8C;
+  --rule:#2A3436; --rule-2:#212A2B;
+  --accent:#4FB3B0; --accent-soft:#14312F;
+  --bad:#D98071; --bad-soft:#31201C;
+  --good:#7FBB86; --good-soft:#1A2A1D;
+  --hold:#D3A64A; --hold-soft:#2C2416;
+  --track:#25302F;
+}
+*{box-sizing:border-box}
+body{background:var(--paper); color:var(--ink); font-family:"Source Sans 3","Helvetica Neue",Arial,sans-serif;
+  font-size:16.5px; line-height:1.62; margin:0; -webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px; margin:0 auto; padding:0 28px 96px}
+.col{max-width:68ch}
+h1,h2,h3{font-family:"Zilla Slab",Georgia,serif; text-wrap:balance; margin:0}
+h1{font-size:clamp(2.3rem,5.2vw,3.4rem); font-weight:600; letter-spacing:-.015em; line-height:1.06}
+h2{font-size:1.6rem; font-weight:600; letter-spacing:-.005em}
+h3{font-size:1.12rem; font-weight:600}
+p{margin:0}
+.mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace; font-variant-numeric:tabular-nums}
+.eyebrow{font-family:"IBM Plex Mono",monospace; font-size:.7rem; font-weight:500; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3)}
+header{border-bottom:2px solid var(--ink); padding:52px 0 26px; margin-bottom:34px}
+.mast{display:flex; flex-wrap:wrap; gap:32px; align-items:flex-end; justify-content:space-between}
+.mast .lede{max-width:56ch; color:var(--ink-2); font-size:1.06rem; margin-top:16px}
+.stamp{font-family:"IBM Plex Mono",monospace; font-size:.72rem; line-height:1.8; color:var(--ink-3); text-align:right; white-space:nowrap}
+.stamp b{color:var(--ink); font-weight:600}
+.standing{display:grid; grid-template-columns:repeat(auto-fit,minmax(158px,1fr)); gap:1px; background:var(--rule); border:1px solid var(--rule); margin:34px 0 8px}
+.standing div{background:var(--surface); padding:14px 16px}
+.standing .k{font-family:"IBM Plex Mono",monospace; font-size:.66rem; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3)}
+.standing .v{font-family:"IBM Plex Mono",monospace; font-size:1.42rem; font-weight:500; margin-top:3px; font-variant-numeric:tabular-nums}
+.standing .n{font-size:.78rem; color:var(--ink-3); line-height:1.4; margin-top:2px}
+.standing .hot .v{color:var(--bad)}
+section{margin-top:56px}
+.sec-head{border-top:1px solid var(--ink); padding-top:12px; margin-bottom:20px}
+.sec-head h2{margin-top:6px}
+.sec-head .sub{color:var(--ink-2); margin-top:8px; max-width:68ch}
+.scroll{overflow-x:auto; margin:22px 0}
+table{border-collapse:collapse; width:100%; font-size:.9rem}
+th,td{text-align:left; padding:9px 14px 9px 0; border-bottom:1px solid var(--rule-2); vertical-align:top}
+th{font-family:"IBM Plex Mono",monospace; font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); font-weight:500; border-bottom:1px solid var(--rule); white-space:nowrap}
+td.num,th.num{text-align:right; font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums; white-space:nowrap}
+tr.ship td{background:var(--accent-soft)}
+tbody tr:last-child td{border-bottom:none}
+.chip{display:inline-block; font-family:"IBM Plex Mono",monospace; font-size:.63rem; font-weight:600; letter-spacing:.09em; text-transform:uppercase; padding:3px 7px; border-radius:2px; white-space:nowrap; margin-right:6px}
+.chip.bad{background:var(--bad-soft); color:var(--bad)}
+.chip.good{background:var(--good-soft); color:var(--good)}
+.chip.hold{background:var(--hold-soft); color:var(--hold)}
+.group{margin:30px 0 0}
+.group-head{display:flex; flex-wrap:wrap; gap:12px; align-items:baseline; justify-content:space-between; border-bottom:1px solid var(--rule); padding-bottom:7px}
+.group-head .scale-note{font-family:"IBM Plex Mono",monospace; font-size:.68rem; color:var(--ink-3)}
+.lane{display:grid; grid-template-columns:minmax(210px,1.5fr) 128px minmax(190px,1fr) minmax(240px,2fr); gap:18px; align-items:start; padding:15px 0; border-bottom:1px solid var(--rule-2)}
+.lane:last-child{border-bottom:none}
+.lane .name{font-weight:600; font-size:.95rem; line-height:1.35}
+.lane .name .src{display:block; font-family:"IBM Plex Mono",monospace; font-size:.66rem; color:var(--ink-3); font-weight:400; margin-top:3px}
+.lane .stat{font-family:"IBM Plex Mono",monospace; font-size:.84rem; font-variant-numeric:tabular-nums; padding-top:1px}
+.lane .why{font-size:.88rem; color:var(--ink-2); line-height:1.5}
+.lane .why b{color:var(--ink); font-weight:600}
+.iv{padding-top:7px}
+.iv .track{position:relative; height:15px; background:var(--track); border-radius:1px}
+.iv .zero{position:absolute; top:-3px; bottom:-3px; width:1px; background:var(--ink-3)}
+.iv .bar{position:absolute; top:4px; height:7px; border-radius:1px; opacity:.55}
+.iv .pt{position:absolute; top:1px; width:3px; height:13px; border-radius:1px}
+.iv.bad .bar,.iv.bad .pt{background:var(--bad)}
+.iv.good .bar,.iv.good .pt{background:var(--good)}
+.iv.hold .bar,.iv.hold .pt{background:var(--hold)}
+.iv .cap{font-family:"IBM Plex Mono",monospace; font-size:.68rem; color:var(--ink-3); margin-top:4px; font-variant-numeric:tabular-nums}
+.iv .off{color:var(--bad)}
+.note{border-left:2px solid var(--accent); background:var(--sunk); padding:16px 20px; margin:24px 0; max-width:74ch}
+.note .eyebrow{color:var(--accent); margin-bottom:6px; display:block}
+.note p+p, .note ul+p{margin-top:10px}
+.note.fix{border-left-color:var(--hold)}
+.note.fix .eyebrow{color:var(--hold)}
+.note.stop{border-left-color:var(--bad)}
+.note.stop .eyebrow{color:var(--bad)}
+.bands{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:1px; background:var(--rule); border:1px solid var(--rule); margin:22px 0}
+.bands div{background:var(--surface); padding:13px 15px}
+.bands .b-k{font-family:"IBM Plex Mono",monospace; font-size:.68rem; color:var(--ink-3); letter-spacing:.06em}
+.bands .b-v{font-family:"IBM Plex Mono",monospace; font-size:1.28rem; margin-top:4px; font-variant-numeric:tabular-nums}
+.bands .b-n{font-size:.78rem; color:var(--ink-3); margin-top:2px; line-height:1.4}
+.bands .peak .b-v{color:var(--bad)}
+ul{margin:12px 0; padding-left:20px}
+li{margin:7px 0}
+li::marker{color:var(--ink-3)}
+footer{margin-top:72px; border-top:1px solid var(--rule); padding-top:18px; color:var(--ink-3); font-size:.82rem; max-width:74ch}
+@media (max-width:820px){
+  .lane{grid-template-columns:1fr 1fr; gap:10px 16px}
+  .lane .iv, .lane .why{grid-column:1/-1}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+
+<div class="wrap">
+
+<header>
+  <div class="mast">
+    <div>
+      <span class="eyebrow">PRC Data Challenge 2026 · taxi-out · team merry-quicksand</span>
+      <h1>Twenty-Nine Lanes Measured</h1>
+      <p class="lede">Every hypothesis opened against the taxi-out target, the threshold it was judged
+      against, and what the measurement said. Four held. Three are real but small. Twenty-two did not
+      work <em>as they were built</em> — which, the overnight audit showed, is a narrower claim than
+      several of them were given.</p>
+    </div>
+    <div class="stamp">
+      <b>10 Sep 2026 · 11:30 local</b><br>
+      344,841 scored departures<br>
+      10 airports · Jan &amp; Jul 2026<br>
+      metric: RMSE, seconds
+    </div>
+  </div>
+
+  <div class="standing">
+    <div><div class="k">Our best</div><div class="v">288.14</div><div class="n">v5 · rank 21 of 103</div></div>
+    <div><div class="k">10th place</div><div class="v">275.09</div><div class="n">was 276.51 last night</div></div>
+    <div><div class="k">Leader</div><div class="v">245.02</div><div class="n">103 teams · 749 submissions</div></div>
+    <div class="hot"><div class="k">Gap to 10th</div><div class="v">7,350</div><div class="n">MSE · 13.1 s · widened overnight</div></div>
+    <div><div class="k">Lanes measured</div><div class="v">29</div><div class="n">4 held · 3 small · 22 not as built</div></div>
+  </div>
+</header>
+
+<div class="note fix">
+  <span class="eyebrow">Corrected since the first version of this page</span>
+  <p>An audit run overnight (<span class="mono">plans/TOP_PATH_2026_09_10.md</span>) and a parallel
+  session's work overturned four things this page previously stated as fact. They are corrected in
+  place below, and listed here so nobody carries the old versions forward:</p>
+  <ul>
+    <li><b>"The leader's matched RMSE is about 164.6 s"</b> — withdrawn. One total score is one equation
+      in two unknown stratum errors; that figure assumed the leader's unmatched error equals ours.</li>
+    <li><b>"The mode is not identifiable from any column in the file"</b> — withdrawn. Low AUC from
+      individual fingerprints does not show joint unpredictability. Arm F, whose screen AUC was
+      0.53–0.59, went on to gain +12.2 s on exactly those rows as a model feature.</li>
+    <li><b>"78% of disagreeing rows are aircraft pushed back and then held"</b> — restated. The data shows
+      the airport's stamp is <em>earlier</em> than the Network Manager's on 78% of them. Holding is an
+      interpretation of that sign, not an observation of the aircraft.</li>
+    <li><b>"The 24-hour tail rows share no signature"</b> — superseded. They do: the actual clock time
+      stamped with the <em>schedule's</em> date, so the label is the taxi time plus exactly 86,400 s.</li>
+  </ul>
+  <p>The same audit found <b>a validation defect in the fold harness</b>: target encodings for the
+  early-stopping rows were fitted on those rows' own labels, so the number of trees was chosen against
+  a biased signal for every arm and every shipped version. Held-out scores and every paired interval on
+  this page remain valid — the held-out months were never touched — but the models behind them were
+  not tuned as cleanly as their verdicts implied.</p>
+</div>
+
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Standing</span>
+    <h2>Where we are</h2>
+    <p class="sub">Four submissions moved the number. Each board delta is recorded against the fold
+    projection that preceded it, because that ratio is what lets a fold measurement be trusted before
+    it is spent.</p>
+  </div>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Version</th><th>Lane</th><th class="num">Board RMSE</th><th class="num">Δ MSE</th><th class="num">Projected</th><th class="num">Transfer</th></tr></thead>
+    <tbody>
+      <tr><td>v2</td><td>Hand-built mixture, no learner</td><td class="num">301.7019</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+      <tr><td>v3</td><td>LightGBM on the 68-feature serve cache, matched rows</td><td class="num">291.6317</td><td class="num">−5,975</td><td class="num">−5,123</td><td class="num">1.17×</td></tr>
+      <tr><td>v4</td><td>Stratum hybrid, unmatched rows only</td><td class="num">289.6732</td><td class="num">−1,138</td><td class="num">not projected</td><td class="num">—</td></tr>
+      <tr><td><b>v5</b></td><td>Seed averaging + queue block, matched rows only</td><td class="num"><b>288.1406</b></td><td class="num">−886</td><td class="num">−910</td><td class="num">0.97×</td></tr>
+      <tr class="ship"><td><b>v6</b></td><td>+ record-ordering block (arm F) — fitting now</td><td class="num">—</td><td class="num">—</td><td class="num">~−745</td><td class="num">—</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="note">
+    <span class="eyebrow">The one rule that has held every time</span>
+    <p>A paired fold gain on matched rows, converted to MSE, lands on the board at <b>roughly
+    one-to-one</b> — 1.17× then 0.97×. That transfer is of paired <em>differences</em>; it does not
+    establish that absolute fold errors transfer, and fold totals demonstrably do not (two Rome rows
+    once carried 27% of one).</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Diagnosis</span>
+    <h2>Where the error actually lives</h2>
+    <p class="sub">The target is the airport's off-block stamp subtracted from take-off. A second clock —
+    the Network Manager's <span class="mono">AOBT_3</span> — anchors the prediction. When the two clocks
+    agree we predict well. Almost half the error sits in the 7.6% of rows where they disagree by more than
+    ten minutes; on 78% of those the airport's stamp is the earlier one.</p>
+  </div>
+  <div class="bands">
+    <div><div class="b-k">|Δclock| &lt; 2 min</div><div class="b-v">137.0</div><div class="b-n">38.6% of rows · 14.2% of error</div></div>
+    <div><div class="b-k">2–10 min</div><div class="b-v">189.8</div><div class="b-n">53.7% of rows · 38.0% of error</div></div>
+    <div><div class="b-k">10–20 min</div><div class="b-v">384.9</div><div class="b-n">6.0% of rows · 17.4% of error</div></div>
+    <div class="peak"><div class="b-k">&gt; 20 min</div><div class="b-v">968.8</div><div class="b-n">1.7% of rows · 30.5% of error</div></div>
+  </div>
+  <div class="col">
+  <ul>
+    <li><b>Perfect knowledge of which rows those are</b> — as a diagnostic, never a forecast — would
+      take matched RMSE from 225.8 to <span class="mono">163.1</span>. It says where the error is,
+      not where anyone else's model is.</li>
+    <li><b>Individually, nothing in the file names those rows well</b> — the best single signals reach
+      AUC 0.55–0.63. <b>Jointly, something does</b>: the record-ordering block moved them by +12.2 s
+      as a model feature. The screens were the wrong test for the question.</li>
+    <li><b>Among rows identical in airport, stand, runway and hour</b> the clock difference still spreads
+      197 s in the body and 939 s on the disagreeing rows. That bounds a model restricted to those four
+      columns; our model already beats it, so it is not a floor for ours.</li>
+  </ul>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">What held</span>
+    <h2>The four lanes that held, and three that are small</h2>
+    <p class="sub">A lane holds on a paired interval that excludes zero, over three seeds, with a gain
+    above twice the seed-to-seed spread — against a threshold fixed before the measurement existed.</p>
+  </div>
+  <div class="group">
+    <div class="group-head"><h3>Established</h3><span class="scale-note">scale −3.0 ··· 0 ··· +3.0 s of MATCHED RMSE, except where noted</span></div>
+
+    <div class="lane">
+      <div class="name">Record-ordering block — arm F<span class="src">Amendment 22 · Result 21 · shipping as v6</span></div>
+      <div class="stat">+1.694 s</div>
+      <div class="iv good">
+        <div class="track"><div class="zero" style="left:50%"></div><div class="bar" style="left:73.5%;width:9.8%"></div><div class="pt" style="left:78.2%"></div></div>
+        <div class="cap">[+1.407, +1.993] · 11.6× seed sd</div>
+      </div>
+      <div class="why"><span class="chip good">Established</span>Three features measuring how far a record
+        sits off its airport's id-versus-time line. <b>The only arm to pass its mechanism clause</b>: +22.6 s
+        beyond twenty minutes, +7.1 s at ten to twenty, small real losses in the body. Rome +8.2 s. The
+        scored file's feature distribution sits within 3% of the fit months — the fold measured it through
+        a wider shift than the board will present.</div>
+    </div>
+
+    <div class="lane">
+      <div class="name">Stratum hybrid<span class="src">Amendment 18 · Result 10 · shipped as v4</span></div>
+      <div class="stat">+33.17 s</div>
+      <div class="iv good">
+        <div class="track"><div class="zero" style="left:0"></div><div class="bar" style="left:61.6%;width:27.8%"></div><div class="pt" style="left:73.7%"></div></div>
+        <div class="cap">[+27.70, +40.22] · 45× seed sd<br><span class="off">own scale: 0 ··· +45 s of UNMATCHED-stratum RMSE</span></div>
+      </div>
+      <div class="why"><span class="chip good">Established</span>A fitted regressor for the body of the
+        unmatched rows, the cell estimator kept for their tail. Ten of ten airports, twelve of twelve months.</div>
+    </div>
+
+    <div class="lane">
+      <div class="name">Queue block<span class="src">Amendment 14 · Result 9 · shipped as v5</span></div>
+      <div class="stat">+1.568 s</div>
+      <div class="iv good">
+        <div class="track"><div class="zero" style="left:50%"></div><div class="bar" style="left:71.9%;width:8.3%"></div><div class="pt" style="left:76.1%"></div></div>
+        <div class="cap">[+1.316, +1.812] · 10.8× seed sd</div>
+      </div>
+      <div class="why"><span class="chip good">Established</span>Twelve congestion features. Passed its
+        interval and control; <b>failed its +2.0 s bar and its mechanism clause</b> — the gain is in the body,
+        not the tail it was named for. Shipped on an owner decision. The audit re-confirmed it resampling
+        whole dates: +1.19 to +1.95 s.</div>
+    </div>
+
+    <div class="lane">
+      <div class="name">Seed averaging<span class="src">Amendment 12 · Result 7 · shipped as v5</span></div>
+      <div class="stat">+0.484 s</div>
+      <div class="iv good">
+        <div class="track"><div class="zero" style="left:50%"></div><div class="bar" style="left:55.4%;width:5.5%"></div><div class="pt" style="left:58.1%"></div></div>
+        <div class="cap">[+0.321, +0.652] · 10/10 airports</div>
+      </div>
+      <div class="why"><span class="chip good">Established</span>Three seeds instead of one. The prior said
+        ~3%; the truth was 0.48 s, wrong by roughly fifteen times.</div>
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="group-head"><h3>Real, controlled, and small</h3><span class="scale-note">scale −3.0 ··· 0 ··· +3.0 s</span></div>
+
+    <div class="lane">
+      <div class="name">Weather at the airport-hour — arm W<span class="src">Amendment 24 · Result 22</span></div>
+      <div class="stat">+0.725 s</div>
+      <div class="iv hold">
+        <div class="track"><div class="zero" style="left:50%"></div><div class="bar" style="left:58.25%;width:7.53%"></div><div class="pt" style="left:62.1%"></div></div>
+        <div class="cap">[+0.495, +0.947] · 5× seed sd</div>
+      </div>
+      <div class="why"><span class="chip hold">Inconclusive</span>Improves the body (+1.22 s in both lower
+        bands) and <b>does not help the disagreeing rows</b> — beyond twenty minutes it is worse, −2.67 s.
+        January +1.74 s, July +0.05 s. The de-icing signal is real and too rare: freezing covers 1.9% of
+        scored rows. ~320 MSE. <b>Complementary to arm F</b> — F moves the tail, W the body.</div>
+    </div>
+
+    <div class="lane">
+      <div class="name">Gated blend on arm Y, excluding Rome<span class="src">Amendment 27 · Result 20</span></div>
+      <div class="stat">+0.527 s</div>
+      <div class="iv hold">
+        <div class="track"><div class="zero" style="left:50%"></div><div class="bar" style="left:53.9%;width:9.8%"></div><div class="pt" style="left:58.8%"></div></div>
+        <div class="cap">[+0.234, +0.820] · 99%: [+0.114, +0.915]</div>
+      </div>
+      <div class="why"><span class="chip hold">Inconclusive</span>Blend a taxi-time model in only where the
+        anchor looks unreliable. Survives a Bonferroni-corrected interval and beats its control 4.6×;
+        on the gated rows the blend beats both parents. Fails its point bar. ~230 MSE.</div>
+    </div>
+
+    <div class="lane">
+      <div class="name">Gated blend on arm U, excluding Rome<span class="src">Amendment 26 · Result 17</span></div>
+      <div class="stat">+0.454 s</div>
+      <div class="iv hold">
+        <div class="track"><div class="zero" style="left:50%"></div><div class="bar" style="left:52.2%;width:10.4%"></div><div class="pt" style="left:57.6%"></div></div>
+        <div class="cap">[+0.132, +0.758] · 4.5× the p99 null</div>
+      </div>
+      <div class="why"><span class="chip hold">Inconclusive</span>The same rule on a weaker tail model —
+        superseded by the line above. Six tests in this family on one holdout; the family is closed there.</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">The register</span>
+    <h2>What did not work, as it was built</h2>
+    <p class="sub">"Not working" here means the lane <em>as implemented</em> failed its registered
+    clauses. The audit's point stands: a failed fill blend closes that blend, not every mixture model;
+    a low single-feature AUC closes that screen, not the underlying question.</p>
+  </div>
+
+  <div class="group">
+    <div class="group-head"><h3>Screens for the disagreeing rows — single signals</h3><span class="scale-note">no interval · screens report AUC</span></div>
+    <div class="lane"><div class="name">AOBT_3 derivation fingerprints<span class="src">Result 11</span></div><div class="stat">AUC 0.48–0.51</div><div class="iv"><div class="cap">whole minutes; equality with EOBT/LOBT/IOBT/SCHED</div></div><div class="why">AOBT_3 is minute-rounded on 97.6% of all rows, so the tell is everywhere and separates nothing on its own.</div></div>
+    <div class="lane"><div class="name">The arrival side<span class="src">Result 11.4</span></div><div class="stat">AUC 0.44–0.58</div><div class="iv"><div class="cap">arrival clocks; the stand's previous occupant</div></div><div class="why">Arrival clocks agree to 16 s at the median; no disagreement to read there.</div></div>
+    <div class="lane"><div class="name">Record-ordering, as a single screen<span class="src">Result 11.5</span></div><div class="stat">AUC 0.53 / 0.59</div><div class="iv"><div class="cap">then +12.2 s on the tail as arm F</div></div><div class="why"><b>The screen said no; the model said yes.</b> The clearest evidence on this page that single-signal AUC was the wrong test.</div></div>
+    <div class="lane"><div class="name">Schedule-only record completeness<span class="src">Result 13</span></div><div class="stat">AUC 0.489</div><div class="iv"><div class="cap">untestable as posed</div></div><div class="why">Unmatched rows have no flight-plan record at all, so the pattern is constant.</div></div>
+    <div class="lane"><div class="name">Flight-number fill propensity<span class="src">Result 6</span></div><div class="stat">dead</div><div class="iv"><div class="cap">per-callsign history at Rome</div></div><div class="why">No stable stamping habit per flight number across months.</div></div>
+    <div class="lane"><div class="name">Ground ADS-B<span class="src">Amendment 6 · reports/ADSB_GATE.md</span></div><div class="stat">2 of 10</div><div class="iv"><div class="cap">whole lane worth 2,243 MSE</div></div><div class="why">Paris, Rome, Madrid and Istanbul have <b>zero</b> on-ground samples. A receiver limit no modelling can undo.</div></div>
+  </div>
+
+  <div class="group">
+    <div class="group-head"><h3>Model, features and formulation — matched rows</h3><span class="scale-note">scale −3.0 ··· 0 ··· +3.0 s</span></div>
+
+    <div class="lane"><div class="name">Airport-day regime — arm D<span class="src">Result 18</span></div><div class="stat">−0.054 s</div>
+      <div class="iv bad"><div class="track"><div class="zero" style="left:50%"></div><div class="bar" style="left:44.8%;width:8.7%"></div><div class="pt" style="left:49.1%"></div></div><div class="cap">[−0.311, +0.210]</div></div>
+      <div class="why">Flat. Gains where clocks agree, loses where they don't (−2.84 s beyond twenty). Regime shifts a base rate.</div></div>
+
+    <div class="lane"><div class="name">Taxi time as the target — arm Y<span class="src">Result 19</span></div><div class="stat">−9.08 s</div>
+      <div class="iv bad"><div class="track"><div class="zero" style="left:50%"></div><div class="bar" style="left:0;width:68.2%"></div><div class="pt" style="left:0"></div></div><div class="cap"><span class="off">left end off scale</span> [−28.00, +1.09]</div></div>
+      <div class="why">Fails pooled — but <b>better on the tail</b>: +10.0 s beyond twenty, +4.5 s over ten, both intervals excluding zero. Rome 384 → 454 sinks it. The better tail model; feeds the gated blend above.</div></div>
+
+    <div class="lane"><div class="name">One model, all rows — arm U<span class="src">Result 15</span></div><div class="stat">−39.24 s</div>
+      <div class="iv bad"><div class="track"><div class="zero" style="left:50%"></div><div class="bar" style="left:0;width:27.0%"></div><div class="pt" style="left:0"></div></div><div class="cap"><span class="off">left end off scale</span> [−101.65, −1.38]</div></div>
+      <div class="why">The standard approach loses decisively even with its stopping rule corrected in its favour. The two-part design stays.</div></div>
+
+    <div class="lane"><div class="name">Gated blend, all airports<span class="src">Result 16</span></div><div class="stat">−9.84 s</div>
+      <div class="iv bad"><div class="track"><div class="zero" style="left:50%"></div><div class="bar" style="left:0;width:61.7%"></div><div class="pt" style="left:0"></div></div><div class="cap"><span class="off">left end off scale</span> [−29.37, +0.70]</div></div>
+      <div class="why">Nine airports gain; Rome alone costs −72.8 s.</div></div>
+
+    <div class="lane"><div class="name">Per-airport blend<span class="src">Result 7</span></div><div class="stat">+0.437 s</div>
+      <div class="iv bad"><div class="track"><div class="zero" style="left:50%"></div><div class="bar" style="left:47.4%;width:20.0%"></div><div class="pt" style="left:57.3%"></div></div><div class="cap">[−0.157, +1.045]</div></div>
+      <div class="why">Rome gets significantly worse (−2.70 s).</div></div>
+
+    <div class="lane"><div class="name">Matched-row fill head, as built<span class="src">Result 8</span></div><div class="stat">+0.14 s</div>
+      <div class="iv bad"><div class="track"><div class="zero" style="left:50%"></div><div class="bar" style="left:42%;width:20%"></div><div class="pt" style="left:52.3%"></div></div><div class="cap">[−0.48, +0.72]</div></div>
+      <div class="why">+37.7 s on fills, −4.34 s on the rest. Its non-fill expert was the unconditional regressor, so this closes <em>that</em> mixture, not a conditional one.</div></div>
+
+    <div class="lane"><div class="name">Five baseline-era lanes<span class="src">before the LightGBM path</span></div><div class="stat">5 lanes</div><div class="iv"><div class="cap">+2.72 / −0.96 / −30.3 / −14.9 / −144 s</div></div><div class="why">Surface state, out-of-fold encoding, winsorised targets, absolute loss, one undivided model.</div></div>
+  </div>
+
+  <div class="group">
+    <div class="group-head"><h3>The unmatched rows</h3><span class="scale-note">scale 0 ··· +45 s of stratum RMSE</span></div>
+    <div class="lane"><div class="name">Arrival stamping regime at Rome<span class="src">Result 4</span></div><div class="stat">+8.42 s</div>
+      <div class="iv bad"><div class="track"><div class="zero" style="left:0"></div><div class="bar" style="left:7.8%;width:21.7%"></div><div class="pt" style="left:18.7%"></div></div><div class="cap">[+3.49, +13.27] · control kept 71%</div></div>
+      <div class="why">A permuted control kept 71% of the gain: the named mechanism was not what produced it.</div></div>
+    <div class="lane"><div class="name">Tail insurance<span class="src">Result 13 · priced, refused</span></div><div class="stat">break-even 23%</div><div class="iv"><div class="cap">base rate 0.07%</div></div><div class="why">Over-predicting to cover a monster pays only above a 23% chance.</div></div>
+    <div class="lane"><div class="name">Airport-clock turnaround anchor<span class="src">Result 14b</span></div><div class="stat">sd 13,503 s</div><div class="iv"><div class="cap">against the anchor's 427 s</div></div><div class="why">Ground time is hours-scale and swamps the offset it would remove.</div></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Now</span>
+    <h2>What is running, and what changed the arithmetic</h2>
+  </div>
+  <div class="col">
+    <p><b>v6 is fitting</b> — arm F on top of v5, due around 13:15. A parallel session owns that fit and
+    the work after it; the machine died on battery at 10:50 and the fit was relaunched at 10:59.</p>
+    <p style="margin-top:14px"><b>The picture changed overnight, and not because of my arms.</b> The
+    parallel session located the gap against a public, GPLv3-licensed 271-scoring system and found it
+    sits almost entirely in our <b>unmatched rows at Rome</b>. Its arm R2 — a stake-weighted fill
+    classifier plus the 24-hour date-slip class — passed every registered clause on the fold, with a
+    projected <b>~4,150 MSE</b>. That is a fold projection, not a board result, and its date-slip half is
+    disclosed as boundary-fragile.</p>
+    <p style="margin-top:14px">Against a 7,350 MSE gap: arm F (~745, established) and R2 (~4,150,
+    projected) are the first pair of lanes whose sum is the same order of magnitude as the distance to
+    tenth. They were measured separately and cannot simply be added; the board is the instrument.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Method</span>
+    <h2>What this record got wrong, and what caught it</h2>
+  </div>
+  <div class="col">
+    <p>Each threshold was written into an append-only pre-registration before its measurement existed,
+    so no result was rescued by moving its bar. That discipline held. What it did not prevent was
+    <b>over-reading the negatives</b>: a lane failing as built was written up as the question being
+    closed, and a diagnostic bound was quoted as if it were a competitor's score. The audit caught both.</p>
+    <p style="margin-top:14px">Controls earned their keep twice. A permuted control keeping 71% of a gain
+    turned Result 4 into a refutation. And a random-subset control scoring −23.9 s — where it must score
+    about zero by construction — exposed a misread file convention that had produced a confident −109 s
+    (Result 20a). The same bug in a lane without a control would have been reported as a finding.</p>
+  </div>
+</section>
+
+<footer>
+  Sources: <span class="mono">plans/PREREG_taxiout_2026_09_08.md</span> (27 amendments, 22 results,
+  append-only); <span class="mono">plans/TOP_PATH_2026_09_10.md</span> (the overnight audit);
+  <span class="mono">plans/PREREG_rome_*_2026_09_10.md</span> and
+  <span class="mono">reports/GAP_LOCATED_2026_09_10.md</span> (the parallel session's Rome work);
+  <span class="mono">reports/MSE_LEDGER.md</span>; <span class="mono">reports/ADSB_GATE.md</span>. Board
+  read from the competition API at 11:15 local, 10 September 2026, paginated across 103 teams and 749
+  submissions. Fold measurements are paired row bootstraps, 2,000 draws, seed 0, on 339,015 held-out
+  matched rows unless stated otherwise.
+</footer>
+
+</div>

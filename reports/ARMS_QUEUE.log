@@ -1,0 +1,19 @@
+[23:16:13] chain: waiting for U-20.5 (pid 21345) to exit
+[00:17:14] chain: U-20.5 exited; starting the arms queue
+[00:17:14] ### arms queue started; commit 8d6d2ca
+[00:17:14] === sweep: smoke ===
+[00:17:53] sweep: smoke ok; starting the full run -> reports/lgbm_fold_sweep.console.log
+[00:35:33] sweep: exit 0  [00:35:33 +   1059s] json -> /Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_sweep.json   wall 1059s   peak R
+[00:35:33] === queue_day: smoke ===
+[00:36:12] queue_day: smoke ok; starting the full run -> reports/lgbm_fold_queue_day.console.log
+[02:38:31] queue_day: exit 0  [02:38:31 +   7338s] json -> /Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_queue_day.json   wall 7338s   pe
+[02:38:31] === queue_ytarget: smoke ===
+[02:39:05] queue_ytarget: smoke ok; starting the full run -> reports/lgbm_fold_queue_ytarget.console.log
+[04:26:25] queue_ytarget: exit 0  [04:26:25 +   6439s] json -> /Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_queue_ytarget.json   wall 6439s 
+[04:26:25] === queue_order: smoke ===
+[04:27:00] queue_order: smoke ok; starting the full run -> reports/lgbm_fold_queue_order.console.log
+[06:19:37] queue_order: exit 0  [06:19:37 +   6756s] json -> /Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_queue_order.json   wall 6756s   
+[06:19:37] === queue_weather: smoke ===
+[06:20:12] queue_weather: smoke ok; starting the full run -> reports/lgbm_fold_queue_weather.console.log
+[08:02:01] queue_weather: exit 0  [08:02:00 +   6108s] json -> /Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_queue_weather.json   wall 6108s 
+[08:02:01] ### the five unattended arms are done; --confirm and --catboost need the sweep's ranking and are left for the session

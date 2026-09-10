@@ -1,0 +1,67 @@
+[02:38:32 +      0s] SMOKE — code path only, NOT a result
+[02:38:32 +      0s] lgbm_fold [queue_ytarget]  smoke=True  json=/var/folders/hq/vl8hk8_n0vq50t1y2f0kjzzw0000gn/T/lgbm_fold_queue_ytarget_smoke_v85snb11/lgbm_fold_queue_ytarget.json  log=/var/folders/hq/vl8hk8_n0vq50t1y2f0kjzzw0000gn/T/lgbm_fold_queue_ytarget_smoke_v85snb11/lgbm_fold_queue_ytarget.log  preds=/var/folders/hq/vl8hk8_n0vq50t1y2f0kjzzw0000gn/T/lgbm_fold_queue_ytarget_smoke_v85snb11/fold_preds_queue_ytarget.parquet
+[02:38:32 +      0s] command: cd ~/Projects/prc-challenge && PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 nice -n 19 /usr/bin/time -l python3.11 -B -u scripts/lgbm_fold.py --ytarget --queue --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_queue_ytarget.console.log
+[02:38:32 +      0s] estimate: ~1.6 h (range 1.3-2.3 h), peak RSS ~4.8 GB (the queue fold's footprint), 4 threads; run ALONE. x1.15 for 80 columns: ES ~16 min; 3 refits ~21 min each; bootstrap ~5 min. The delta arm is READ from the queue record (fold_preds_queue.parquet's treatment column). Writes reports/lgbm_fold_queue_ytarget.{json,log} and data/cache_stand/fold_preds_queue_ytarget.parquet.
+[02:38:32 +      0s] Amendment 19.2 arm Y: delta arm = A2 + QUEUE_FEATS over seeds [0, 1, 2] (80 features, the queue record); Y = the same design, configuration and seeds with target y (y_hat_Y = max(prediction, 1), no proxy anchor); blend = 0.5 y_hat_Y + 0.5 y_hat_delta; per-airport rule [es] per-airport early stopping on the airport's own fit/ES rows (same ES months, seed 0); n_ref_a = max(50, int(best_iter_a * n_all_a / n_fit_a)) (A3 only); named airports ['LTFM', 'EDDM']; bootstrap 200 draws seed 0; bands ['lt2', '2to10', '10to20', 'gt20'] + over10
+[02:38:32 +      0s] baseline: fitted in-process (--refit-baseline, or a smoke without a record)
+[02:38:32 +      0s] queue block: 12 columns joined POSITIONALLY onto 3 months from /Users/saurabhdxt/Projects/prc-challenge/data/cache_queue (row counts asserted per month; the order is the v6 builder's, proven on March both ways)
+[02:38:32 +      0s] loaded 3 months (458,222 rows): holdout (months (1, 7)) 152,250; training 305,972; fit 142,611; early-stop 163,361; airports ['EDDF', 'EDDM', 'EGLL', 'EHAM', 'LEBL', 'LEMD', 'LFPG', 'LIRF', 'LSZH', 'LTFM']; peak RSS 0.84 GB
+[02:38:33 +      1s] design matrix 458,222 x 80 float32 (0.15 GB); peak RSS 0.94 GB
+[02:38:33 +      1s] [baseline] early stopping on 80 features, target delta
+[02:38:33 +      1s] early-stopping run (seed 0, target delta): fit 142,611 rows, stop on 163,361 rows (months (3, 9)), lr 0.05, max 60 rounds, patience 50
+[02:38:34 +      2s]     iter      0  valid_0 rmse (delta) 338.335
+[02:38:35 +      3s] best_iter 60   stopping-set RMSE (taxi-time) 219.00   proxy-only on the 163,361 rows with a proxy 342.14   ratio 0.640   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 1.18 GB
+[02:38:35 +      3s] n_ref 128: refit on all 305,972 training rows (best_iter 60 x 2.146), no early stopping
+[02:38:39 +      7s] refit seed 0 done: 128 trees on 305,972 rows in 4s   peak RSS 1.22 GB
+[02:38:40 +      8s] [baseline] seed 0 alone: matched RMSE 220.0773 on 152,250 holdout rows   [4s]
+[02:38:44 +     12s] refit seed 1 done: 128 trees on 305,972 rows in 4s   peak RSS 1.22 GB
+[02:38:44 +     12s] [baseline] seed 1 alone: matched RMSE 219.6290 on 152,250 holdout rows   [4s]
+[02:38:48 +     16s] refit seed 2 done: 128 trees on 305,972 rows in 4s   peak RSS 1.22 GB
+[02:38:48 +     16s] [baseline] seed 2 alone: matched RMSE 219.5358 on 152,250 holdout rows   [4s]
+[02:38:48 +     16s] [baseline] A2 fitted in-process over seeds [0, 1, 2]; seed sd 0.2895 s from its single seeds
+[02:38:49 +     16s] [Y] early stopping on 80 features, target y
+[02:38:49 +     16s] early-stopping run (seed 0, target y): fit 142,611 rows, stop on 163,361 rows (months (3, 9)), lr 0.05, max 60 rounds, patience 50
+[02:38:49 +     17s]     iter      0  valid_0 rmse (y) 372.058
+[02:38:50 +     18s] best_iter 60   stopping-set RMSE (taxi-time) 214.63   proxy-only on the 163,361 rows with a proxy 342.14   ratio 0.627   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 1.24 GB
+[02:38:50 +     18s] n_ref 128: refit on all 305,972 training rows (best_iter 60 x 2.146), no early stopping
+[02:38:54 +     22s] refit seed 0 done: 128 trees on 305,972 rows in 4s   peak RSS 1.24 GB
+[02:38:55 +     23s] [Y] seed 0 alone: matched RMSE 219.4795 on 152,250 holdout rows   [4s]
+[02:38:59 +     27s] refit seed 1 done: 128 trees on 305,972 rows in 4s   peak RSS 1.24 GB
+[02:38:59 +     27s] [Y] seed 1 alone: matched RMSE 218.9571 on 152,250 holdout rows   [4s]
+[02:39:03 +     31s] refit seed 2 done: 128 trees on 305,972 rows in 4s   peak RSS 1.24 GB
+[02:39:04 +     31s] [Y] seed 2 alone: matched RMSE 218.8437 on 152,250 holdout rows   [4s]
+[02:39:05 +     33s] ====================================================================================================
+[02:39:05 +     33s] AMENDMENT 19.2 ARM Y [queue_ytarget], fold A matched rows (152,250), holdout months (1, 7)   SMOKE — code path only, NOT a result
+[02:39:05 +     33s] ====================================================================================================
+[02:39:05 +     33s] arm         matched RMSE   definition
+[02:39:05 +     33s] baseline        218.7725   the delta arm A2 + QUEUE_FEATS over seeds [0, 1, 2] (in-process)
+[02:39:05 +     33s] Y               218.1953   target y, best_iter 60 -> n_ref 128, mean over seeds [0, 1, 2], y_hat = max(prediction, 1); stored as proxy - y_hat
+[02:39:05 +     33s] blend           216.4469   0.5 y_hat_Y + 0.5 y_hat_delta; stored as proxy - y_hat
+[02:39:05 +     33s] seed sd: 0.2895 s (sample sd, ddof=1)   2 x seed sd = 0.5790 s
+[02:39:05 +     33s] pair                  gain s         95% paired CI  excl 0  gain/sd  >2x sd  airports improving
+[02:39:05 +     33s] blend_vs_baseline    +2.3256   [ +1.6062,  +2.9864]    True     8.03    True         9 / 10     
+[02:39:05 +     33s] Y_vs_baseline        +0.5772   [ -0.8687,  +1.8344]   False     1.99   False         7 / 10     
+[02:39:05 +     33s] airport         n   baseline          Y      blend  blend_vs_baseline      Y_vs_baseline
+[02:39:05 +     33s] EDDF       15,332     185.13     183.61     182.77         +2.36*             +1.51     
+[02:39:05 +     33s] EDDM       11,201     192.18     190.05     186.74         +5.44*             +2.13     
+[02:39:05 +     33s] EGLL       19,292     247.39     244.58     243.64         +3.75*             +2.81     
+[02:39:05 +     33s] EHAM       18,167     177.54     181.91     176.48         +1.06              -4.37*    
+[02:39:05 +     33s] LEBL       12,167     151.72     151.02     150.47         +1.25*             +0.70     
+[02:39:05 +     33s] LEMD       16,478     176.47     177.37     176.12         +0.35              -0.89*    
+[02:39:05 +     33s] LFPG       17,670     272.49     267.17     266.72         +5.78*             +5.33*    
+[02:39:05 +     33s] LIRF       11,257     299.87     299.26     298.76         +1.11*             +0.62     
+[02:39:05 +     33s] LSZH        9,550     183.23     197.08     187.57         -4.33             -13.85     
+[02:39:05 +     33s] LTFM       21,136     233.88     231.80     231.70         +2.19*             +2.09*    
+[02:39:05 +     33s]    (* = that airport's own paired interval excludes zero)
+[02:39:05 +     33s] seed sd source: baseline single seeds (in-process)   Y's own seed sd: 0.3391 s
+[02:39:05 +     33s] named airports (19.2) for Y_vs_baseline: LTFM 233.88 -> 231.80 (improves), EDDM 192.18 -> 190.05 (improves)
+[02:39:05 +     33s] named airports (19.2) for blend_vs_baseline: LTFM 233.88 -> 231.70 (improves), EDDM 192.18 -> 186.74 (improves)
+[02:39:05 +     33s] |delta| bands (19.0; left-closed, right-open; over10 = 10to20 + gt20); RMSE per arm on the band's rows, paired gain vs baseline with its 95% CI (* = excludes zero):
+[02:39:05 +     33s] band            n  rows%   SSE%   baseline          Y      blend                 Y_vs_baseline             blend_vs_baseline
+[02:39:05 +     33s] lt2        57,520  37.78   13.3     129.59     131.37     129.23      -1.79 [  -2.58,   -0.74]*      +0.36 [  -0.05,   +0.86] 
+[02:39:05 +     33s] 2to10      84,046  55.20   41.9     190.54     189.69     188.76      +0.84 [  -0.02,   +1.74]       +1.78 [  +1.29,   +2.31]*
+[02:39:05 +     33s] 10to20      8,948   5.88   18.6     389.10     386.02     384.46      +3.08 [  +0.12,   +5.63]*      +4.64 [  +3.12,   +6.19]*
+[02:39:05 +     33s] gt20        1,736   1.14   26.3    1050.32    1045.68    1033.76      +4.65 [ -19.94,  +28.00]      +16.57 [  +5.20,  +27.78]*
+[02:39:05 +     33s] over10     10,684   7.02   44.9     553.22     549.97     545.37      +3.25 [  -3.32,   +9.98]       +7.84 [  +4.37,  +11.03]*
+[02:39:05 +     33s] json -> /var/folders/hq/vl8hk8_n0vq50t1y2f0kjzzw0000gn/T/lgbm_fold_queue_ytarget_smoke_v85snb11/lgbm_fold_queue_ytarget.json   wall 33s   peak RSS 1.24 GB
+[02:39:05 +     33s] SMOKE — code path only, NOT a result

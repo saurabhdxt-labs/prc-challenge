@@ -1,0 +1,139 @@
+[20:53:09 +      0s] lgbm_fold [queue_allrows]  smoke=False  json=/Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_queue_allrows.json  log=/Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_queue_allrows.log  preds=/Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/fold_preds_queue_allrows.parquet
+[20:53:09 +      0s] command: cd ~/Projects/prc-challenge && PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 nice -n 19 /usr/bin/time -l python3.11 -B -u scripts/lgbm_fold.py --ytarget --all-rows --queue --unmatched-weight 1,10 --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_queue_allrows.console.log
+[20:53:09 +      0s] estimate: ~3.1 h (range 2.5-4 h): the allrows estimate x1.15 for 81 columns; peak RSS ~4.9 GB. The matched pipeline is READ from the queue record; prerequisites as for allrows plus data/cache_queue/. Writes reports/lgbm_fold_queue_allrows.{json,log} and data/cache_stand/fold_preds_queue_allrows.parquet.
+[20:53:09 +      0s] UNIFIED all-rows arm: ONE y-target regressor on matched + unmatched training rows, design FEATS + QUEUE_FEATS + is_unmatched (81 features); unmatched weights [1.0, 10.0] (one arm each, seeds [0, 1, 2]); y_hat = max(prediction, 1), no proxy; pipeline = matched A2 + QUEUE_FEATS (the queue record) + unmatched S0 of the stratum record; blend 0.5; bootstrap 2,000 draws seed 0; 2026 weights 0.984660 / 0.015340; monsters y > 10800 s
+[20:53:09 +      0s] baseline: the queue record /Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_queue.json (sha 58b785bb6cb8ff222198d0637f2fc45c8761c656, treatment best_iter 21316, n_ref 26647, baseline_arm 'A2', seeds [0, 1, 2], pa_trees 'es'); predictions /Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/fold_preds_queue.parquet
+[20:53:10 +      1s] queue block: 12 columns joined POSITIONALLY onto 12 months from /Users/saurabhdxt/Projects/prc-challenge/data/cache_queue (row counts asserted per month; the order is the v6 builder's, proven on March both ways)
+[20:53:10 +      1s] unmatched rows: 22,219 appended after the 2,062,440 matched rows from /Users/saurabhdxt/Projects/prc-challenge/data/cache_unmatched (12 files; the NaN pattern - 13 AOBT_3-anchored + 10 *_flt-derived columns - checked on each); is_unmatched appended as the last design column
+[20:53:10 +      1s] loaded 12 months (2,084,659 rows): holdout (months (1, 7)) 344,336 (5,321 unmatched); training 1,740,323 (16,898 unmatched); fit 1,391,970; early-stop 348,353; airports ['EDDF', 'EDDM', 'EGLL', 'EHAM', 'LEBL', 'LEMD', 'LFPG', 'LIRF', 'LSZH', 'LTFM']; peak RSS 2.70 GB
+[20:53:16 +      6s] design matrix 2,084,659 x 81 float32 (0.68 GB); peak RSS 3.18 GB
+[20:53:16 +      6s] [baseline] A2 + QUEUE_FEATS rebuilt from the queue predictions over seeds [0, 1, 2] on the identical fold (339,015 rows); seed sd 0.1454 s from the queue json
+[20:53:16 +      6s] pipeline: matched rows from queue predictions, unmatched rows from /Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/stratum_fold_v7_preds.parquet (fold A: 5,321 rows, 5,321 joined by id, y and month identical)
+[20:53:16 +      6s] [U_w1] early stopping on 81 features, target y
+[20:53:16 +      6s] early-stopping run (seed 0, target y): fit 1,391,970 rows, stop on 348,353 rows (months (3, 9)), lr 0.01, max 50,000 rounds, patience 200, row weights (unmatched x1)
+[20:53:17 +      7s]     iter      0  valid_0 rmse (y) 513.027
+[20:54:49 +     99s]     iter  1,000  valid_0 rmse (y) 288.580
+[20:55:56 +    166s] best_iter 1,354   stopping-set RMSE (taxi-time) 287.36   proxy-only on the 344,840 rows with a proxy 366.25   ratio 0.564   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 4.06 GB
+[20:55:56 +    166s] n_ref 1,692: refit on all 1,740,323 training rows (best_iter 1,354 x 1.250), no early stopping
+[20:58:34 +    325s] refit seed 0 done: 1,692 trees on 1,740,323 rows in 158s   peak RSS 4.06 GB
+[20:59:06 +    357s] [U_w1] seed 0 alone: matched RMSE 445.8177 on 344,336 holdout rows   [190s]
+[21:01:41 +    511s] refit seed 1 done: 1,692 trees on 1,740,323 rows in 154s   peak RSS 4.06 GB
+[21:02:11 +    542s] [U_w1] seed 1 alone: matched RMSE 444.8593 on 344,336 holdout rows   [185s]
+[21:04:59 +    709s] refit seed 2 done: 1,692 trees on 1,740,323 rows in 167s   peak RSS 4.06 GB
+[21:05:34 +    745s] [U_w1] seed 2 alone: matched RMSE 446.2401 on 344,336 holdout rows   [203s]
+[21:05:35 +    745s] [U_w1] done in 739s; floor binds on 0.010% of rows
+[21:05:35 +    745s] [U_w10] early stopping on 81 features, target y
+[21:05:35 +    745s] early-stopping run (seed 0, target y): fit 1,391,970 rows, stop on 348,353 rows (months (3, 9)), lr 0.01, max 50,000 rounds, patience 200, row weights (unmatched x10)
+[21:05:36 +    746s]     iter      0  valid_0 rmse (y) 514.449
+[21:07:16 +    847s]     iter  1,000  valid_0 rmse (y) 300.400
+[21:07:59 +    889s] best_iter 1,047   stopping-set RMSE (taxi-time) 299.04   proxy-only on the 344,840 rows with a proxy 366.25   ratio 0.593   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 4.06 GB
+[21:07:59 +    889s] n_ref 1,309: refit on all 1,740,323 training rows (best_iter 1,047 x 1.250), no early stopping
+[21:09:57 +   1007s] refit seed 0 done: 1,309 trees on 1,740,323 rows in 118s   peak RSS 4.06 GB
+[21:10:22 +   1033s] [U_w10] seed 0 alone: matched RMSE 460.1061 on 344,336 holdout rows   [143s]
+[21:12:29 +   1160s] refit seed 1 done: 1,309 trees on 1,740,323 rows in 127s   peak RSS 4.06 GB
+[21:12:56 +   1186s] [U_w10] seed 1 alone: matched RMSE 458.1469 on 344,336 holdout rows   [154s]
+[21:15:08 +   1318s] refit seed 2 done: 1,309 trees on 1,740,323 rows in 132s   peak RSS 4.06 GB
+[21:15:35 +   1345s] [U_w10] seed 2 alone: matched RMSE 457.7040 on 344,336 holdout rows   [159s]
+[21:15:35 +   1346s] [U_w10] done in 600s; floor binds on 0.026% of rows
+[21:16:20 +   1391s] ====================================================================================================
+[21:16:20 +   1391s] UNIFIED ALL-ROWS ARM [queue_allrows] - MATCHED rows (339,015), holdout months (1, 7)   
+[21:16:20 +   1391s] ====================================================================================================
+[21:16:20 +   1391s] arm           matched RMSE   definition
+[21:16:20 +   1391s] pipeline          224.2576   matched: A2 + QUEUE_FEATS (queue predictions); unmatched: the stratum record's S0
+[21:16:20 +   1391s] U_w1              268.5764   unified y-target regressor, unmatched weight 1, best_iter 1,354 -> n_ref 1,692, mean over seeds [0, 1, 2], max(., 1)
+[21:16:20 +   1391s] Ublend_w1         235.8043   0.5 U_w1 + 0.5 pipeline
+[21:16:20 +   1391s] U_w10             283.8645   unified y-target regressor, unmatched weight 10, best_iter 1,047 -> n_ref 1,309, mean over seeds [0, 1, 2], max(., 1)
+[21:16:20 +   1391s] Ublend_w10        240.4854   0.5 U_w10 + 0.5 pipeline
+[21:16:20 +   1391s] seed sd: 0.1454 s (sample sd, ddof=1)   2 x seed sd = 0.2908 s
+[21:16:20 +   1391s] pair                       gain s         95% paired CI  excl 0  gain/sd  >2x sd  airports improving
+[21:16:20 +   1391s] U_w1_vs_pipeline         -44.3188   [-108.3795,  -5.3587]    True  -304.86   False         0 / 10     
+[21:16:20 +   1391s] Ublend_w1_vs_pipeline    -11.5467   [-31.8074,  -0.5400]    True   -79.43   False         2 / 10     
+[21:16:20 +   1391s] U_w10_vs_pipeline        -59.6069   [-122.7587, -20.1601]    True  -410.02   False         0 / 10     
+[21:16:20 +   1391s] Ublend_w10_vs_pipeline   -16.2277   [-36.7721,  -4.6909]    True  -111.63   False         0 / 10     
+[21:16:20 +   1391s] airport         n   pipeline       U_w1  Ublend_w1      U_w10 Ublend_w10        U_w1_vs_pipeline   Ublend_w1_vs_pipeline       U_w10_vs_pipeline  Ublend_w10_vs_pipeline
+[21:16:20 +   1391s] EDDF       36,231     177.92     182.83     178.86     187.58     180.30              -4.91*                  -0.94*                  -9.66*                  -2.39*    
+[21:16:20 +   1391s] EDDM       26,854     166.52     173.90     168.30     181.98     170.60              -7.39*                  -1.78*                 -15.46*                  -4.08*    
+[21:16:20 +   1391s] EGLL       39,744     229.07     232.95     228.34     243.81     231.65              -3.88*                  +0.73                  -14.75*                  -2.58*    
+[21:16:20 +   1391s] EHAM       40,141     163.12     175.55     166.04     185.94     168.87             -12.43*                  -2.92*                 -22.83*                  -5.75*    
+[21:16:20 +   1391s] LEBL       28,489     220.29     222.14     219.90     227.21     221.21              -1.84*                  +0.40                   -6.91*                  -0.91*    
+[21:16:20 +   1391s] LEMD       35,019     174.71     179.58     175.66     183.73     176.80              -4.87*                  -0.95*                  -9.03*                  -2.09*    
+[21:16:20 +   1391s] LFPG       38,713     244.46     250.70     245.07     259.02     247.36              -6.24*                  -0.60                  -14.56*                  -2.90*    
+[21:16:20 +   1391s] LIRF       26,131     384.07     633.76     460.93     686.34     480.04            -249.69*                 -76.86*                -302.28*                 -95.97*    
+[21:16:20 +   1391s] LSZH       21,811     174.16     182.29     176.01     193.63     178.85              -8.13*                  -1.85*                 -19.47*                  -4.69*    
+[21:16:20 +   1391s] LTFM       45,882     243.64     249.17     244.44     256.79     246.72              -5.53*                  -0.80*                 -13.16*                  -3.08*    
+[21:16:20 +   1391s]    (* = that airport's own paired interval excludes zero)
+[21:16:20 +   1391s] ====================================================================================================
+[21:16:20 +   1391s] UNIFIED ALL-ROWS ARM [queue_allrows] - UNMATCHED rows (5,321), holdout months (1, 7)   
+[21:16:20 +   1391s] ====================================================================================================
+[21:16:20 +   1391s] arm           matched RMSE   definition
+[21:16:20 +   1391s] pipeline         1867.9046   matched: A2 + QUEUE_FEATS (queue predictions); unmatched: the stratum record's S0
+[21:16:20 +   1391s] U_w1             2867.1799   unified y-target regressor, unmatched weight 1, best_iter 1,354 -> n_ref 1,692, mean over seeds [0, 1, 2], max(., 1)
+[21:16:20 +   1391s] Ublend_w1        2126.9338   0.5 U_w1 + 0.5 pipeline
+[21:16:20 +   1391s] U_w10            2900.2137   unified y-target regressor, unmatched weight 10, best_iter 1,047 -> n_ref 1,309, mean over seeds [0, 1, 2], max(., 1)
+[21:16:20 +   1391s] Ublend_w10       2142.4519   0.5 U_w10 + 0.5 pipeline
+[21:16:20 +   1391s] seed sd: 0.1454 s (sample sd, ddof=1)   2 x seed sd = 0.2908 s
+[21:16:20 +   1391s] pair                       gain s         95% paired CI  excl 0  gain/sd  >2x sd  airports improving
+[21:16:20 +   1391s] U_w1_vs_pipeline        -999.2752   [-1647.5722, -493.1066]    True -6873.76   False         9 / 10     
+[21:16:20 +   1391s] Ublend_w1_vs_pipeline   -259.0292   [-561.1139, -37.1991]    True -1781.80   False         9 / 10     
+[21:16:20 +   1391s] U_w10_vs_pipeline       -1032.3091   [-1723.4649, -447.4996]    True -7100.99   False         8 / 10     
+[21:16:20 +   1391s] Ublend_w10_vs_pipeline  -274.5473   [-588.4308, -30.3326]    True -1888.54   False         8 / 10     
+[21:16:20 +   1391s] airport         n   pipeline       U_w1  Ublend_w1      U_w10 Ublend_w10        U_w1_vs_pipeline   Ublend_w1_vs_pipeline       U_w10_vs_pipeline  Ublend_w10_vs_pipeline
+[21:16:20 +   1391s] EDDF          599     418.26     322.36     347.30     320.32     346.15             +95.90*                 +70.96*                 +97.93*                 +72.11*    
+[21:16:20 +   1391s] EDDM          237     670.81     613.19     621.24     623.63     620.02             +57.61*                 +49.57*                 +47.17                  +50.79*    
+[21:16:20 +   1391s] EGLL          466    1174.83    1092.24    1118.83    1095.23    1120.35             +82.59*                 +56.00*                 +79.60*                 +54.48*    
+[21:16:20 +   1391s] EHAM          808     663.74     560.14     590.18     562.38     586.73            +103.60*                 +73.56*                +101.36*                 +77.01*    
+[21:16:20 +   1391s] LEBL          496     362.08     301.25     311.20     305.70     309.36             +60.83*                 +50.88*                 +56.39*                 +52.72*    
+[21:16:20 +   1391s] LEMD          309     339.38     270.94     279.14     272.49     284.51             +68.44*                 +60.24*                 +66.89*                 +54.87*    
+[21:16:20 +   1391s] LFPG          876    3456.28    3448.82    3446.67    3452.19    3448.70              +7.46                   +9.61*                  +4.10                   +7.58     
+[21:16:20 +   1391s] LIRF          397    3931.36    8958.81    5520.20    9083.86    5593.36           -5027.45*               -1588.84*               -5152.50*               -1662.01*    
+[21:16:20 +   1391s] LSZH          476     690.81     660.34     650.51     799.28     691.58             +30.47                  +40.30*                -108.47                   -0.77     
+[21:16:20 +   1391s] LTFM          657     805.73     583.35     635.41     573.09     627.42            +222.37*                +170.31*                +232.64*                +178.31*    
+[21:16:20 +   1391s]    (* = that airport's own paired interval excludes zero)
+[21:16:20 +   1391s] ====================================================================================================
+[21:16:20 +   1391s] UNIFIED ALL-ROWS ARM [queue_allrows] - UNMATCHED EXMONSTER rows (5,265), holdout months (1, 7)   
+[21:16:20 +   1391s] ====================================================================================================
+[21:16:20 +   1391s] arm           matched RMSE   definition
+[21:16:20 +   1391s] pipeline          995.5975   matched: A2 + QUEUE_FEATS (queue predictions); unmatched: the stratum record's S0
+[21:16:20 +   1391s] U_w1             1223.6603   unified y-target regressor, unmatched weight 1, best_iter 1,354 -> n_ref 1,692, mean over seeds [0, 1, 2], max(., 1)
+[21:16:20 +   1391s] Ublend_w1        1017.6299   0.5 U_w1 + 0.5 pipeline
+[21:16:20 +   1391s] U_w10            1157.1822   unified y-target regressor, unmatched weight 10, best_iter 1,047 -> n_ref 1,309, mean over seeds [0, 1, 2], max(., 1)
+[21:16:20 +   1391s] Ublend_w10        990.8254   0.5 U_w10 + 0.5 pipeline
+[21:16:20 +   1391s] seed sd: 0.1454 s (sample sd, ddof=1)   2 x seed sd = 0.2908 s
+[21:16:20 +   1391s] pair                       gain s         95% paired CI  excl 0  gain/sd  >2x sd  airports improving
+[21:16:20 +   1391s] U_w1_vs_pipeline        -228.0628   [-448.0048, -28.5312]    True -1568.79   False         9 / 10     
+[21:16:20 +   1391s] Ublend_w1_vs_pipeline    -22.0325   [-120.4549, +67.9424]   False  -151.56   False         9 / 10     
+[21:16:20 +   1391s] U_w10_vs_pipeline       -161.5847   [-336.0991,  -0.4455]    True -1111.50   False         8 / 10     
+[21:16:20 +   1391s] Ublend_w10_vs_pipeline    +4.7721   [-74.7543, +77.3590]   False    32.83    True         8 / 10     
+[21:16:20 +   1391s] airport         n   pipeline       U_w1  Ublend_w1      U_w10 Ublend_w10        U_w1_vs_pipeline   Ublend_w1_vs_pipeline       U_w10_vs_pipeline  Ublend_w10_vs_pipeline
+[21:16:20 +   1391s] EDDF          599     418.26     322.36     347.30     320.32     346.15             +95.90*                 +70.96*                 +97.93*                 +72.11*    
+[21:16:20 +   1391s] EDDM          237     670.81     613.19     621.24     623.63     620.02             +57.61*                 +49.57*                 +47.17                  +50.79*    
+[21:16:20 +   1391s] EGLL          465    1089.88    1008.07    1033.06    1013.69    1035.90             +81.81*                 +56.82*                 +76.19*                 +53.98*    
+[21:16:20 +   1391s] EHAM          807     542.97     409.24     449.75     413.18     445.61            +133.73*                 +93.22*                +129.79*                 +97.36*    
+[21:16:20 +   1391s] LEBL          496     362.08     301.25     311.20     305.70     309.36             +60.83*                 +50.88*                 +56.39*                 +52.72*    
+[21:16:20 +   1391s] LEMD          309     339.38     270.94     279.14     272.49     284.51             +68.44*                 +60.24*                 +66.89*                 +54.87*    
+[21:16:20 +   1391s] LFPG          874     588.60     478.24     496.94     487.12     503.64            +110.36*                 +91.66*                +101.47*                 +84.96*    
+[21:16:20 +   1391s] LIRF          345    3026.43    4315.71    3351.16    3987.09    3215.12           -1289.27*                -324.73                 -960.66*                -188.68     
+[21:16:20 +   1391s] LSZH          476     690.81     660.34     650.51     799.28     691.58             +30.47                  +40.30*                -108.47                   -0.77     
+[21:16:20 +   1391s] LTFM          657     805.73     583.35     635.41     573.09     627.42            +222.37*                +170.31*                +232.64*                +178.31*    
+[21:16:20 +   1391s]    (* = that airport's own paired interval excludes zero)
+[21:16:20 +   1391s] ====================================================================================================
+[21:16:20 +   1391s] TOTAL at the 2026 weights (w_m 0.984660, w_u 0.015340; stratified paired bootstrap):
+[21:16:20 +   1391s]   pipeline         321.0042
+[21:16:20 +   1391s]   U_w1             443.9999
+[21:16:20 +   1391s]   Ublend_w1        352.3469
+[21:16:20 +   1391s]   U_w10            456.4808
+[21:16:20 +   1391s]   Ublend_w10       356.8753
+[21:16:20 +   1391s]   U_w1_vs_pipeline             gain -122.9957 s   95% CI [-196.1343, -58.8083]   excludes 0: True
+[21:16:20 +   1391s]   Ublend_w1_vs_pipeline        gain -31.3427 s   95% CI [-59.2283,  -7.9793]   excludes 0: True
+[21:16:20 +   1391s]   U_w10_vs_pipeline            gain -135.4766 s   95% CI [-214.3087, -66.9803]   excludes 0: True
+[21:16:20 +   1391s]   Ublend_w10_vs_pipeline       gain -35.8711 s   95% CI [-66.9152, -10.5893]   excludes 0: True
+[21:16:20 +   1391s] ex-monster: 5,265 of the 5,321 unmatched holdout rows have y <= 10800 s; seed sd source: queue json
+[21:16:20 +   1391s] NaN pattern on the unmatched rows: 13 AOBT_3-anchored columns ['proxy', 'aobt_sched', 'aobt_eobt', 'aobt_sec', 'q_apt_at_push', 'q_rwy_at_push', 'q_pushed_after_me', 'q_rwy_tko_in_taxi', 'q_rwy_push_pre20', 'q_arr_taxiing_at_push', 'q_arr_taxiin_sym30_push', 'q_next_arr_onblock_gap', 'd_prx_minus_p50'] + 10 *_flt-derived columns NaN, checked on every unmatched cache file
+[21:16:20 +   1391s] |delta| bands (19.0; left-closed, right-open; over10 = 10to20 + gt20); RMSE per arm on the band's rows, paired gain vs pipeline with its 95% CI (* = excludes zero):
+[21:16:20 +   1391s] band            n  rows%   SSE%   pipeline       U_w1  Ublend_w1      U_w10 Ublend_w10              U_w1_vs_pipeline         Ublend_w1_vs_pipeline             U_w10_vs_pipeline        Ublend_w10_vs_pipeline
+[21:16:20 +   1391s] lt2       127,466  37.60   13.7     135.39     137.33     134.57     153.31     138.74      -1.94 [  -2.57,   -1.34]*      +0.82 [  +0.53,   +1.09]*     -17.93 [ -23.03,  -13.89]*      -3.35 [  -4.98,   -2.13]*
+[21:16:20 +   1391s] 2to10     185,229  54.64   37.8     186.59     267.77     209.95     283.45     215.14     -81.18 [-190.13,   -4.62]*     -23.36 [ -62.87,   -0.44]*     -96.86 [-205.11,  -19.85]*     -28.55 [ -68.59,   -4.55]*
+[21:16:20 +   1391s] 10to20     20,667   6.10   17.4     378.78     389.69     381.28     406.11     385.78     -10.91 [ -12.63,   -9.28]*      -2.50 [  -3.34,   -1.70]*     -27.33 [ -37.55,  -21.26]*      -7.00 [  -9.85,   -5.08]*
+[21:16:20 +   1391s] gt20        5,653   1.67   31.1     968.21     998.08     974.92    1032.91     986.72     -29.87 [ -42.70,  -19.14]*      -6.71 [ -12.75,   -1.28]*     -64.70 [ -82.91,  -49.60]*     -18.52 [ -26.33,  -11.89]*
+[21:16:20 +   1391s] over10     26,320   7.76   48.5     560.36     577.23     564.17     598.87     570.94     -16.88 [ -21.67,  -12.62]*      -3.82 [  -5.99,   -1.78]*     -38.52 [ -46.12,  -31.33]*     -10.59 [ -13.50,   -7.68]*
+[21:16:20 +   1391s] json -> /Users/saurabhdxt/Projects/prc-challenge/reports/lgbm_fold_queue_allrows.json   wall 1391s   peak RSS 4.06 GB
