@@ -1927,3 +1927,203 @@ has been screened and none does. The mode rates by airport (1.9%–15.7%) are an
 property. What remains is formulation (Arm U-20.5, in flight), capacity (sweep), a second learner
 (CatBoost), regime (D, Y) — worth ~2–4k MSE together on the measured record.
 Screen: scratchpad `amend21_4_arrivals.py` / `.log`.
+
+
+---
+
+# RESULT 12 · 2026-09-09 21:16 local · Arm U as registered (U-20.2, stopping set = all rows) — NOT WORKING; superseded by 20.5
+
+`lgbm_fold.py --ytarget --all-rows --unmatched-weight 1,10 --queue --baseline A2 --pa-trees es` at
+commit 4f376ca (stopping metric on all 348,353 stopping rows), fold A, 23 min, peak 4.06 GB; outputs
+renamed `reports/lgbm_fold_queue_allrows_20_2.{json,log,console.log}`,
+`data/cache_stand/fold_preds_queue_allrows_20_2.parquet`. Early stop: w1 best_iter 1,354 → n_ref
+1,692; w10 1,047 → 1,309 (the delta arm: 21,316 → 26,647). Baseline = the queue record (224.258).
+
+| subset | pipeline | U_w1 | Ublend_w1 | U_w10 | Ublend_w10 |
+|---|---|---|---|---|---|
+| matched (n 339,015) | 224.258 | 268.576 (−44.3 [−108.4, −5.4]) | 235.804 (−11.5 [−31.8, −0.5]) | 283.864 | 240.485 |
+| unmatched ex-monster (5,265) | 995.60 | 1223.66 (−228 [−448, −29]) | 1017.63 (−22 [−120, +68]) | 1157.18 | 990.83 (+4.8 [−75, +77]) |
+| unmatched pooled (5,321) | 1867.9 | 2867.2 (−999) | 2126.9 (−259) | 2900.2 | 2142.5 |
+
+No clause of 20.3 holds for any arm: 0 of 10 airports improve on matched rows for U alone; LIRF
+384 → 634 (the under-fitted y-model carries the unmatched monsters into matched LIRF rows; the
+2–10 min band's interval [−190, −5] is a handful of monster-sized predictions). **NOT WORKING as
+registered, and not decisional** — the stop was decided by the unmatched rows' noise (20.5). The
+decisional run, U-20.5 (stopping metric on the matched stopping rows), launches next on 427d82c and
+takes the canonical output names.
+
+
+### 21.5 · third candidate, written BEFORE its screen · record-ordering fingerprints
+
+`FLIGHT_ID_mvt` is a perfectly time-ordered key (Spearman 1.000 with MVT_TIME at every airport) —
+no ordering signal can live in it. `MVT_ID_mvt` is a sequential key at EDDF/EGLL/LIRF (Spearman
+0.92–0.96 with MVT_TIME), partly at LTFM (0.45), not at LFPG (0.00): where it is sequential, a record
+inserted out of time order (a late or manual entry, a batch import) sits off the id-vs-time line.
+H-21.5: the deviation of MVT_ID from its airport's id-vs-time line identifies (a) the matched mode
+rows and/or (b) the unmatched fills (BLOCK == SCHED; the stratum's 228k-MSE stake). Screen on raw
+months 1 + 7: per airport, rows sorted by MVT_TIME, deviation = id minus the rolling median id of the
+±250 neighbouring rows, normalised by that window's id spread; AUC of |deviation| and of the signed
+deviation for (a) and (b), per airport and pooled; the same for FLIGHT_ID's deviation as a control.
+TRUE / FALSE shapes as 21.3 (AUC >= 0.75 with lift >= 3× and coverage >= 40% → Arm F; < 0.65 →
+NOT WORKING). Computable at serve time: MVT_ID and MVT_TIME are on every scored row.
+
+
+### RESULT 11.5 · 2026-09-09 21:32 local · record-ordering fingerprints — NOT WORKING
+
+Raw months 1 + 7. (a) Mode rows: MVT_ID's deviation from its airport-month id-vs-time line, AUC
+|dev| **0.532** (per airport 0.50–0.57; the 419 rows with |dev| > 2 have a 30% mode rate, 4× the
+base, covering 0.5% of mode rows); FLIGHT_ID's deviation **0.587** (EDDF 0.68, EGLL 0.66, EHAM 0.64,
+LEMD 0.63, the rest 0.53–0.58) — a weak signal at four airports, below the 0.65 FALSE line pooled and
+below the 0.75 TRUE line everywhere; signed deviations 0.45–0.49. (b) Unmatched fills (fill :=
+|BLOCK − SCHED| < 60 s; 253 of 5,373 unmatched departures, LIRF 34%, LTFM 9%, LSZH 5%, EHAM 3%):
+MVT_ID deviation AUC **0.436** pooled, LIRF 0.483, the 383 monsters (sp > 3 h, fill rate 12%) 0.454.
+The first run of (b) used exact equality (22 fills) and is void; this is the corrected measurement.
+FLIGHT_ID is null on the unmatched rows (they have no NM record), so it cannot fingerprint the stratum.
+
+**Verdict: NOT WORKING.** Screens: scratchpad `amend21_5_ordering.py/.log`, `amend21_5b_fills.log`.
+
+**Standing after 21.5:** timestamps' arithmetic (21), the arrival side and the stand's previous
+occupant (21.4), record ordering (21.5) — all at chance or at the regime level. FLIGHT_ID deviation at
+0.63–0.68 on four airports is the only per-row signal above 0.6 found tonight; it is recorded for a
+possible Arm F on those airports if nothing better appears, not as an identifier.
+
+
+---
+
+# AMENDMENT 22 — Arm F: the record-ordering block (FLIGHT_ID / MVT_ID off the airport's id-vs-time line)
+
+**2026-09-09 22:20 local, written BEFORE the block is built or run.** RESULT 11.5's one per-row
+signal above 0.6: FLIGHT_ID's deviation from its airport-month id-vs-time line separates the mode
+rows at AUC 0.68 (EDDF), 0.66 (EGLL), 0.64 (EHAM), 0.63 (LEMD), 0.53–0.58 elsewhere; MVT_ID's
+deviation 0.50–0.57 with a 4× lift on its 419 largest deviations. Weak, per-row, computable at serve
+time from the scored file alone (MVT_ID, FLIGHT_ID, MVT_TIME are on every scored row; the line is
+transductive within the file, as Amendment 19.1 permits for the day block). Built under the owner's
+"build everything measurable"; expected worth: low single-digit seconds at most.
+
+## 22.1 The block (`ORDER_FEATS`, `data/cache_order/`)
+
+Per raw file and airport, over EVERY departure at the airport with a finite MVT_TIME (matched or
+not, labelled or not — the same reference stream in both modes), rows sorted by MVT_TIME then
+MVT_ID: `o_dev_mvt` = (MVT_ID − rolling median over the ±250 neighbouring rows) / max(rolling p90 −
+p10, 1); `o_dev_flt` the same for FLIGHT_ID, NaN where FLIGHT_ID is null; `o_n_line` the window's
+row count (50–501). Each feature row (the stand cache's departure stream, take-off order) takes its
+own three values. Serve mode: per calendar month of the scored file, as build_day_ranking.
+
+## 22.2 Harness
+
+`lgbm_fold.py --orderfeats --queue --baseline A2 --pa-trees es` (mode `queue_order`: design = A2 +
+QUEUE_FEATS + ORDER_FEATS, 83 columns), baseline = the queue record; `lgbm_submit.py --orderfeats`
+for the submission. Same lr/leaves/ES/seeds; paired row bootstrap 2,000 draws; the |delta| bands
+of 19.0 and the per-airport table reported.
+
+## 22.3 Thresholds, locked
+
+ESTABLISHED iff (i) the paired interval vs the queue record excludes zero in F's favour, (ii) point
+gain >= +1.0 s, (iii) gain > 2 × seed sd, (iv) the over-10-min band's own interval excludes zero
+(the mechanism: the block must move the mode rows, not the body). NOT WORKING iff (i) fails.
+(ii)–(iv) failing with (i) holding: INCONCLUSIVE, the owner decides (RESULT 9's precedent).
+
+
+---
+
+# AMENDMENT 23 — the lane that decides it: the 5,290 unmatched rows carry 40% of the board score
+
+**2026-09-09 22:45 local, written BEFORE the screen.** Owner: "the top candidate is doing something
+no one is even thinking about — it is now 245."
+
+## 23.0 The arithmetic that reframes the problem (measured, not assumed)
+
+At the 2026 weights (w_m 0.984660 / w_u 0.015340) and v5's board 288.1406 = 83,025 MSE, with the
+shipped matched RMSE of 224.258 (the queue fold's treatment):
+
+| | contribution | share |
+|---|---|---|
+| 339,551 matched rows | 49,520 MSE | 59.6% |
+| **5,290 unmatched rows** | **33,505 MSE** | **40.4%** (implied RMSE 1,478 s) |
+
+Holding matched fixed, **10th place (276.51) needs unmatched RMSE 1,478 → 1,325 s** (−11% on that
+lane); the leader's 245.29 needs 833 s. Holding unmatched fixed, matched would have to reach
+**164.6 s** — exactly Amendment 19.0's perfect-mode-knowledge bound, i.e. unreachable without an
+oracle. **One 24-hour row predicted at 1,000 s costs 40 s of board RMSE.** The lane that decides
+this competition is the 1.5% of rows the field treats as noise, not the 98.5% everyone tunes.
+
+Fold record (`stratum_fold_v7_preds.parquet`, 5,321 fold-A unmatched rows, scaled to 5,290 at the
+2026 weight): S0 53,524 MSE → S1 (shipped) 52,830 → **ORACLE fill decision 39,333**. The fill
+decision alone is **13,497 MSE of headroom, 26% of the lane**; 5,809 of it sits in 158 fills hedged
+below p = 0.5 and 6,030 in 43 non-fills hedged above it. Two LFPG rows (y 84,240 s and 58,206 s at
+sp 1,740 / 2,043 s — the airport's off-block stamp is ~23 h stale) carry 29,502 MSE and are not
+fills: they are the bet-variance term, unreachable without identification.
+
+## 23.1 Hypothesis H-23 — the schedule-only record fingerprint
+
+A row that is BOTH unmatched (no NM `AOBT_3`) AND filled (`BLOCK == SCHED`) has no actual off-block
+observation anywhere: its movement record was created from schedule data. H-23: **such a record is
+incomplete in OTHER observable fields too** — a missing or generic `STAND_mvt` / `RUNWAY_mvt`, a
+null `FLIGHT_ID`, a missing `EOBT_1`/`LOBT`/`IOBT`, an `ADES_FILED` differing from `ADES` — and that
+completeness pattern identifies fills per row at serve time, where sp bands and the L-e logistic
+(AUC 0.877 at LIRF) currently leave 13,497 MSE on the table.
+
+## 23.2 Screen (ranking only, raw months 1 + 7, unmatched departures at the ten airports)
+
+Per candidate indicator: prevalence, fill rate inside vs outside, lift, coverage, AUC — pooled, at
+LIRF, and on the sp > 3 h subset where the decision is worth hours. Then a 2-fold logistic on the
+completeness block alone and on completeness + the shipped model's inputs (log sp, dayoff, airport),
+reported as AUC and as the MSE the mixture would carry with that p on the fold-A rows.
+
+## 23.3 TRUE / FALSE shapes, locked
+
+- **TRUE:** the completeness block reaches **fill AUC >= 0.80 pooled** (against the shipped cell/L-e
+  model's own AUC on the same rows, computed alongside as the reference) OR cuts the fold-A
+  mixture's MSE by **>= 3,000 MSE** at the 2026 weight with p from a 2-fold fit. Then it becomes
+  Amendment 24's arm: the block enters `_lirf_fill_model` and the hierarchical cells, measured on
+  `stratum_fold.py`'s 12-fold LOMO with a month-block paired interval, exactly as Amendment 18 was.
+- **FALSE:** AUC below the shipped model's on the same rows AND fold-A MSE gain < 1,000. Then
+  record-completeness is NOT the identifier and the lane's remaining headroom is bet variance, to be
+  stated as such.
+- Between: INCONCLUSIVE, reported with the numbers, and the arm still runs (one fold run is cheap
+  against a 13,497-MSE headroom).
+- No point-gain bar: any paired gain on this lane is bankable by RESULT 10's precedent (the stratum
+  transferred at ~1.4x).
+
+
+---
+
+# RESULT 13 · 2026-09-09 22:55 local · Amendment 23 — H-23 NOT WORKING; the unmatched lane is priced and closed
+
+**H-23 (the schedule-only record fingerprint): NOT WORKING, and it cannot work.** An unmatched row
+has no flight-plan record at all: `FLIGHT_ID` is null on **99.87%** of unmatched departures and every
+`_flt` column with it, so the completeness pattern is constant and has nothing to separate. Every
+indicator returned AUC 0.49-0.50; the completeness block as a 2-fold logistic scores **0.489**
+against the fill label. 23.3's FALSE shape is met.
+
+**The shipped `p` is better than every alternative fitted against it** (fold-A rows, out of fold on
+both sides): cells + the L-e logistic **0.944** pooled, **0.984** on sp > 3 h, 0.859 at LIRF, against
+a continuous logistic on (log sp, dayoff, airport) at 0.913 / 0.917 / 0.420 and a per-airport-slope
+version at 0.925 / 0.914 / 0.459. The cell discretization is not leaving the headroom on the table;
+the mixture's MSE with the shipped p is 53,546 against the logistic's 76,840. Reliability in the
+sp > 3 h top decile: predicted 0.66 vs realised 0.60.
+
+**Where the 13,497-MSE oracle headroom actually is:** ALL of it at LIRF (17,690 → 3,520 MSE);
+ex-LIRF the oracle fill decision saves **42 MSE** of 35,856. LIRF's fill identification is the lane
+four probes have already closed (Amendment 11, the turnaround screen, the oracle bound, RESULT 8),
+with the shipped model already at AUC 0.859 there.
+
+**The rest of the lane is four rows.** Unmatched departures with y > 3 h that are NOT fills and whose
+sp is under 3 h - the stale-`BLOCK` artifacts - number **4 in two months**, on 4 distinct
+airport-days, at 3 airports (LFPG ×2, EHAM, EGLL), each the only such row on its day, with no burst,
+no day-level signature and no shared offset (BLOCK precedes SCHED by 0.17 / 3.17 / 15.6 / 22.9 h).
+**Zero of the 339,046 matched rows show the shape** - an NM anchor precludes it. Two of them (LFPG,
+y 84,240 s and 58,206 s) carry **29,502 MSE = 56% of the fold's whole unmatched lane**.
+
+**The insurance arithmetic, priced before anyone proposes it.** Raising a scored row's prediction
+from 1,000 s to 40,000 s costs (39,000)²/344,841 = **4,411 MSE if the row is ordinary** and saves
+**14,400 MSE if it is a 23-hour monster**: the bet pays only when P(monster) > **23%**. The measured
+base rate on unmatched rows is 4/5,373 = **0.07%** and no feature moves it. Deliberate over-prediction
+of the tail is a losing bet by a factor of ~300 and is refused.
+
+**Verdict.** The unmatched lane holds 40% of the board score, 26% of it is oracle-reachable, and
+every reachable part is LIRF fill identification - closed. The remainder is a draw of one-in-a-million
+rows. **The 23,000 MSE that separates us from the leader is not in this lane**, which leaves the
+matched mode rows (Amendment 19.0) and, by 23.0's arithmetic, a leader whose matched RMSE is near
+165 s. Screens: scratchpad `amend23_unmatched_anatomy.log`, `amend23_screen.log`,
+`amend23_p_quality.log`, `amend23_monsters.log`.

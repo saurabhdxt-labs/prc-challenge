@@ -1456,8 +1456,8 @@ def test_amendment_19_modes_name_their_outputs_and_compose_with_queue_only():
     assert lf.output_paths("queue_ytarget", None) == (lf.REPORTS / "lgbm_fold_queue_ytarget.json",
                                                       lf.REPORTS / "lgbm_fold_queue_ytarget.log",
                                                       lf.CACHE / "fold_preds_queue_ytarget.parquet")
-    assert len({lf.OUTPUT_NAMES[m] for m in lf.MODES}) == len(lf.MODES) == 14      # 10 + the unified arm's four
-    for m in ("day", "queue_day", "ytarget", "queue_ytarget"):
+    assert len({lf.OUTPUT_NAMES[m] for m in lf.MODES}) == len(lf.MODES) == 16      # 10 + the unified arm's four + arm F's two
+    for m in ("day", "queue_day", "ytarget", "queue_ytarget", "order", "queue_order"):
         assert m in lf.RUNNERS and m in lf.COMMANDS and m in lf.ESTIMATES
     assert "--dayfeats --baseline A2 --pa-trees es" in lf.COMMANDS["day"] and "lgbm_fold_day.console.log" in lf.COMMANDS["day"]
     assert "--dayfeats --queue" in lf.COMMANDS["queue_day"] and "--ytarget --queue" in lf.COMMANDS["queue_ytarget"]
@@ -1471,6 +1471,25 @@ def test_amendment_19_modes_name_their_outputs_and_compose_with_queue_only():
     assert lf.FEATS_QUEUE_DAY == list(lf.L.FEATS) + QUEUE_FEATS + DAY_FEATS and len(lf.FEATS_QUEUE_DAY) == 89
     assert lf.DAY_FEATS == DAY_FEATS == lf.S.DAY_FEATS
     assert lf.YBLEND == 0.5 and lf.YTARGET_NAMED_AIRPORTS == ("LTFM", "EDDM") and lf.DAY_MIN_AIRPORTS == 6
+    # Amendment 22 arm F: its own mode, its own names, composing with --queue only
+    assert lf.mode_of(lf.parse_args(["--orderfeats"])) == "order"
+    assert lf.mode_of(lf.parse_args(["--orderfeats", "--queue"])) == "queue_order"
+    assert lf.output_paths("order", out) == (out / "lgbm_fold_order.json", out / "lgbm_fold_order.log",
+                                             out / "fold_preds_order.parquet")
+    assert lf.output_paths("queue_order", out)[2] == out / "fold_preds_queue_order.parquet"
+    for argv in (["--orderfeats", "--dayfeats"], ["--orderfeats", "--ytarget"], ["--orderfeats", "--catboost"],
+                 ["--orderfeats", "--sweep"], ["--orderfeats", "--queue", "--ytarget"],
+                 ["--ytarget", "--all-rows", "--orderfeats"]):
+        with pytest.raises(SystemExit):
+            lf.parse_args(argv)
+    assert lf.FEATS_ORDER == list(lf.L.FEATS) + lf.ORDER_FEATS and len(lf.FEATS_ORDER) == 71
+    assert lf.FEATS_QUEUE_ORDER == list(lf.L.FEATS) + QUEUE_FEATS + lf.ORDER_FEATS and len(lf.FEATS_QUEUE_ORDER) == 83
+    assert lf.ORDER_FEATS == lf.S.ORDER_FEATS and lf.OCACHE == lf.S.OCACHE
+    # the two block arms are ONE runner (a copy would drift and the intervals must be comparable),
+    # and each resolves its cache attribute at call time rather than freezing the path at import
+    assert lf.RUNNERS["order"] is lf.run_order and lf.RUNNERS["day"] is lf.run_day
+    assert lf.BLOCK_ARMS["day"].cache_attr == "DCACHE" and lf.BLOCK_ARMS["order"].cache_attr == "OCACHE"
+    assert lf.BLOCK_ARMS["day"].min_airports == 6 and lf.BLOCK_ARMS["order"].min_airports is None
 
 
 def test_delta_bands_partition_the_holdout_with_left_closed_edges():
@@ -1854,6 +1873,68 @@ YTARGET_TOL_S = 15.0
 # weights - plus the 0.5/0.5 blend with the pipeline on each, for every W asked for.
 # =============================================================================================
 
+def test_order_arm_end_to_end_recovers_a_planted_per_row_shift(monkeypatch, tmp_path):
+    """Amendment 22 arm F on a synthetic cache whose target carries 300 s x the row's own
+    o_dev_flt - a PER-ROW effect visible only through the order block, the shape RESULT 11.5
+    found weakly in the real data. In-process baseline (A2, seeds 0-2), treatment = baseline +
+    ORDER_FEATS with best_iter re-found: the paired interval must exclude zero in the improving
+    direction, the five |delta| bands are reported with the treatment's interval on each band's
+    rows, the parquet is recomputable, and the record names the block and its cache. Then the
+    arm reads a QUEUE record as its baseline under --queue: the design is FEATS + QUEUE + ORDER
+    (83) and the baseline is the queue fold's own treatment column.
+
+    Arm F has NO airport-count clause (22.3), so the record carries no at_least_N_airports key -
+    unlike arm D, which shares this runner.
+
+    Fails when the order block is not in the treatment's design (no gain), when the block arm
+    freezes its cache path at import (the real 152k-row cache under a 600-row fixture), when the
+    queue record is not the baseline under --queue, or when arm D's airport clause leaks into
+    arm F. Rehearsed 2026-09-09, each RED: the treatment fitted on `X[:, :nb]`; `cache=OCACHE`
+    frozen in BLOCK_ARMS (the positional join refuses: 152,250 rows against 600);
+    `_baseline_record(..., False)` under --queue; `min_airports=6` for the order block.
+    """
+    _fold_env(monkeypatch, tmp_path, queue_signal=0.0, order_signal=300.0)
+    monkeypatch.setattr(lf, "OCACHE", tmp_path / "data" / "cache_order")
+    out = tmp_path / "out"
+    assert lf.main(["--orderfeats", "--smoke", "--out-dir", str(out), "--refit-baseline", "--baseline", "A2"]) == 0
+    j = json.loads((out / "lgbm_fold_order.json").read_text())
+    preds = pd.read_parquet(out / "fold_preds_order.parquet")
+    log = (out / "lgbm_fold_order.log").read_text()
+    assert j["mode"] == "order" and j["amendment"] == "22" and j["config"]["baseline_arm"] == "A2"
+    assert j["config"]["n_features"] == 71 and j["config"]["features"] == list(lf.L.FEATS) + lf.ORDER_FEATS
+    assert j["config"]["order_feats"] == lf.ORDER_FEATS and j["config"]["order_cache"] == str(tmp_path / "data" / "cache_order")
+    assert j["config"]["queue"] is False and j["config"]["min_airports"] is None
+    p = j["pairs"]["treatment_vs_baseline"]
+    print(f"\narm F on the fixture: baseline {j['arms']['baseline']['rmse']:.2f}  treatment "
+          f"{j['arms']['treatment']['rmse']:.2f}  gain {p['gain_s']:+.2f} s  CI {p['ci95']}  "
+          f"airports {p['airports_improving']}/10")
+    assert p["gain_s"] > 20.0 and p["excludes_zero"] is True and p["improving"] is True and p["ci95"][0] > 0
+    assert not any(k.startswith("at_least_") for k in p), "arm F has no airport-count clause (22.3)"
+    assert "airports improving" in log and "over10 (the |delta| > 10 min bands of 22.3)" in log
+    _check_bands(j, preds, {"treatment_vs_baseline"})
+    for arm in ("baseline", "treatment"):
+        assert j["arms"][arm]["rmse"] == pytest.approx(_recovered_rmse(preds, arm), abs=1e-9), arm
+    s = [preds[f"delta_hat_seed{i}"].to_numpy() for i in range(3)]
+    assert np.allclose(preds.treatment.to_numpy(), (s[0] + s[1] + s[2]) / 3, atol=1e-9, rtol=0)
+
+    q = tmp_path / "q"
+    assert lf.main(["--queue", "--smoke", "--out-dir", str(q), "--refit-baseline", "--n-perm", "2",
+                    "--pa-trees", "share", "--baseline", "A2"]) == 0
+    qj = json.loads((q / "lgbm_fold_queue.json").read_text())
+    qp = pd.read_parquet(q / "fold_preds_queue.parquet")
+    out2 = tmp_path / "out2"
+    assert lf.main(["--orderfeats", "--queue", "--smoke", "--out-dir", str(out2), "--baseline", "A2",
+                    "--queue-preds", str(q / "fold_preds_queue.parquet"),
+                    "--queue-json", str(q / "lgbm_fold_queue.json")]) == 0
+    j2 = json.loads((out2 / "lgbm_fold_queue_order.json").read_text())
+    p2 = pd.read_parquet(out2 / "fold_preds_queue_order.parquet")
+    assert j2["mode"] == "queue_order" and j2["config"]["n_features"] == 83
+    assert j2["config"]["features"] == list(lf.L.FEATS) + QUEUE_FEATS + lf.ORDER_FEATS
+    assert j2["baseline"]["source"] == "queue predictions" and j2["seed_sd"]["source"] == "queue json"
+    assert j2["seed_sd"]["sd"] == qj["seed_sd"]["sd"]
+    assert np.array_equal(p2.baseline.to_numpy(), qp.treatment.to_numpy())
+
+
 def test_allrows_mode_flags_weights_and_the_2026_total():
     """--all-rows composes with --ytarget only (mode allrows, queue_allrows with --queue);
     --unmatched-weight parses a list of distinct positive floats (default (1.0,)); the 2026
@@ -1888,7 +1969,7 @@ def test_allrows_mode_flags_weights_and_the_2026_total():
     out = pathlib.Path("/o")
     assert lf.output_paths("allrows", out) == (out / "lgbm_fold_allrows.json", out / "lgbm_fold_allrows.log", out / "fold_preds_allrows.parquet")
     assert lf.output_paths("queue_allrows", out)[2] == out / "fold_preds_queue_allrows.parquet"
-    assert len({lf.OUTPUT_NAMES[m] for m in lf.MODES}) == len(lf.MODES) == 14
+    assert len({lf.OUTPUT_NAMES[m] for m in lf.MODES}) == len(lf.MODES) == 16   # + arm F's two
     assert lf.mode_of(lf.parse_args(["--ytarget", "--all-rows", "--dayfeats"])) == "allrows_day"
     assert lf.mode_of(lf.parse_args(["--ytarget", "--all-rows", "--queue", "--dayfeats"])) == "queue_allrows_day"
     assert "--ytarget --all-rows --unmatched-weight 1,10" in lf.COMMANDS["allrows"] and "allrows" in lf.ESTIMATES

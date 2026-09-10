@@ -1343,6 +1343,8 @@ def _submission_env(module, monkeypatch, root, **kw):
     monkeypatch.setattr(module, "QCACHE", fx.queue)
     if hasattr(module, "DCACHE"):
         monkeypatch.setattr(module, "DCACHE", fx.day)
+    if hasattr(module, "OCACHE"):
+        monkeypatch.setattr(module, "OCACHE", fx.order)
     monkeypatch.setattr(module, "SUBS", fx.subs)
     monkeypatch.setattr(module, "P", dict(module.P, num_threads=1))
     return fx
@@ -2064,3 +2066,167 @@ def test_all_rows_submit_path_early_stops_on_the_matched_stopping_rows_only(tmp_
     assert np.array_equal(es_eval, es & ~um) and es_eval.sum() < es.sum(), "the stopping rows must be the matched rows of the stopping months"
     _run_submit(ls, fx, tmp_path / "out_m", ["--target", "y"])
     assert seen[-1][0] == 68 and seen[-1][2] is None, "a matched-only design passes no es_eval"
+
+
+# ---- Amendment 22: the order block on the submit path ----------------------------------------
+
+def _order_frame(n, seed=0, ids=None):
+    """An order-cache-shaped frame: MVT_ID_mvt + the three ORDER_FEATS as float32, each column
+    offset by its index so a column swap is visible."""
+    rng = np.random.default_rng(seed)
+    d = pd.DataFrame({"MVT_ID_mvt": np.arange(n, dtype="float64") + 100.0 if ids is None
+                      else np.asarray(ids, dtype="float64")})
+    for i, c in enumerate(_syn.ORDER_FEATS):
+        d[c] = (rng.integers(0, 9, n) + 100 * i).astype("float32")
+    return d
+
+
+def test_order_month_join_is_positional_with_equal_lengths_and_the_column_contract_asserted():
+    """A training month's order twin is joined by position exactly as the day twin is (build_order's
+    stream IS build_features's stream): the row count is asserted per month, a mismatch refused;
+    the cache must carry exactly MVT_ID_mvt + ORDER_FEATS in the contract order; the twin's path is
+    the same file name under data/cache_order/; a missing twin names the order cache and the
+    command that builds it. The module's list and cache dir are stand_ab's.
+
+    Fails when the order block reuses the day contract (a day cache would be accepted as an order
+    cache) or when the join is not length-checked. Rehearsed 2026-09-09, each RED: `DAY_FEATS`
+    in read_order_cache's contract; `if False:` for the length check.
+    """
+    o = _order_frame(7)
+    got = ls.attach_order_positional(7, o, "training_2025-02-01_2025-03-01.parquet")
+    assert list(got.columns) == _syn.ORDER_FEATS and len(got) == 7
+    for c in _syn.ORDER_FEATS:
+        assert np.array_equal(got[c].to_numpy(), o[c].to_numpy()) and got[c].dtype == np.float32
+    with pytest.raises(ValueError, match="rows"):
+        ls.attach_order_positional(8, o, "training_2025-02-01_2025-03-01.parquet")
+    with pytest.raises(ValueError, match="columns"):
+        ls.attach_order_positional(7, o.drop(columns=["o_dev_flt"]), "x")
+    with pytest.raises(ValueError, match="columns"):
+        ls.attach_order_positional(7, o[["MVT_ID_mvt"] + _syn.ORDER_FEATS[::-1]], "x")
+    with pytest.raises(ValueError, match="columns"):
+        ls.attach_order_positional(7, _day_frame(7), "x")             # a day cache is not an order cache
+    assert ls.ORDER_FEATS == stand_ab.ORDER_FEATS == _syn.ORDER_FEATS and len(ls.ORDER_FEATS) == 3
+    assert ls.OCACHE == stand_ab.OCACHE
+    assert ls.order_cache_path(pathlib.Path("/o"), pathlib.Path("/s/training_2025-02-01_2025-03-01.parquet")) \
+        == pathlib.Path("/o/training_2025-02-01_2025-03-01.parquet")
+    with pytest.raises(FileNotFoundError, match="order cache"):
+        ls.read_order_cache(pathlib.Path("/nowhere/training_2025-02-01_2025-03-01.parquet"))
+    by_id = ls.attach_order_by_id([101.0, 100.0], _order_frame(3), subset_ok=True)
+    assert by_id.MVT_ID_mvt.tolist() if "MVT_ID_mvt" in by_id.columns else len(by_id) == 2
+
+
+def test_load_frames_attaches_the_order_block_after_the_day_block(tmp_path):
+    """`load_frames(..., queue=True, day=True, order=True)` appends the queue, day and then the
+    order columns - months by position, ranking by id - so the design is FEATS + QUEUE_FEATS +
+    DAY_FEATS + ORDER_FEATS; order alone gives FEATS + ORDER_FEATS; a sampled ranking takes its
+    rows by id; an order month one row short refuses the whole load; a missing order cache is
+    named; order with all_rows is refused (the unmatched cache carries no order columns).
+
+    Fails when the order block lands before the day block, or when the short twin is accepted.
+    Rehearsed 2026-09-09, each RED: the order attach moved ahead of the day attach; the
+    all_rows refusal removed.
+    """
+    stand, queue, day, order = (tmp_path / n for n in ("cache_stand", "cache_queue", "cache_day", "cache_order"))
+    for d in (stand, queue, day, order):
+        d.mkdir()
+    name = "training_2025-{:02d}-01_2025-{:02d}-01.parquet"
+    _mini_month(5, 1, 1).to_parquet(stand / name.format(1, 2), index=False)
+    _mini_month(4, 3, 3).to_parquet(stand / name.format(3, 4), index=False)
+    _queue_frame(5, seed=1).to_parquet(queue / name.format(1, 2), index=False)
+    _queue_frame(4, seed=3).to_parquet(queue / name.format(3, 4), index=False)
+    _day_frame(5, seed=11).to_parquet(day / name.format(1, 2), index=False)
+    _day_frame(4, seed=13).to_parquet(day / name.format(3, 4), index=False)
+    o1, o3 = _order_frame(5, seed=21), _order_frame(4, seed=23)
+    o1.to_parquet(order / name.format(1, 2), index=False)
+    o3.to_parquet(order / name.format(3, 4), index=False)
+    rank = _mini_month(3, 7, 7)
+    rank["y"] = np.nan
+    rank["delta"] = np.nan
+    rank.insert(0, "MVT_ID_mvt", np.array([11.0, 12.0, 13.0]))
+    rank.to_parquet(stand / "ranking.parquet", index=False)
+    _queue_frame(3, seed=7, ids=[11.0, 12.0, 13.0]).to_parquet(queue / "ranking.parquet", index=False)
+    _day_frame(3, seed=17, ids=[11.0, 12.0, 13.0]).to_parquet(day / "ranking.parquet", index=False)
+    orr = _order_frame(3, seed=27, ids=[11.0, 12.0, 13.0])
+    orr.to_parquet(order / "ranking.parquet", index=False)
+
+    d, is_rank, rank_ids = ls.load_frames(stand, queue=True, qcache=queue, day=True, dcache=day, order=True, ocache=order)
+    assert list(d.columns) == ["y", "delta", "month", "x"] + stand_ab.QUEUE_FEATS + stand_ab.DAY_FEATS + stand_ab.ORDER_FEATS
+    assert len(d) == 12 and is_rank.sum() == 3
+    for c in stand_ab.ORDER_FEATS:
+        assert np.array_equal(d[c].to_numpy(), np.r_[o1[c].to_numpy(), o3[c].to_numpy(), orr[c].to_numpy()]), c
+    d_only, _, _ = ls.load_frames(stand, order=True, ocache=order)
+    assert list(d_only.columns) == ["y", "delta", "month", "x"] + stand_ab.ORDER_FEATS
+    d2, is_rank2, ids2 = ls.load_frames(stand, n_rank=2, order=True, ocache=order, seed=0)
+    want = orr.set_index("MVT_ID_mvt").loc[ids2]
+    for c in stand_ab.ORDER_FEATS:
+        assert np.array_equal(d2[c].to_numpy()[is_rank2], want[c].to_numpy()), c
+    with pytest.raises(ValueError, match="order"):
+        ls.load_frames(stand, order=True, ocache=order, all_rows=True)
+    _order_frame(3, seed=23).to_parquet(order / name.format(3, 4), index=False)     # one row short
+    with pytest.raises(ValueError, match="rows"):
+        ls.load_frames(stand, order=True, ocache=order)
+    with pytest.raises(FileNotFoundError, match="order cache"):
+        ls.load_frames(stand, order=True, ocache=tmp_path / "nowhere")
+
+
+def test_booster_names_carry_the_order_tag_after_the_day_tag():
+    """`_order` follows `_day` and precedes `_ytarget` in the booster tag; booster_files and the
+    head's files carry it; `--orderfeats` is off by default and refused with --all-rows (the
+    unmatched cache has no order columns). Fails when the tag is dropped or misordered.
+    Rehearsed 2026-09-09, each RED: `order=False` ignored in booster_tag; the argparse refusal
+    removed."""
+    d = pathlib.Path("/x")
+    assert ls.booster_tag(order=True) == "_order" and ls.booster_tag(queue=True, order=True) == "_queue_order"
+    assert ls.booster_tag(queue=True, day=True, order=True, target=ls.TARGET_Y) == "_queue_day_order_ytarget"
+    assert ls.booster_files(d, 8, (0,), order=True) == [(d / "lgbm_v8_order.txt", d / "lgbm_v8_order.fit.json")]
+    assert ls.booster_files(d, 8, (0, 1), queue=True, day=True, order=True) == [
+        (d / "lgbm_v8_queue_day_order_seed0.txt", d / "lgbm_v8_queue_day_order_seed0.fit.json"),
+        (d / "lgbm_v8_queue_day_order_seed1.txt", d / "lgbm_v8_queue_day_order_seed1.fit.json")]
+    assert ls.head_booster_files(d, 8, queue=True, order=True)[0] == d / "lgbm_v8_queue_order_fillhead.txt"
+    assert ls.parse_args(["--version", "8"]).orderfeats is False
+    assert ls.parse_args(["--version", "8", "--orderfeats"]).orderfeats is True
+    with pytest.raises(SystemExit):
+        ls.parse_args(["--version", "8", "--orderfeats", "--target", "y", "--all-rows"])
+
+
+def test_orderfeats_end_to_end_on_the_synthetic_submission(tmp_path, monkeypatch):
+    """`--orderfeats` on the synthetic submission fixture: the order twins join the two training
+    months by position and the sampled ranking rows by id, a 71-column design, the booster
+    saved as lgbm_v9_order.txt with n_features 71, the meta recording the block (orderfeats,
+    order_feats, features = FEATS + ORDER_FEATS), the splice invariants; then `--queue --dayfeats
+    --orderfeats --seeds 0,1` gives 92 columns and lgbm_v9_queue_day_order_seed{s}.txt, and
+    --reuse-booster reproduces that file byte for byte; the predictions differ from the
+    default's (the block reached LightGBM).
+
+    Fails when the order block is not in the design (71 -> 68), when the tag is dropped, or when
+    the meta forgets the block. Rehearsed 2026-09-09, each RED: `feats` built without
+    ORDER_FEATS under --orderfeats; `order=False` hard-wired in booster_files' call;
+    `"orderfeats": False` in the meta.
+    """
+    fx = _submission_env(ls, monkeypatch, tmp_path / "data")
+    out = tmp_path / "out"
+    ids, pred, meta = _run_submit(ls, fx, out, ["--orderfeats"])
+    assert meta["orderfeats"] is True and meta["order_feats"] == stand_ab.ORDER_FEATS and meta["target"] == "delta"
+    assert meta["features"] == list(ls.FEATS) + stand_ab.ORDER_FEATS and meta["n_features"] == 71
+    assert meta["dayfeats"] is False and meta["booster_files"] == ["lgbm_v9_order.txt"]
+    fj = _fit_json(out, "lgbm_v9_order.fit.json")
+    assert fj["n_features"] == 71 and fj["target"] == "delta" and fj["smoke"] is True
+    assert not (out / "lgbm_v9.txt").exists(), "an order booster took the untagged name"
+    assert meta["n_replaced"] == 5_000 and pred.dtype == np.int32 and (pred > 0).all()
+    base = pq.read_table(fx.base).to_pandas().set_index("MVT_ID_mvt").loc[ids].TAXITIME_SEC_mvt.to_numpy()
+    changed = pred != base
+    assert 0 < changed.sum() <= 5_000 and not set(ids[changed]) & fx.unmatched_ids
+    ids0, pred0, _ = _run_submit(ls, fx, tmp_path / "out0", [])
+    assert np.array_equal(ids0, ids) and not np.array_equal(pred0, pred), "the order block changed nothing"
+
+    out2 = tmp_path / "out2"
+    ids2, pred2, meta2 = _run_submit(ls, fx, out2, ["--queue", "--dayfeats", "--orderfeats", "--seeds", "0,1"])
+    assert meta2["n_features"] == 92
+    assert meta2["features"] == list(ls.FEATS) + stand_ab.QUEUE_FEATS + stand_ab.DAY_FEATS + stand_ab.ORDER_FEATS
+    assert meta2["booster_files"] == ["lgbm_v9_queue_day_order_seed0.txt", "lgbm_v9_queue_day_order_seed1.txt"]
+    for s in (0, 1):
+        fj = _fit_json(out2, f"lgbm_v9_queue_day_order_seed{s}.fit.json")
+        assert fj["n_features"] == 92 and fj["params"]["seed"] == s
+    first = (out2 / "merry-quicksand_v9.parquet").read_bytes()
+    _run_submit(ls, fx, out2, ["--queue", "--dayfeats", "--orderfeats", "--seeds", "0,1", "--reuse-booster"])
+    assert (out2 / "merry-quicksand_v9.parquet").read_bytes() == first, "reuse did not reproduce the file"

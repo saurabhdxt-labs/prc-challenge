@@ -7,6 +7,7 @@ Pre-registered in plans/PREREG_taxiout_2026_09_08.md Amendment 5.
     python3.11 scripts/stand_ab.py queue-cache [--ranking] [--smoke]
                                   # v6 push-anchored queue block -> data/cache_queue/ (Amendment 14)
     python3.11 scripts/stand_ab.py day-cache   [--ranking] [--smoke]
+    python3.11 scripts/stand_ab.py order-cache [--ranking] [--smoke]   # Amendment 22, Arm F
                                   # airport-day regime block -> data/cache_day/ (Amendment 19, arm D)
     python3.11 scripts/stand_ab.py unmatched-cache [--ranking] [--smoke]
                                   # the UNMATCHED departures' features -> data/cache_unmatched/ (the
@@ -942,6 +943,127 @@ def cmd_day_cache(smoke: bool, ranking: bool = False):
 # The unified all-rows arm: the UNMATCHED departures' features (data/cache_unmatched/)
 # =============================================================================================
 
+# =============================================================================================
+# Amendment 22: the record-ordering block (Arm F) - data/cache_order/
+# =============================================================================================
+OCACHE = ROOT / "data" / "cache_order"
+#: the raw columns the order block reads: the day block's plus FLIGHT_ID. A departure's own
+#: BLOCK_TIME and TAXITIME appear only in the training-mode row filter, never in a feature.
+OCOLS = ["PHASE_mvt", "MVT_ID_mvt", "FLIGHT_ID_mvt", "ADEP_mvt", "ADES_mvt", "MVT_TIME_UTC_mvt",
+         "SCHED_TIME_UTC_mvt", "BLOCK_TIME_UTC_mvt", "TAXITIME_SEC_mvt", "AOBT_3_flt"]
+#: per airport and per file, over EVERY departure at the airport (matched or not, labelled or
+#: not - the same reference stream in both modes, so a row's values never depend on the mode;
+#: RESULT 11.5 found the signal on this line, Amendment 22 registers it), rows sorted by
+#: MVT_TIME then MVT_ID:
+#:   o_dev_mvt   (MVT_ID - the rolling median of the +-250 neighbouring rows) / max(rolling p90 - p10, 1)
+#:   o_dev_flt   the same for FLIGHT_ID; NaN where FLIGHT_ID is null (a null id leaves the
+#:               window's statistics and gets no deviation)
+#:   o_n_line    the window's row count, ORDER_MIN_ROWS..ORDER_WINDOW (NaN deviations below it)
+ORDER_FEATS = ["o_dev_mvt", "o_dev_flt", "o_n_line"]
+ORDER_WINDOW = 501
+ORDER_MIN_ROWS = 50
+ORDER_QUANTILES = (0.10, 0.90)
+
+
+def _order_line(ids: np.ndarray) -> tuple:
+    """(deviation, window row count) of every id from the rolling line of its neighbours, in
+    the given (time) order: pandas' centred window of ORDER_WINDOW rows with at least
+    ORDER_MIN_ROWS non-null ids, else NaN. NaN ids are skipped by the statistics and get NaN."""
+    s = pd.Series(np.asarray(ids, dtype="float64"))
+    r = s.rolling(ORDER_WINDOW, center=True, min_periods=ORDER_MIN_ROWS)
+    med = r.median().to_numpy()
+    spread = (r.quantile(ORDER_QUANTILES[1]) - r.quantile(ORDER_QUANTILES[0])).to_numpy()
+    dev = (s.to_numpy() - med) / np.maximum(spread, 1.0)
+    n = pd.Series(np.ones(len(s))).rolling(ORDER_WINDOW, center=True, min_periods=1).sum().to_numpy()
+    return dev, n
+
+
+def _order_stream(t: pd.DataFrame) -> pd.DataFrame:
+    """The reference line's rows in both modes: every departure at the ten airports, sorted by
+    take-off time then MVT_ID. A departure without a take-off time or an id cannot sit on the
+    line and is refused rather than placed at an end (none exists in the challenge files)."""
+    d = t[(t.PHASE_mvt == "DEP") & t.ADEP_mvt.isin(APTS)]
+    if d.MVT_TIME_UTC_mvt.isna().any():
+        raise ValueError(f"{int(d.MVT_TIME_UTC_mvt.isna().sum())} departures without MVT_TIME cannot sit on the id line")
+    if d.MVT_ID_mvt.isna().any():
+        raise ValueError(f"{int(d.MVT_ID_mvt.isna().sum())} departures without MVT_ID cannot sit on the id line")
+    return d.sort_values(["MVT_TIME_UTC_mvt", "MVT_ID_mvt"], kind="mergesort").reset_index(drop=True)
+
+
+def build_order(t: pd.DataFrame, serve: bool = False) -> pd.DataFrame:
+    """`MVT_ID_mvt` + ORDER_FEATS (float32) for exactly the rows build_features(t, serve) returns,
+    in the same take-off order; the line itself is per airport over _order_stream (every
+    departure), so a row's values are identical in training and serve mode."""
+    d = _dep_stream(t, serve)
+    if len(d) == 0:
+        raise ValueError(f"no admissible departures (serve={serve}) - nothing to build")
+    ref = _order_stream(t)
+    apt = ref.ADEP_mvt.to_numpy()
+    mvt_id, flt_id = ref.MVT_ID_mvt.to_numpy(dtype="float64"), ref.FLIGHT_ID_mvt.to_numpy(dtype="float64")
+    dev_m, dev_f, n_line = (np.full(len(ref), np.nan) for _ in range(3))
+    for a in np.unique(apt):
+        pos = np.flatnonzero(apt == a)
+        dev_m[pos], n_line[pos] = _order_line(mvt_id[pos])
+        dev_f[pos], _ = _order_line(flt_id[pos])
+    line = pd.DataFrame({"o_dev_mvt": dev_m, "o_dev_flt": dev_f, "o_n_line": n_line}, index=mvt_id)
+    assert line.index.is_unique, "duplicate MVT_ID on the id line"
+    vals = line.loc[d.MVT_ID_mvt.to_numpy(dtype="float64")]
+    o = pd.DataFrame({"MVT_ID_mvt": d.MVT_ID_mvt.to_numpy()})
+    for c in ORDER_FEATS:
+        o[c] = vals[c].to_numpy().astype(np.float32)
+    return o
+
+
+def build_order_month(path: pathlib.Path, serve: bool = False) -> pd.DataFrame:
+    """Order features for one calendar-month file (the training caches are one month each)."""
+    return build_order(pq.read_table(path, columns=OCOLS).to_pandas(), serve=serve)
+
+
+def build_order_ranking(path: pathlib.Path) -> pd.DataFrame:
+    """Serve-mode order features for the evaluation file, one calendar month at a time - the
+    line is per file in training, so the scored months are lined separately too; MVT_ID
+    uniqueness across the months asserted, as build_day_ranking does."""
+    t = pq.read_table(path, columns=OCOLS).to_pandas()
+    if t.MVT_TIME_UTC_mvt.isna().any():
+        raise ValueError(f"{t.MVT_TIME_UTC_mvt.isna().sum()} rows without MVT_TIME cannot "
+                         "be assigned to a calendar month")
+    ym = (t.MVT_TIME_UTC_mvt.dt.year * 100 + t.MVT_TIME_UTC_mvt.dt.month).to_numpy()
+    parts = [build_order(t[ym == m], serve=True) for m in np.unique(ym)]
+    o = pd.concat(parts, ignore_index=True)
+    assert o.MVT_ID_mvt.is_unique, "duplicate MVT_ID across the per-month builds"
+    return o
+
+
+def cmd_order_cache(smoke: bool, ranking: bool = False):
+    """Write data/cache_order/<raw stem>.parquet: MVT_ID_mvt + ORDER_FEATS, one file per calendar
+    month, joined onto the stand caches by MVT_ID (or positionally: same rows, same order)."""
+    OCACHE.mkdir(parents=True, exist_ok=True)
+    if ranking:
+        if smoke:
+            raise ValueError("--smoke does not apply to --ranking: a partial ranking cache "
+                             "at the real path would be consumed by the full fold")
+        t0 = time.time()
+        o = build_order_ranking(RAW / "ranking.parquet")
+        out = OCACHE / "ranking.parquet"
+        o.to_parquet(out, index=False)
+        print(f"ranking.parquet -> {out.name}  rows={len(o):,}  cols={o.shape[1]}  "
+              f"wall {time.time() - t0:.1f}s  peak RSS {_peak_rss_gb():.2f} GB", flush=True)
+        return
+    paths = sorted(glob.glob(str(RAW / "training_2025-*.parquet")))
+    if smoke:
+        paths = paths[:1]
+    for p in paths:
+        p = pathlib.Path(p)
+        t0 = time.time()
+        o = build_order_month(p)
+        out = OCACHE / (p.stem + ".parquet")
+        o.to_parquet(out, index=False)
+        print(f"{p.name} -> {out.name}  rows={len(o):,}  cols={o.shape[1]}  "
+              f"wall {time.time() - t0:.1f}s  peak RSS {_peak_rss_gb():.2f} GB", flush=True)
+        del o
+        gc.collect()
+
+
 UCACHE = ROOT / "data" / "cache_unmatched"
 #: the reference columns the unmatched builder needs of the OTHER movements (the matched
 #: departures and the arrivals): QCOLS plus the arrivals' ARVT_3 (cdiff). The unmatched rows
@@ -1229,10 +1351,10 @@ def cmd_unmatched_cache(smoke: bool, ranking: bool = False):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("cmd", choices=["cache", "fit", "queue-cache", "day-cache", "unmatched-cache"])
+    ap.add_argument("cmd", choices=["cache", "fit", "queue-cache", "day-cache", "unmatched-cache", "order-cache"])
     ap.add_argument("--smoke", action="store_true")
     ap.add_argument("--ranking", action="store_true",
-                    help="cache / queue-cache / day-cache / unmatched-cache: build <cache dir>/ranking.parquet "
+                    help="cache / queue-cache / day-cache / unmatched-cache / order-cache: build <cache dir>/ranking.parquet "
                          "(serve mode) instead of the training months")
     a = ap.parse_args()
     if a.cmd == "cache":
@@ -1243,5 +1365,7 @@ if __name__ == "__main__":
         cmd_day_cache(a.smoke, ranking=a.ranking)
     elif a.cmd == "unmatched-cache":
         cmd_unmatched_cache(a.smoke, ranking=a.ranking)
+    elif a.cmd == "order-cache":
+        cmd_order_cache(a.smoke, ranking=a.ranking)
     else:
         cmd_fit(a.smoke)

@@ -11,6 +11,7 @@ measurements, never verdict labels - the amendments hold the thresholds and appl
     $ENV scripts/lgbm_fold.py --confirm "255,40,0.8" "511,20,0.6"           # 15.2 confirmation tier
     $ENV scripts/lgbm_fold.py --fillhead [--baseline A3] [--pa-trees es]   # Amendment 16
     $ENV scripts/lgbm_fold.py --dayfeats [--queue] [--baseline A2] [--pa-trees es]   # Amendment 19.1, arm D
+    $ENV scripts/lgbm_fold.py --orderfeats [--queue] [--baseline A2] [--pa-trees es] # Amendment 22, arm F
     $ENV scripts/lgbm_fold.py --ytarget  [--queue] [--baseline A2] [--pa-trees es]   # Amendment 19.2, arm Y
     $ENV scripts/lgbm_fold.py --ytarget --all-rows [--queue] [--dayfeats] --unmatched-weight 1,10 [--baseline A2]
                                                                             # the UNIFIED all-rows arm
@@ -249,6 +250,11 @@ N_DECILES = 10                                            # reliability: equal-c
 DAY_FEATS = list(L.DAY_FEATS)
 FEATS_DAY = list(L.FEATS) + DAY_FEATS                     # 77 columns
 FEATS_QUEUE_DAY = FEATS_QUEUE + DAY_FEATS                 # 89 columns: the queue design + the day block
+#: Amendment 22 arm F: the record-ordering block
+OCACHE = ROOT / "data" / "cache_order"
+ORDER_FEATS = list(L.ORDER_FEATS)
+FEATS_ORDER = list(L.FEATS) + ORDER_FEATS                 # 71 columns
+FEATS_QUEUE_ORDER = FEATS_QUEUE + ORDER_FEATS             # 83 columns: the queue design + the order block
 YBLEND = 0.5                                              # 19.2: the 0.5/0.5 blend of y_hat_Y with the delta arm's y_hat
 YTARGET_NAMED_AIRPORTS = ("LTFM", "EDDM")                 # 19.2: corr(proxy, y) 0.08 / 0.16 - called out per airport
 DAY_MIN_AIRPORTS = 6                                      # 19.3: arm D needs >= 6 of 10 airports to improve
@@ -269,7 +275,7 @@ UNIFIED_AMENDMENT = "19-unified"
 ALLROWS_MODES = ("allrows", "queue_allrows", "allrows_day", "queue_allrows_day")
 
 MODES = ("v4", "queue", "catboost", "sweep", "confirm", "fillhead", "day", "queue_day", "ytarget", "queue_ytarget",
-         *ALLROWS_MODES)
+         "order", "queue_order", *ALLROWS_MODES)
 OUTPUT_NAMES = {
     "v4": (JSON_NAME, LOG_NAME, PREDS_NAME),
     "queue": ("lgbm_fold_queue.json", "lgbm_fold_queue.log", "fold_preds_queue.parquet"),
@@ -279,6 +285,8 @@ OUTPUT_NAMES = {
     "fillhead": ("lgbm_fold_fillhead.json", "lgbm_fold_fillhead.log", "fold_preds_fillhead.parquet"),
     "day": ("lgbm_fold_day.json", "lgbm_fold_day.log", "fold_preds_day.parquet"),
     "queue_day": ("lgbm_fold_queue_day.json", "lgbm_fold_queue_day.log", "fold_preds_queue_day.parquet"),
+    "order": ("lgbm_fold_order.json", "lgbm_fold_order.log", "fold_preds_order.parquet"),
+    "queue_order": ("lgbm_fold_queue_order.json", "lgbm_fold_queue_order.log", "fold_preds_queue_order.parquet"),
     "ytarget": ("lgbm_fold_ytarget.json", "lgbm_fold_ytarget.log", "fold_preds_ytarget.parquet"),
     "queue_ytarget": ("lgbm_fold_queue_ytarget.json", "lgbm_fold_queue_ytarget.log", "fold_preds_queue_ytarget.parquet"),
     "allrows": ("lgbm_fold_allrows.json", "lgbm_fold_allrows.log", "fold_preds_allrows.parquet"),
@@ -299,6 +307,8 @@ COMMANDS = {
     "fillhead": f"{_ENV} --fillhead --baseline A3 --pa-trees es 2>&1 | tee reports/lgbm_fold_fillhead.console.log",
     "day": f"{_ENV} --dayfeats --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_day.console.log",
     "queue_day": f"{_ENV} --dayfeats --queue --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_queue_day.console.log",
+    "order": f"{_ENV} --orderfeats --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_order.console.log",
+    "queue_order": f"{_ENV} --orderfeats --queue --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_queue_order.console.log",
     "ytarget": f"{_ENV} --ytarget --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_ytarget.console.log",
     "queue_ytarget": f"{_ENV} --ytarget --queue --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_queue_ytarget.console.log",
     "allrows": f"{_ENV} --ytarget --all-rows --unmatched-weight 1,10 --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_allrows.console.log",
@@ -355,6 +365,17 @@ ESTIMATES = {
         "2,000 draws) ~3 min. With --baseline A3 --pa-trees es add ~35 min for the treatment's per-airport models. "
         "The baseline is READ from the v4 record (no refit). Writes reports/lgbm_fold_day.{json,log} and "
         "data/cache_stand/fold_preds_day.parquet."),
+    "order": (
+        "~1.6 h (range 1.3-2.1 h), peak RSS ~4.4 GB (the v4 footprint + 3 float32 columns), 4 threads; run ALONE. "
+        "The v4 per-row/iter rates x1.04 for 71 columns: load + encodings + the order join ~3 min; ES ~16 min; "
+        "3 refits ~15 min + holdout predict ~6 min each (~63 min); bootstrap ~3 min. The baseline is READ from the "
+        "v4 record (no refit). Writes reports/lgbm_fold_order.{json,log} and "
+        "data/cache_stand/fold_preds_order.parquet."),
+    "queue_order": (
+        "~1.9 h (range 1.5-2.5 h), peak RSS ~4.9 GB (the queue fold's 4.8 GB + 3 float32 columns), 4 threads; run "
+        "ALONE. x1.22 for 83 columns: load + the two joins ~3 min; ES ~19 min; 3 refits ~18 min + predict ~6 min "
+        "each (~72 min); bootstrap ~3 min. The baseline is READ from the queue record. Writes "
+        "reports/lgbm_fold_queue_order.{json,log} and data/cache_stand/fold_preds_queue_order.parquet."),
     "queue_day": (
         "~2.0 h (range 1.6-2.6 h), peak RSS ~5 GB (the queue fold's 4.8 GB + 9 float32 columns), 4 threads; run "
         "ALONE. x1.3 for 89 columns: load + the two joins ~3 min; ES ~20 min; 3 refits ~19 min + predict ~6 min each "
@@ -505,6 +526,9 @@ def parse_args(argv=None) -> argparse.Namespace:
                           "('num_leaves,min_data_in_leaf,feature_fraction') against the incumbent")
     arm.add_argument("--fillhead", action="store_true",
                      help="Amendment 16: baseline + the schedule-fill mixture head (lgbm_submit.fit_fill_head)")
+    arm.add_argument("--orderfeats", action="store_true",
+                     help="Amendment 22 arm F: the current best design + ORDER_FEATS from data/cache_order/ "
+                          "(composes with --queue like --dayfeats)")
     arm.add_argument("--dayfeats", action="store_true",
                      help="Amendment 19.1 arm D: the current best design + DAY_FEATS (composes with --queue, which "
                           "then names the queue treatment as the design and reads its record)")
@@ -549,6 +573,8 @@ def parse_args(argv=None) -> argparse.Namespace:
     if args.all_rows:
         if not args.ytarget:
             ap.error("--all-rows is the unified y-target arm: it needs --ytarget")
+        if args.orderfeats:
+            ap.error("--all-rows does not combine with --orderfeats: the unmatched cache carries no order columns")
         if not set(on) <= {"ytarget", "queue", "day"}:
             ap.error(f"--all-rows composes only with --queue and --dayfeats as its design: {on}")
     elif len(on) > 1 and set(on) not in COMPOSITIONS:
@@ -559,19 +585,21 @@ def parse_args(argv=None) -> argparse.Namespace:
 
 
 #: the only flag pairs one run may carry: --queue as the DESIGN of an Amendment 19 arm
-COMPOSITIONS = ({"queue", "day"}, {"queue", "ytarget"})
+COMPOSITIONS = ({"queue", "day"}, {"queue", "ytarget"}, {"queue", "order"})
 
 
 def _arm_flags(args) -> tuple:
     """(mode, flag) per arm, one place, so exclusivity and mode_of cannot disagree."""
     return (("queue", args.queue), ("catboost", args.catboost), ("sweep", args.sweep),
             ("confirm", bool(args.confirm)), ("fillhead", args.fillhead), ("day", args.dayfeats),
-            ("ytarget", args.ytarget))
+            ("order", args.orderfeats), ("ytarget", args.ytarget))
 
 
 def mode_of(args) -> str:
     if getattr(args, "all_rows", False):
         return ("queue_" if args.queue else "") + "allrows" + ("_day" if args.dayfeats else "")
+    if args.orderfeats:
+        return "queue_order" if args.queue else "order"
     if args.dayfeats:
         return "queue_day" if args.queue else "day"
     if args.ytarget:
@@ -1327,10 +1355,10 @@ def resolve_baseline(args, cfg, fold: dict, X_base, arm: str, seeds, pa_trees, v
 # loading one fold
 # =============================================================================================
 
-def _load_months(cache, months, feats, qcache=None, dcache=None) -> tuple:
-    """The training month caches with the queue / day blocks among `feats` joined positionally
-    (the row contracts of tests/test_queue_features.py and tests/test_day_features.py); returns
-    (frames, paths)."""
+def _load_months(cache, months, feats, qcache=None, dcache=None, ocache=None) -> tuple:
+    """The training month caches with the queue / day / order blocks among `feats` joined
+    positionally (the row contracts of tests/test_queue_features.py, tests/test_day_features.py
+    and tests/test_order_features.py); returns (frames, paths)."""
     frames, paths = L.training_frames(cache, months)
     queue = [c for c in feats if c in QUEUE_FEATS]
     if queue:
@@ -1343,6 +1371,7 @@ def _load_months(cache, months, feats, qcache=None, dcache=None) -> tuple:
             del qf
         log(f"queue block: {len(QUEUE_FEATS)} columns joined POSITIONALLY onto {len(paths)} months from {qcache} "
             f"(row counts asserted per month; the order is the v6 builder's, proven on March both ways)")
+    order = [c for c in feats if c in ORDER_FEATS]
     day = [c for c in feats if c in DAY_FEATS]
     if day:
         if dcache is None:
@@ -1354,11 +1383,21 @@ def _load_months(cache, months, feats, qcache=None, dcache=None) -> tuple:
             del df_
         log(f"day block: {len(DAY_FEATS)} columns joined POSITIONALLY onto {len(paths)} months from {dcache} "
             f"(row counts asserted per month; the order is build_features's, tests/test_day_features.py)")
+    if order:
+        if ocache is None:
+            raise ValueError("order features asked for without an order cache directory")
+        for f, p in zip(frames, paths):
+            of = L.attach_order_positional(len(f), L.read_order_cache(L.order_cache_path(ocache, p)), p.name)
+            for c in ORDER_FEATS:
+                f[c] = of[c].to_numpy()
+            del of
+        log(f"order block: {len(ORDER_FEATS)} columns joined POSITIONALLY onto {len(paths)} months from {ocache} "
+            f"(row counts asserted per month; the order is build_features's, tests/test_order_features.py)")
     return frames, paths
 
 
 def load_fold(cache, months, feats, qcache=None, split=None, check_counts=False, label="holdout",
-              derive=None, dcache=None) -> dict:
+              derive=None, dcache=None, ocache=None) -> dict:
     """Rows, masks, in-fold encodings and the float32 design matrix for one fold.
 
     `split(month)` -> (holdout, train, fit, es); fold_masks by default. Queue columns among
@@ -1368,7 +1407,7 @@ def load_fold(cache, months, feats, qcache=None, split=None, check_counts=False,
     frame after the in-fold encodings and before the design matrix (the fill head's nmdelay =
     proxy - sp: lgbm_submit.add_nmdelay).
     """
-    frames, paths = _load_months(cache, months, feats, qcache, dcache)
+    frames, paths = _load_months(cache, months, feats, qcache, dcache, ocache)
     d = pd.concat(frames, ignore_index=True)
     del frames
     gc.collect()
@@ -2319,28 +2358,52 @@ def _baseline_record(args, cfg, arm, seeds, queue: bool):
     return _queue_record(args, cfg, arm, seeds, args.pa_trees) if queue else _v4_record(args, cfg, arm, seeds, args.pa_trees)
 
 
-def run_day(args, cfg, paths, started) -> int:
+#: a BLOCK arm: the current best design as the baseline, the same procedure on the design plus a
+#: cached feature block as the treatment. Amendment 19.1 (arm D, the airport-day block) and
+#: Amendment 22 (arm F, the record-ordering block) are the same experiment on different columns,
+#: so they are one runner: a copy would drift, and the intervals must be comparable.
+#: `cache_attr` is the MODULE ATTRIBUTE NAME, not the path: the runner resolves it at call time
+#: (globals()[...]), so a test's monkeypatch of DCACHE / OCACHE - or any later re-pointing - is
+#: seen by the arm. A frozen path here read the real 152,250-row cache under a 600-row fixture.
+BLOCK_ARMS = {
+    "day": SimpleNamespace(name="day", feats=DAY_FEATS, cache_attr="DCACHE", loader_kw="dcache",
+                           amendment="19.1", title="AMENDMENT 19.1 ARM D", label="Amendment 19.1 arm D",
+                           min_airports=DAY_MIN_AIRPORTS, clause="19.3"),
+    "order": SimpleNamespace(name="order", feats=ORDER_FEATS, cache_attr="OCACHE", loader_kw="ocache",
+                             amendment="22", title="AMENDMENT 22 ARM F", label="Amendment 22 arm F",
+                             min_airports=None, clause="22.3"),
+}
+
+
+def run_block(args, cfg, paths, started, block) -> int:
+    """One BLOCK arm (19.1 arm D / 22 arm F): baseline = the current best design from its record,
+    treatment = the same procedure on the design plus `block.feats`, best_iter re-found."""
     json_path, log_path, preds_path = paths
     seeds, arm = tuple(args.seeds), args.baseline
     base_feats, queue = _design(args)
-    mode = "queue_day" if queue else "day"
-    feats, nb = base_feats + DAY_FEATS, len(base_feats)
+    mode = f"queue_{block.name}" if queue else block.name
+    block_cache = globals()[block.cache_attr]          # resolved now, never frozen at import
+    feats, nb = base_feats + block.feats, len(base_feats)
+    up = f"{block.name.upper()}_FEATS"
     pa_rule = L.PA_TREE_RULE if args.pa_trees == "share" else L.PA_TREE_RULE_ES
     design = f"{arm}{' + QUEUE_FEATS' if queue else ''}"
-    log(f"Amendment 19.1 arm D: baseline = {design} over seeds {list(seeds)} ({nb} features, "
-        f"{'the queue record' if queue else 'the v4 record'}); treatment = baseline + {len(DAY_FEATS)} DAY_FEATS "
+    log(f"{block.label}: baseline = {design} over seeds {list(seeds)} ({nb} features, "
+        f"{'the queue record' if queue else 'the v4 record'}); treatment = baseline + {len(block.feats)} {up} "
         f"({len(feats)} features), best_iter re-found; per-airport rule [{args.pa_trees}] {pa_rule} (A3 only); "
         f"bootstrap {cfg.n_boot:,} draws seed {BOOT_SEED}; bands {[b[0] for b in DELTA_BANDS]} + over10 "
-        f"(|delta| >= {OVER10_S:.0f} s); 19.3 needs >= {DAY_MIN_AIRPORTS} of 10 airports")
+        f"(|delta| >= {OVER10_S:.0f} s)"
+        + (f"; {block.clause} needs >= {block.min_airports} of 10 airports" if block.min_airports else
+           f"; {block.clause} has no airport-count clause (the over10 band's own interval is the mechanism)"))
     rec = _baseline_record(args, cfg, arm, seeds, queue)
 
-    fold = load_fold(CACHE, cfg.months, feats, qcache=QCACHE if queue else None, dcache=DCACHE,
+    fold = load_fold(CACHE, cfg.months, feats, qcache=QCACHE if queue else None,
+                     **{block.loader_kw: block_cache},
                      check_counts=not cfg.smoke, label=f"holdout (months {HOLDOUT})")
     X, y, dlt, proxy = fold["X"], fold["y"], fold["dlt"], fold["proxy"]
     te, tr = fold["te"], fold["tr"]
     ap_code, airports = fold["ap_code"], fold["airports"]
     y_te, proxy_te, dlt_te, ap_te = y[te], proxy[te], dlt[te], ap_code[te]
-    assert fold["feats"][:nb] == base_feats and fold["feats"][nb:] == DAY_FEATS
+    assert fold["feats"][:nb] == base_feats and fold["feats"][nb:] == block.feats
     base, cols = fold["base"], {}
     write = lambda: _write_preds(preds_path, base, cols)
     timing = {}
@@ -2351,7 +2414,7 @@ def run_day(args, cfg, paths, started) -> int:
                                                   "baseline", cols, write)
     timing["baseline_s"] = round(time.time() - t, 1)
 
-    # ---- treatment: the same procedure on base_feats + DAY_FEATS ----
+    # ---- treatment: the same procedure on base_feats + the block ----
     t = time.time()
 
     def on_seed(s, pred):
@@ -2377,37 +2440,40 @@ def run_day(args, cfg, paths, started) -> int:
     t = time.time()
     arms = {"baseline": b["delta"], "treatment": tr_arm["delta"]}
     definitions = {"baseline": f"{design} over seeds {list(seeds)} ({b_record['source']})",
-                   "treatment": f"baseline + DAY_FEATS, best_iter {tr_arm['best_iter']:,} -> n_ref {tr_arm['n_ref']:,}"}
+                   "treatment": f"baseline + {up}, best_iter {tr_arm['best_iter']:,} -> n_ref {tr_arm['n_ref']:,}"}
     pair_list = [("treatment", "baseline")]
     se = squared_errors(arms, y_te, proxy_te)
     rmses = arm_rmses(se, ap_te, airports)
     pairs, present = score_pairs(se, rmses, pair_list, ap_te, airports, cfg.n_boot, sd)
     p = pairs["treatment_vs_baseline"]
-    p["at_least_6_airports"] = bool(p["airports_improving"] >= DAY_MIN_AIRPORTS)
+    if block.min_airports:
+        p[f"at_least_{block.min_airports}_airports"] = bool(p["airports_improving"] >= block.min_airports)
     bands = band_records(dlt_te, se, cfg.n_boot, pair_list, "baseline")
     timing["scoring_s"] = round(time.time() - t, 1)
 
     # ---- tables ----
     _log_tables(arms, rmses, pairs, present, ap_te, definitions, sd,
-                f"AMENDMENT 19.1 ARM D [{mode}], fold A matched rows ({te.sum():,}), holdout months {HOLDOUT}   "
+                f"{block.title} [{mode}], fold A matched rows ({te.sum():,}), holdout months {HOLDOUT}   "
                 + (L.SMOKE_BANNER if cfg.smoke else f"treatment n_ref {tr_arm['n_ref']:,} (best_iter {tr_arm['best_iter']:,})"))
     log(f"seed sd source: {sd_source}   treatment's own seed sd: " + (f"{t_sd:.4f} s" if t_sd is not None else "n/a"))
-    log(f"airports improving {p['airports_improving']} / {p['n_airports']} (>= {DAY_MIN_AIRPORTS}: {p['at_least_6_airports']})")
+    log(f"airports improving {p['airports_improving']} / {p['n_airports']}"
+        + (f" (>= {block.min_airports}: {p[f'at_least_{block.min_airports}_airports']})" if block.min_airports else ""))
     _log_bands(bands, list(arms), ["treatment_vs_baseline"], "baseline")
     o10 = bands["over10"]["pairs"]["treatment_vs_baseline"] if bands["over10"]["pairs"] else None
-    log("over10 (the |delta| > 10 min bands of 19.3): "
+    log(f"over10 (the |delta| > 10 min bands of {block.clause}): "
         + (f"gain {o10['gain_s']:+.2f} s, paired CI [{o10['ci95'][0]:+.2f}, {o10['ci95'][1]:+.2f}]" if o10 else "no interval"))
 
     # ---- the record ----
-    result = _record_head(mode, cfg, started, fold, {"amendment": "19.1"})
+    result = _record_head(mode, cfg, started, fold, {"amendment": block.amendment})
     result.update({
         "config": {"params": cfg.params, "seeds": list(seeds), "es_seed": L.ES_SEED, "max_rounds": cfg.nest,
                    "patience": cfg.patience, "baseline_arm": arm, "queue": queue, "design_baseline": design,
                    "pa_trees": args.pa_trees, "pa_tree_rule": pa_rule, "pa_min_rows": L.PA_MIN_ROWS,
                    "pa_tree_floor": cfg.pa_floor, "blend": L.BLEND, "n_boot": cfg.n_boot, "boot_seed": BOOT_SEED,
-                   "features": fold["feats"], "n_features": len(fold["feats"]), "day_feats": DAY_FEATS,
-                   "day_cache": str(DCACHE), "queue_feats": QUEUE_FEATS if queue else None,
-                   "queue_cache": str(QCACHE) if queue else None, "min_airports": DAY_MIN_AIRPORTS,
+                   "features": fold["feats"], "n_features": len(fold["feats"]),
+                   f"{block.name}_feats": block.feats, f"{block.name}_cache": str(block_cache),
+                   "queue_feats": QUEUE_FEATS if queue else None,
+                   "queue_cache": str(QCACHE) if queue else None, "min_airports": block.min_airports,
                    "bands": {name: [lo, hi] for name, lo, hi in DELTA_BANDS}, "over10_s": OVER10_S},
         "baseline": b_record,
         "treatment": {"best_iter": tr_arm["best_iter"], "n_ref": tr_arm["n_ref"],
@@ -2427,6 +2493,16 @@ def run_day(args, cfg, paths, started) -> int:
     _write_json(json_path, result)
     log(f"json -> {json_path}   wall {result['wall_s']:.0f}s   peak RSS {result['peak_rss_gb']:.2f} GB")
     return 0
+
+
+def run_day(args, cfg, paths, started) -> int:
+    """Amendment 19.1 arm D: the airport-day regime block."""
+    return run_block(args, cfg, paths, started, BLOCK_ARMS["day"])
+
+
+def run_order(args, cfg, paths, started) -> int:
+    """Amendment 22 arm F: the record-ordering block."""
+    return run_block(args, cfg, paths, started, BLOCK_ARMS["order"])
 
 
 def run_ytarget(args, cfg, paths, started) -> int:
@@ -2766,7 +2842,8 @@ def str_keys(d: dict) -> dict:
 
 
 RUNNERS = {"v4": run_v4, "queue": run_queue, "catboost": run_catboost, "sweep": run_sweep, "confirm": run_confirm,
-           "fillhead": run_fillhead, "day": run_day, "queue_day": run_day, "ytarget": run_ytarget,
+           "fillhead": run_fillhead, "day": run_day, "queue_day": run_day,
+           "order": run_order, "queue_order": run_order, "ytarget": run_ytarget,
            "queue_ytarget": run_ytarget, **{m: run_allrows for m in ALLROWS_MODES}}
 
 
