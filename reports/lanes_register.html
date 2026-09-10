@@ -130,7 +130,7 @@ footer{margin-top:72px; border-top:1px solid var(--rule); padding-top:18px; colo
       several of them were given.</p>
     </div>
     <div class="stamp">
-      <b>10 Sep 2026 · 11:30 local</b><br>
+      <b>10 Sep 2026 · 19:55 local</b><br>
       344,841 scored departures<br>
       10 airports · Jan &amp; Jul 2026<br>
       metric: RMSE, seconds
@@ -163,6 +163,11 @@ footer{margin-top:72px; border-top:1px solid var(--rule); padding-top:18px; colo
     <li><b>"The 24-hour tail rows share no signature"</b> — superseded. They do: the actual clock time
       stamped with the <em>schedule's</em> date, so the label is the taxi time plus exactly 86,400 s.</li>
   </ul>
+  <p><b>Intervals were too narrow for one lane.</b> Every interval here resampled rows independently.
+  Re-drawn by resampling whole dates (Result 23), the record-ordering arm's interval is <b>4.6× wider</b> —
+  its gain sits on the disagreeing rows, which cluster on days — while the other lanes widen about 1.5×
+  and the blends barely move. Every verdict survives; the record-ordering gain is simply less precisely
+  known than the first version of this page implied.</p>
   <p>The same audit found <b>a validation defect in the fold harness</b>: target encodings for the
   early-stopping rows were fitted on those rows' own labels, so the number of trees was chosen against
   a biased signal for every arm and every shipped version. Held-out scores and every paired interval on
@@ -244,13 +249,14 @@ footer{margin-top:72px; border-top:1px solid var(--rule); padding-top:18px; colo
       <div class="stat">+1.694 s</div>
       <div class="iv good">
         <div class="track"><div class="zero" style="left:50%"></div><div class="bar" style="left:73.5%;width:9.8%"></div><div class="pt" style="left:78.2%"></div></div>
-        <div class="cap">[+1.407, +1.993] · 11.6× seed sd</div>
+        <div class="cap">row [+1.407, +1.993] · <span class="off">date-block [+0.63, +3.33]</span></div>
       </div>
       <div class="why"><span class="chip good">Established</span>Three features measuring how far a record
         sits off its airport's id-versus-time line. <b>The only arm to pass its mechanism clause</b>: +22.6 s
         beyond twenty minutes, +7.1 s at ten to twenty, small real losses in the body. Rome +8.2 s. The
-        scored file's feature distribution sits within 3% of the fit months — the fold measured it through
-        a wider shift than the board will present.</div>
+        scored file's feature distribution sits within 3% of the fit months. Resampling whole dates widens
+        its interval 4.6× and <b>every clause still holds</b>, the mechanism clause included — but the
+        plausible board gain is roughly 280–1,500 MSE, not a tight 745.</div>
     </div>
 
     <div class="lane">
@@ -300,7 +306,8 @@ footer{margin-top:72px; border-top:1px solid var(--rule); padding-top:18px; colo
         <div class="cap">[+0.495, +0.947] · 5× seed sd</div>
       </div>
       <div class="why"><span class="chip hold">Inconclusive</span>Improves the body (+1.22 s in both lower
-        bands) and <b>does not help the disagreeing rows</b> — beyond twenty minutes it is worse, −2.67 s.
+        bands) and <b>does not help the disagreeing rows</b> — beyond twenty minutes it is no better (−2.67 s,
+        an interval that crosses zero once whole dates are resampled).
         January +1.74 s, July +0.05 s. The de-icing signal is real and too rare: freezing covers 1.9% of
         scored rows. ~320 MSE. <b>Complementary to arm F</b> — F moves the tail, W the body.</div>
     </div>
@@ -358,7 +365,7 @@ footer{margin-top:72px; border-top:1px solid var(--rule); padding-top:18px; colo
 
     <div class="lane"><div class="name">Taxi time as the target — arm Y<span class="src">Result 19</span></div><div class="stat">−9.08 s</div>
       <div class="iv bad"><div class="track"><div class="zero" style="left:50%"></div><div class="bar" style="left:0;width:68.2%"></div><div class="pt" style="left:0"></div></div><div class="cap"><span class="off">left end off scale</span> [−28.00, +1.09]</div></div>
-      <div class="why">Fails pooled — but <b>better on the tail</b>: +10.0 s beyond twenty, +4.5 s over ten, both intervals excluding zero. Rome 384 → 454 sinks it. The better tail model; feeds the gated blend above.</div></div>
+      <div class="why">Fails pooled — but <b>its blend is better on the tail</b>: +10.0 s beyond twenty, +4.5 s over ten, both surviving date-block resampling (Y alone's do not). Rome 384 → 454 sinks it. The better tail model; feeds the gated blend above.</div></div>
 
     <div class="lane"><div class="name">One model, all rows — arm U<span class="src">Result 15</span></div><div class="stat">−39.24 s</div>
       <div class="iv bad"><div class="track"><div class="zero" style="left:50%"></div><div class="bar" style="left:0;width:27.0%"></div><div class="pt" style="left:0"></div></div><div class="cap"><span class="off">left end off scale</span> [−101.65, −1.38]</div></div>
