@@ -1,0 +1,46 @@
+[16:50:17 +      0s] unm_congestion_resid score  smoke=False  prereg=plans/PREREG_unm_congestion_resid_2026_09_10.md  paths={'lomo': '/Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/unm_congestion_resid_lomo.parquet', 'json': '/Users/saurabhdxt/Projects/prc-challenge/reports/unm_congestion_resid.json', 'lomo_log': '/Users/saurabhdxt/Projects/prc-challenge/reports/unm_congestion_resid_lomo.log', 'score_log': '/Users/saurabhdxt/Projects/prc-challenge/reports/unm_congestion_resid_score.log'}
+[16:50:17 +      0s] ranking: 344,841 DEP rows, 339,551 matched; template 344,841
+[16:50:17 +      1s] 2026 witness: 4,907 scored non-LIRF unmatched rows, bins {'NaN': 117, '<900': 1692, '900-1100': 1207, '1100-1300': 937, '1300-1500': 443, '1500-2000': 279, '2000-2400': 47, '>=2400': 185} (cross-check: equal to data/cache_stand/unm_congestion_2026_witness.parquet)
+[16:50:17 +      1s] === E3R on the non-LIRF LOMO rows: n=20,731, sum g +73,194,143 s^2 (g = SE(S1C) - SE(S1R)) ===
+[16:50:17 +      1s]   RMSE pooled S1C 1104.75 S1R 1103.15 gain +1.60 s; ex-monster S1C 581.53 S1R 578.49 gain +3.04 s
+[16:50:17 +      1s]   NaN-witness non-LIRF rows 333: S1R == S1C on all of them: True
+[16:50:17 +      1s]   C1 date-block bootstrap (365 dates, 2000 draws, seed 0): sum g +73,194,143 95% [-150,113,230, +351,774,239]  passes False
+[16:50:17 +      1s]   C2 EVENT-EXCLUDED 2026 price +600.3 board MSE (>= 300: True); dropped EGLL month 3 (sum g +69,501,345 on 91 rows); kept 20,640 rows, sum g +3,692,798; denominator 344,841
+[16:50:17 +      1s]   C2 full price (reported, not decisional) +957.2 board MSE
+[16:50:17 +      1s]   [event-excluded] bin          n2025    per-row g         used       from   n2026    priced
+[16:50:17 +      1s]   [event-excluded] NaN            330         +0.0         +0.0        NaN     117     +0.00
+[16:50:17 +      1s]   [event-excluded] <900         8,843      -2870.2      -2870.2       <900   1,692    -14.08
+[16:50:17 +      1s]   [event-excluded] 900-1100     4,884       +725.1       +725.1   900-1100   1,207     +2.54
+[16:50:17 +      1s]   [event-excluded] 1100-1300    3,656       +862.9       +862.9  1100-1300     937     +2.34
+[16:50:17 +      1s]   [event-excluded] 1300-1500    1,867      -1669.9      -1669.9  1300-1500     443     -2.15
+[16:50:17 +      1s]   [event-excluded] 1500-2000      781      -7828.8      -7828.8  1500-2000     279     -6.33
+[16:50:17 +      1s]   [event-excluded] 2000-2400      189    -433730.5    -433730.5  2000-2400      47    -59.12
+[16:50:17 +      1s]   [event-excluded] >=2400          90   +1262057.8   +1262057.8     >=2400     185   +677.07
+[16:50:17 +      1s]   [full] bin          n2025    per-row g         used       from   n2026    priced
+[16:50:17 +      1s]   [full] NaN            333         +0.0         +0.0        NaN     117     +0.00
+[16:50:17 +      1s]   [full] <900         8,843      -2870.2      -2870.2       <900   1,692    -14.08
+[16:50:17 +      1s]   [full] 900-1100     4,886       +732.4       +732.4   900-1100   1,207     +2.56
+[16:50:17 +      1s]   [full] 1100-1300    3,663       +870.8       +870.8  1100-1300     937     +2.37
+[16:50:17 +      1s]   [full] 1300-1500    1,886      -1834.6      -1834.6  1300-1500     443     -2.36
+[16:50:17 +      1s]   [full] 1500-2000      819     -10278.3     -10278.3  1500-2000     279     -8.32
+[16:50:17 +      1s]   [full] 2000-2400      203    -419903.5    -419903.5  2000-2400      47    -57.23
+[16:50:17 +      1s]   [full] >=2400          98   +1927815.3   +1927815.3     >=2400     185  +1034.23
+[16:50:17 +      1s]   airport-months by |sum g|: EGLL-03:+69,501,345(91)  LTFM-02:+23,609,573(364)  LFPG-01:+15,597,956(215)  LFPG-11:+15,223,182(372)  EGLL-12:-14,821,999(127)  LSZH-05:-13,527,807(213)  EGLL-07:+12,017,138(338)  LTFM-12:+11,531,291(330)  EDDF-01:-11,361,457(164)  EGLL-08:-7,905,942(112)  EDDM-10:+5,533,903(76)  LTFM-10:-5,506,152(366)
+[16:50:17 +      1s]   C3 months with sum g > 0: 6 of 12 (>= 8: False)  1:+6,849,855  10:-3,424,386  11:+6,305,466  12:+5,746,477  2:+24,503,377  3:+60,946,565  4:-5,395,951  5:-15,850,280  6:-4,101,216  7:+9,898,795  8:-7,754,962  9:-4,529,598
+[16:50:17 +      1s]   C4 airports with sum g > 0: 5 of 9 (>= 6: False)  EDDF:-8,383,460  EDDM:+6,732,895  EGLL:+58,032,567  EHAM:-8,194,866  LEBL:-7,938,870  LEMD:+3,238,063  LFPG:+32,230,201  LSZH:-29,102,636  LTFM:+26,580,248
+[16:50:17 +      1s]   C5 calm (hprox_med < 1100, n 13,729) sum g -21,802,893 >= -7,319,414: False
+[16:50:17 +      1s]   C6 ex-monster (y <= 10800, n 20,725) sum g +73,183,743 > 0: True
+[16:50:17 +      1s]   C7 pooled +73,194,143 vs 2 x seed sd 34,595,638 (per seed {'0': 53833642.16455715, '1': 64820902.724473834, '2': 87736843.55869976}): True
+[16:50:17 +      1s]   bin              n    mean y   witness       S1C       S1R          sum g
+[16:50:17 +      1s]   NaN            333      1242       n/a      1047      1047             +0
+[16:50:17 +      1s]   <900         8,843       842       756       808       805    -25,381,300
+[16:50:17 +      1s]   900-1100     4,886       959       984       953       954     +3,578,407
+[16:50:17 +      1s]   1100-1300    3,663      1015      1191      1023      1033     +3,189,585
+[16:50:17 +      1s]   1300-1500    1,886      1301      1438      1264      1282     -3,460,120
+[16:50:17 +      1s]   1500-2000      819      1784      1651      1596      1655     -8,417,909
+[16:50:17 +      1s]   2000-2400      203      3780      2219      2113      2270    -85,240,416
+[16:50:17 +      1s]   >=2400          98      4512      2816      2321      3041   +188,925,896
+[16:50:17 +      1s]   fold-A months (1, 7) (seen by E3C's exploratory look): sum g +16,748,650 on 4,924 rows {'1': 6849855.040035438, '7': 9898794.562900677}; other ten months sum g +56,445,493
+[16:50:17 +      1s]   LIRF (report-only, keeps R2/E1): n 1,488 sum g +88,592,319 rmse {'n': 1488, 'S1C': 4447.2836688378275, 'S1R': 4440.5848918853935, 'gain_s': 6.6987769524339456}
+[16:50:17 +      1s]   VERDICT (plans/PREREG_unm_congestion_resid_2026_09_10.md): NOT WORKING
+[16:50:17 +      1s] json -> /Users/saurabhdxt/Projects/prc-challenge/reports/unm_congestion_resid.json   wall 1s   peak RSS 0.63 GB

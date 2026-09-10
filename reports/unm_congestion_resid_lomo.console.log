@@ -1,0 +1,39 @@
+[16:49:53 +      0s] unm_congestion_resid lomo  smoke=False  prereg=plans/PREREG_unm_congestion_resid_2026_09_10.md  paths={'lomo': '/Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/unm_congestion_resid_lomo.parquet', 'json': '/Users/saurabhdxt/Projects/prc-challenge/reports/unm_congestion_resid.json', 'lomo_log': '/Users/saurabhdxt/Projects/prc-challenge/reports/unm_congestion_resid_lomo.log', 'score_log': '/Users/saurabhdxt/Projects/prc-challenge/reports/unm_congestion_resid_score.log'}
+[16:49:56 +      2s] frame: 2,084,659 admissible DEP rows from 12 files in 2s; peak RSS 2.42 GB
+[16:49:58 +      4s] witness: 74,651 airport-hours from 2,062,440 matched rows; on the 22,219 unmatched rows hprox_med is NaN on 481 (2.2%), median hprox_n 33
+[16:49:58 +      5s] fold 1: fit_unmatched(all matched) == fit_unmatched(LIRF matched) bit-exact; releasing the full frame
+[16:49:58 +      5s] stratum: 22,219 rows, fill share 6.3%, non-fill 20,823, non-fill WITH a witness 20,462; offset y - hprox_med on those: median -31 s, beyond +3000 on 208, below -3000 on 1; LIRF matched 159,216
+[16:49:58 +      5s] --- 12-fold LOMO: S1C (unm_congestion.congestion_arms) and S1R ---
+[16:49:59 +      6s]   fold  1: test 1,408  train 20,811  routed 1,405 -> body; S1R differs from S1C on 1,369 rows; witness NaN on    28 (S1R == S1C there: True)  (1.5s)
+[16:50:01 +      8s]   fold  2: test 1,083  train 21,136  routed 1,079 -> body; S1R differs from S1C on 1,037 rows; witness NaN on    31 (S1R == S1C there: True)  (1.5s)
+[16:50:02 +      9s]   fold  3: test 1,060  train 21,159  routed 1,055 -> body; S1R differs from S1C on 1,027 rows; witness NaN on    19 (S1R == S1C there: True)  (1.5s)
+[16:50:04 +     11s]   fold  4: test 1,064  train 21,155  routed 1,053 -> body; S1R differs from S1C on 1,021 rows; witness NaN on    27 (S1R == S1C there: True)  (1.5s)
+[16:50:05 +     12s]   fold  5: test 1,591  train 20,628  routed 1,584 -> body; S1R differs from S1C on 1,549 rows; witness NaN on    29 (S1R == S1C there: True)  (1.5s)
+[16:50:07 +     14s]   fold  6: test 2,470  train 19,749  routed 2,456 -> body; S1R differs from S1C on 2,386 rows; witness NaN on    63 (S1R == S1C there: True)  (1.5s)
+[16:50:08 +     15s]   fold  7: test 3,913  train 18,306  routed 3,886 -> body; S1R differs from S1C on 3,808 rows; witness NaN on    72 (S1R == S1C there: True)  (1.5s)
+[16:50:10 +     17s]   fold  8: test 2,297  train 19,922  routed 2,274 -> body; S1R differs from S1C on 2,212 rows; witness NaN on    58 (S1R == S1C there: True)  (1.5s)
+[16:50:11 +     18s]   fold  9: test 2,453  train 19,766  routed 2,440 -> body; S1R differs from S1C on 2,391 rows; witness NaN on    49 (S1R == S1C there: True)  (1.5s)
+[16:50:13 +     20s]   fold 10: test 1,902  train 20,317  routed 1,892 -> body; S1R differs from S1C on 1,850 rows; witness NaN on    37 (S1R == S1C there: True)  (1.5s)
+[16:50:14 +     21s]   fold 11: test 1,347  train 20,872  routed 1,339 -> body; S1R differs from S1C on 1,302 rows; witness NaN on    31 (S1R == S1C there: True)  (1.5s)
+[16:50:16 +     23s]   fold 12: test 1,631  train 20,588  routed 1,619 -> body; S1R differs from S1C on 1,579 rows; witness NaN on    37 (S1R == S1C there: True)  (1.5s)
+[16:50:16 +     23s] LOMO scored 22,219 rows in 18s; peak RSS 3.26 GB
+[16:50:16 +     23s] reproduction guard: {'status': 'reproduced', 'n_rows': 22219, 'max_abs_diff_s': {'S1C': 0.0, 'S1': 0.0, 'S1C_seed0': 0.0, 'S1C_seed1': 0.0, 'S1C_seed2': 0.0}, 'tolerance_s': 1e-06, 'columns': ['S1C', 'S1', 'S1C_seed0', 'S1C_seed1', 'S1C_seed2'], 'reference': 'data/cache_stand/unm_congestion_lomo.parquet'}
+[16:50:16 +     23s] predictions -> /Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/unm_congestion_resid_lomo.parquet (22,219 rows, convention taxi_time); non-LIRF RMSE S1C 1104.75 S1R 1103.15 (descriptive; the clauses are the `score` step)   wall 23s   peak RSS 3.26 GB
+       23.45 real        22.89 user         0.51 sys
+          3495428096  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              395488  page reclaims
+                  91  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  25  voluntary context switches
+                3030  involuntary context switches
+        359672441667  instructions retired
+        104675197791  cycles elapsed
+          2943765648  peak memory footprint
