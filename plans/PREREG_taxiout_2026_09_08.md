@@ -2127,3 +2127,62 @@ rows. **The 23,000 MSE that separates us from the leader is not in this lane**, 
 matched mode rows (Amendment 19.0) and, by 23.0's arithmetic, a leader whose matched RMSE is near
 165 s. Screens: scratchpad `amend23_unmatched_anatomy.log`, `amend23_screen.log`,
 `amend23_p_quality.log`, `amend23_monsters.log`.
+
+
+---
+
+# RESULT 14 · 2026-09-09 23:10 local · the airport-clock anchor and the irreducible bounds
+
+## 14a · CORRECTION to 23.0's split — it rests on an assumption, and I stated it as measured
+
+23.0 divided the board score 59.6% matched / 40.4% unmatched **by assuming the scored file's
+matched rows behave like the fold's (224.26 s)**. That assumption is not measurable from the board:
+only the TOTAL is observed. Across a plausible matched range the split moves:
+
+| assumed scored matched RMSE | matched share | implied unmatched RMSE |
+|---|---|---|
+| 200 s | 47.4% | 1,686 s |
+| 224.26 s (the fold) | 59.6% | 1,478 s |
+| 250 s | 74.1% | 1,183 s |
+
+What survives: the unmatched rows are a **large minority of the score** (26-53%) at 1.5% of the
+rows, and RESULT 13's oracle decomposition — which was measured on the fold record, not inferred
+from the board — is unaffected. The precise "40%" is withdrawn; the lane's ranking is not.
+
+## 14b · The turnaround anchor (airport clock at both ends) — NOT WORKING
+
+The scored file carries **344,693 ARR rows with `BLOCK_TIME` 100% populated**, so the airport's own
+on-block stamp is observable at serve time for the aircraft that occupied each stand. That admits an
+anchor the field does not use: instead of `y = proxy - delta` (anchored on NM's `AOBT_3`, the very
+clock that disagrees on the mode rows), anchor on the airport's previous stamp at the same stand —
+`y = MVT_dep - (BLOCK_arr + turn)` — where a systematic clock offset cancels because both stamps
+come from one system. 97.6% of matched departures link to a previous arrival at their stand
+within 24 h (330,843 rows).
+
+**It is decisively worse.** `turn = BLOCK_dep - BLOCK_arr` has sd **13,503 s** against `delta`'s
+**427 s**; within (airport, stand, runway, hour) the floors are **9,060 s** vs **380 s**, and on the
+mode rows 8,497 s vs 939 s. Ground time is hours-scale and multimodal (aircraft sit overnight), so
+it swamps any clock offset it removes. The NM anchor is not merely conventional, it is the right
+one. **NOT WORKING; closed.**
+
+## 14c · The irreducible bounds, measured (pooled within-group spread, dof per group)
+
+A model keyed only on the named columns cannot beat the within-group spread of `delta`
+(= the spread of `y`, since `proxy` is known exactly):
+
+| key | within-group RMSE(delta) |
+|---|---|
+| airport | 408.8 s |
+| airport + stand + runway | 392.2 s |
+| + hour | 380.5 s |
+| airport + hour + proxy band + delay band | 311.1 s |
+| airport + stand + runway + hour + proxy + delay bands | 250.2 s |
+| **body only** (excl. mode rows), airport+stand+runway+hour | **197.3 s** |
+| **mode rows only**, same key | **938.7 s** |
+
+Our shipped 224.3 s already beats every coarse-key bound (the 80-feature design and the proxy carry
+more than any of these keys), so these are floors for coarser models, not for ours. The one that
+binds: **mode rows have a 939 s within-group spread even at stand+runway+hour resolution.** With the
+mode rows predicted perfectly and the body at its own coarse bound, matched lands at 166.0 s —
+within 1.4 s of the leader's implied matched RMSE under 23.0's assumption. Screens:
+scratchpad `turn_anchor_screen.log`, `irreducible_delta_bound.log`.
