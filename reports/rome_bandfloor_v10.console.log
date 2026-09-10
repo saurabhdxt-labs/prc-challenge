@@ -1,0 +1,92 @@
+{
+ "version": 10,
+ "file": "merry-quicksand_v10.parquet",
+ "base": "merry-quicksand_v9.parquet",
+ "arm": "E1 LIRF unmatched schedule floor (plans/PREREG_rome_bandfloor_2026_09_10.md)",
+ "rule": "max(base, rint(sp)) on LIRF unmatched rows with 24000 <= sp < 86400",
+ "n_rule_rows": 23,
+ "n_values_differ": 13,
+ "changed": [
+  {
+   "MVT_ID_mvt": 202680695,
+   "sp": 39365.0,
+   "before": 4524,
+   "after": 39365
+  },
+  {
+   "MVT_ID_mvt": 202681830,
+   "sp": 40615.0,
+   "before": 40130,
+   "after": 40615
+  },
+  {
+   "MVT_ID_mvt": 202681707,
+   "sp": 25619.0,
+   "before": 25108,
+   "after": 25619
+  },
+  {
+   "MVT_ID_mvt": 202681769,
+   "sp": 31983.0,
+   "before": 31622,
+   "after": 31983
+  },
+  {
+   "MVT_ID_mvt": 202689463,
+   "sp": 27183.0,
+   "before": 27099,
+   "after": 27183
+  },
+  {
+   "MVT_ID_mvt": 202683962,
+   "sp": 33055.0,
+   "before": 32014,
+   "after": 33055
+  },
+  {
+   "MVT_ID_mvt": 213142471,
+   "sp": 25564.0,
+   "before": 25323,
+   "after": 25564
+  },
+  {
+   "MVT_ID_mvt": 213145828,
+   "sp": 36062.0,
+   "before": 36048,
+   "after": 36062
+  },
+  {
+   "MVT_ID_mvt": 213143126,
+   "sp": 29455.0,
+   "before": 29410,
+   "after": 29455
+  },
+  {
+   "MVT_ID_mvt": 213142746,
+   "sp": 41395.0,
+   "before": 39616,
+   "after": 41395
+  },
+  {
+   "MVT_ID_mvt": 213147307,
+   "sp": 33057.0,
+   "before": 6196,
+   "after": 33057
+  },
+  {
+   "MVT_ID_mvt": 213155642,
+   "sp": 37379.0,
+   "before": 37315,
+   "after": 37379
+  },
+  {
+   "MVT_ID_mvt": 213154831,
+   "sp": 39060.0,
+   "before": 38824,
+   "after": 39060
+  }
+ ],
+ "fill_gain_board_mse_if_all_fills": 5626.972839656537,
+ "wall_s": 0.4
+}
+wrote /Users/saurabhdxt/Projects/prc-challenge/submissions/merry-quicksand_v10.parquet

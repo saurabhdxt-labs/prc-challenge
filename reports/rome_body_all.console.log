@@ -1,0 +1,80 @@
+{
+ "rmse": {
+  "F": 222.56316251601282,
+  "B_all": 221.69594025898692,
+  "B_all_cont": 221.84516963033835,
+  "B_all_seed0": 221.69541606207625,
+  "B_all_cont_seed0": 222.14406784040358,
+  "B_all_seed1": 221.69926148503086,
+  "B_all_cont_seed1": 222.37639661438152,
+  "B_all_seed2": 221.69458554423576,
+  "B_all_cont_seed2": 222.16671361307854
+ },
+ "clauses": {
+  "B_all": {
+   "c1_interval": true,
+   "c2_gain_ge_5s": true,
+   "c3_both_months": true,
+   "c4_body_bounded": false,
+   "c5_gain_over_2x_seed_sd": true
+  },
+  "B_all_cont": {
+   "c1_interval": true,
+   "c2_gain_ge_5s": true,
+   "c3_both_months": false,
+   "c4_body_bounded": false,
+   "c5_gain_over_2x_seed_sd": true
+  }
+ },
+ "verdict": {
+  "B_all": "INCONCLUSIVE",
+  "B_all_cont": "INCONCLUSIVE"
+ },
+ "per_airport_gain_s": {
+  "B_all": {
+   "EDDF": -0.0016539632881915622,
+   "EDDM": -0.0255772925118265,
+   "EGLL": -0.00030104926580065694,
+   "EHAM": -0.030698073584147778,
+   "LEBL": 0.016505403447922617,
+   "LEMD": -0.004424487611800032,
+   "LFPG": 0.0007963949384190983,
+   "LIRF": 6.739661613832766,
+   "LSZH": -0.028573758343185318,
+   "LTFM": 0.004622615856845869
+  },
+  "B_all_cont": {
+   "EDDF": 0.04152083656995842,
+   "EDDM": -1.8042799389654363,
+   "EGLL": -0.7935644980755114,
+   "EHAM": -0.98127807187484,
+   "LEBL": -0.3870000726159333,
+   "LEMD": -0.019334769911267813,
+   "LFPG": -0.29604860042795167,
+   "LIRF": 8.087752575395939,
+   "LSZH": -0.3877094327792747,
+   "LTFM": 0.33688533837425894
+  }
+ }
+}
+B_all {'gain_s': 0.8672222570259009, 'ci95': [0.47226547136472874, 1.2741189598518083], 'seed_sd': 0.0024947097326963475, 'gain_by_month': {1: 0.13442344024241493, 7: 1.375622108360659}, 'body_loss_s': 0.6327956524347087, 'fill_rows_rmse': {'F': 285.6315925543166, 'B_all': 272.8745183997266}, 'projected_board_mse': 379.361164707266} shortlist: False
+B_all_cont {'gain_s': 0.7179928856744766, 'ci95': [0.12885074451302286, 1.3146417525501917], 'seed_sd': 0.12809921368062294, 'gain_by_month': {1: -0.15581029134480673, 7: 1.3226615890789617}, 'body_loss_s': 1.18471802256704, 'fill_rows_rmse': {'F': 285.6315925543166, 'B_all_cont': 269.7399407251145}, 'projected_board_mse': 314.1871749834242} shortlist: False
+       78.98 real       155.32 user        13.44 sys
+          1410187264  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              426355  page reclaims
+                1788  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                1575  voluntary context switches
+             3976204  involuntary context switches
+       1822478854840  instructions retired
+        637948229543  cycles elapsed
+          1452672896  peak memory footprint
+exit 0

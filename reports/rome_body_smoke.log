@@ -1,0 +1,19 @@
+[13:22:07 +      0s] SMOKE — code path only, NOT a result
+[13:22:07 +      0s] queue block: 12 columns joined POSITIONALLY onto 3 months from /Users/saurabhdxt/Projects/prc-challenge/data/cache_queue (row counts asserted per month; the order is the v6 builder's, proven on March both ways)
+[13:22:07 +      0s] order block: 3 columns joined POSITIONALLY onto 3 months from /Users/saurabhdxt/Projects/prc-challenge/data/cache_order (row counts asserted per month; the order is build_features's, tests/test_order_features.py)
+[13:22:07 +      0s] loaded 3 months (458,222 rows): holdout (months (1, 7)) 152,250; training 305,972; fit 142,611; early-stop 163,361; airports ['EDDF', 'EDDM', 'EGLL', 'EHAM', 'LEBL', 'LEMD', 'LFPG', 'LIRF', 'LSZH', 'LTFM']; peak RSS 0.85 GB
+[13:22:08 +      1s] design matrix 458,222 x 83 float32 (0.15 GB); peak RSS 0.95 GB
+[13:22:08 +      1s] arm B body: training rows 305,972 -> 272,252 non-fill; fit 126,664; early-stop 145,588; holdout 152,250 (untouched)
+[13:22:08 +      1s] [body] early stopping on 83 features, target delta
+[13:22:08 +      1s] early-stopping run (seed 0, target delta): fit 126,664 rows, stop on 145,588 rows (months (3, 9)), lr 0.05, max 60 rounds, patience 50
+[13:22:09 +      2s]     iter      0  valid_0 rmse (delta) 332.931
+[13:22:10 +      3s] best_iter 60   stopping-set RMSE (taxi-time) 215.37   proxy-only on the 145,588 rows with a proxy 335.98   ratio 0.641   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 1.11 GB
+[13:22:10 +      3s] n_ref 128: refit on all 272,252 training rows (best_iter 60 x 2.149), no early stopping
+[13:22:14 +      7s] refit seed 0 done: 128 trees on 272,252 rows in 4s   peak RSS 1.21 GB
+[13:22:15 +      8s] [body] seed 0 alone: matched RMSE 221.2313 on 152,250 holdout rows   [4s]
+[13:22:19 +     12s] refit seed 1 done: 128 trees on 272,252 rows in 4s   peak RSS 1.23 GB
+[13:22:20 +     13s] [body] seed 1 alone: matched RMSE 221.6221 on 152,250 holdout rows   [5s]
+[13:22:24 +     17s] refit seed 2 done: 128 trees on 272,252 rows in 4s   peak RSS 1.24 GB
+[13:22:24 +     17s] [body] seed 2 alone: matched RMSE 220.6486 on 152,250 holdout rows   [5s]
+[13:22:24 +     17s] json -> /Users/saurabhdxt/Projects/prc-challenge/data/smoke_body/rome_body_fit.json   best_iter 60 n_ref 128   wall 17s
+[13:22:24 +     17s] SMOKE — code path only, NOT a result

@@ -1,0 +1,53 @@
+[13:22:32 +      1s] queue block: 12 columns joined POSITIONALLY onto 12 months from /Users/saurabhdxt/Projects/prc-challenge/data/cache_queue (row counts asserted per month; the order is the v6 builder's, proven on March both ways)
+[13:22:32 +      1s] order block: 3 columns joined POSITIONALLY onto 12 months from /Users/saurabhdxt/Projects/prc-challenge/data/cache_order (row counts asserted per month; the order is build_features's, tests/test_order_features.py)
+[13:22:32 +      1s] loaded 12 months (2,062,440 rows): holdout (months (1, 7)) 339,015; training 1,723,425; fit 1,378,585; early-stop 344,840; airports ['EDDF', 'EDDM', 'EGLL', 'EHAM', 'LEBL', 'LEMD', 'LFPG', 'LIRF', 'LSZH', 'LTFM']; peak RSS 2.65 GB
+[13:22:37 +      6s] design matrix 2,062,440 x 83 float32 (0.68 GB); peak RSS 3.10 GB
+[13:22:37 +      6s] arm B body: training rows 1,723,425 -> 1,555,403 non-fill; fit 1,243,319; early-stop 312,084; holdout 339,015 (untouched)
+[13:22:37 +      6s] [body] early stopping on 83 features, target delta
+[13:22:37 +      6s] early-stopping run (seed 0, target delta): fit 1,243,319 rows, stop on 312,084 rows (months (3, 9)), lr 0.01, max 50,000 rounds, patience 200
+[13:22:38 +      7s]     iter      0  valid_0 rmse (delta) 365.075
+[13:24:03 +     92s]     iter  1,000  valid_0 rmse (delta) 198.727
+[13:25:12 +    161s]     iter  2,000  valid_0 rmse (delta) 195.026
+[13:26:03 +    212s]     iter  3,000  valid_0 rmse (delta) 193.798
+[13:26:50 +    259s]     iter  4,000  valid_0 rmse (delta) 193.145
+[13:27:44 +    313s]     iter  5,000  valid_0 rmse (delta) 192.693
+[13:28:26 +    355s]     iter  6,000  valid_0 rmse (delta) 192.385
+[13:29:06 +    395s]     iter  7,000  valid_0 rmse (delta) 192.148
+[13:29:46 +    435s]     iter  8,000  valid_0 rmse (delta) 191.952
+[13:30:25 +    474s]     iter  9,000  valid_0 rmse (delta) 191.795
+[13:31:03 +    512s]     iter 10,000  valid_0 rmse (delta) 191.671
+[13:31:41 +    550s]     iter 11,000  valid_0 rmse (delta) 191.560
+[13:32:19 +    588s]     iter 12,000  valid_0 rmse (delta) 191.478
+[13:32:57 +    626s]     iter 13,000  valid_0 rmse (delta) 191.407
+[13:33:35 +    664s]     iter 14,000  valid_0 rmse (delta) 191.359
+[13:34:12 +    701s]     iter 15,000  valid_0 rmse (delta) 191.308
+[13:34:48 +    737s]     iter 16,000  valid_0 rmse (delta) 191.265
+[13:35:25 +    774s]     iter 17,000  valid_0 rmse (delta) 191.236
+[13:39:59 +   1048s] best_iter 17,328   stopping-set RMSE (taxi-time) 190.82   proxy-only on the 312,084 rows with a proxy 355.29   ratio 0.537   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 3.44 GB
+[13:39:59 +   1048s] n_ref 21,677: refit on all 1,555,403 training rows (best_iter 17,328 x 1.251), no early stopping
+[13:56:32 +   2041s] refit seed 0 done: 21,677 trees on 1,555,403 rows in 993s   peak RSS 3.76 GB
+[14:01:51 +   2360s] [body] seed 0 alone: matched RMSE 232.1959 on 339,015 holdout rows   [1311s]
+[14:18:30 +   3359s] refit seed 1 done: 21,677 trees on 1,555,403 rows in 999s   peak RSS 4.16 GB
+[14:23:51 +   3680s] [body] seed 1 alone: matched RMSE 232.4543 on 339,015 holdout rows   [1320s]
+[14:40:40 +   4689s] refit seed 2 done: 21,677 trees on 1,555,403 rows in 1009s   peak RSS 4.17 GB
+[14:46:23 +   5032s] [body] seed 2 alone: matched RMSE 232.2613 on 339,015 holdout rows   [1352s]
+[14:46:23 +   5032s] json -> /Users/saurabhdxt/Projects/prc-challenge/reports/rome_body_fit.json   best_iter 17,328 n_ref 21,677   wall 5032s
+     5033.35 real     15281.13 user      1069.27 sys
+          4485398528  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             2276645  page reclaims
+                  93  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  95  voluntary context switches
+           389650433  involuntary context switches
+     169612133383683  instructions retired
+      64905897899578  cycles elapsed
+          6372726160  peak memory footprint
+exit 0

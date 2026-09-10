@@ -1,0 +1,54 @@
+[09:57:32 +     0s] frames from /Users/saurabhdxt/Projects/prc-challenge/data/cache_rome
+[09:57:32 +     0s] fold lomo 1:
+[09:57:36 +     4s]   trained on 149,387 LIRF rows (1,428 unmatched), months [np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(7), np.int32(8), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 60
+[09:57:36 +     4s] fold lomo 2:
+[09:57:40 +     8s]   trained on 150,001 LIRF rows (1,430 unmatched), months [np.int32(1), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(7), np.int32(8), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 58
+[09:57:40 +     8s] fold lomo 3:
+[09:57:43 +    11s]   trained on 148,160 LIRF rows (1,429 unmatched), months [np.int32(1), np.int32(2), np.int32(4), np.int32(5), np.int32(6), np.int32(7), np.int32(8), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 59
+[09:57:43 +    11s] fold lomo 4:
+[09:57:47 +    15s]   trained on 146,676 LIRF rows (1,418 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(5), np.int32(6), np.int32(7), np.int32(8), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 70
+[09:57:47 +    15s] fold lomo 5:
+[09:57:51 +    19s]   trained on 146,163 LIRF rows (1,389 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(4), np.int32(6), np.int32(7), np.int32(8), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 99
+[09:57:51 +    19s] fold lomo 6:
+[09:57:55 +    23s]   trained on 146,008 LIRF rows (1,303 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(7), np.int32(8), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 185
+[09:57:55 +    23s] fold lomo 7:
+[09:57:58 +    26s]   trained on 145,493 LIRF rows (1,151 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(8), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 337
+[09:57:58 +    26s] fold lomo 8:
+[09:58:02 +    30s]   trained on 145,245 LIRF rows (1,291 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(7), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 197
+[09:58:02 +    30s] fold lomo 9:
+[09:58:06 +    34s]   trained on 146,037 LIRF rows (1,320 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(7), np.int32(8), np.int32(10), np.int32(11), np.int32(12)]; scored 168
+[09:58:06 +    34s] fold lomo 10:
+[09:58:09 +    37s]   trained on 146,562 LIRF rows (1,373 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(7), np.int32(8), np.int32(9), np.int32(11), np.int32(12)]; scored 115
+[09:58:09 +    37s] fold lomo 11:
+[09:58:13 +    41s]   trained on 149,376 LIRF rows (1,436 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(7), np.int32(8), np.int32(9), np.int32(10), np.int32(12)]; scored 52
+[09:58:13 +    41s] fold lomo 12:
+[09:58:17 +    45s]   trained on 148,636 LIRF rows (1,400 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(7), np.int32(8), np.int32(9), np.int32(10), np.int32(11)]; scored 88
+[09:58:17 +    45s] fold A A:
+[09:58:20 +    48s]   trained on 134,176 LIRF rows (1,091 unmatched), months [np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(8), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 397
+[09:58:20 +    48s] LOMO-12: Rome unmatched rows 1,488
+[09:58:20 +    48s]   S1       RMSE    4450.7  SSE   29475.9 M  sp2-weighted AUC 0.733
+[09:58:20 +    48s]   R_seed0  RMSE    4201.2  SSE   26263.5 M  sp2-weighted AUC 0.853
+[09:58:20 +    48s]   R_seed1  RMSE    4262.5  SSE   27034.8 M  sp2-weighted AUC 0.851
+[09:58:20 +    48s]   R_seed2  RMSE    4169.3  SSE   25865.6 M  sp2-weighted AUC 0.858
+[09:58:20 +    48s]   R        RMSE    4200.4  SSE   26253.6 M  sp2-weighted AUC 0.855
+[09:58:20 +    48s]   R_unm    RMSE    4374.6  SSE   28476.5 M  sp2-weighted AUC 0.724
+[09:58:20 +    48s]   R_perm   RMSE    7686.8  SSE   87921.3 M  sp2-weighted AUC 0.452
+[09:58:20 +    48s] fold A: Rome unmatched rows 397
+[09:58:20 +    48s]   S1       RMSE    3935.3  SSE    6148.2 M  sp2-weighted AUC 0.76
+[09:58:20 +    48s]   R_seed0  RMSE    3339.6  SSE    4427.6 M  sp2-weighted AUC 0.876
+[09:58:20 +    48s]   R_seed1  RMSE    3410.2  SSE    4616.9 M  sp2-weighted AUC 0.878
+[09:58:20 +    48s]   R_seed2  RMSE    3365.4  SSE    4496.3 M  sp2-weighted AUC 0.88
+[09:58:20 +    48s]   R        RMSE    3360.6  SSE    4483.7 M  sp2-weighted AUC 0.877
+[09:58:20 +    48s]   R_unm    RMSE    3986.2  SSE    6308.3 M  sp2-weighted AUC 0.715
+[09:58:20 +    48s]   R_perm   RMSE    7410.3  SSE   21800.5 M  sp2-weighted AUC 0.571
+[09:58:20 +    48s] month-block bootstrap (LOMO, S1 - R SSE): +3222.3 M  CI [-1510.6, +7396.4] M
+[09:58:20 +    48s] reduction LOMO 10.9%  fold A 27.1%  months improving 10/12  gain RMSE +250.3 vs 2 x seed sd 94.7
+[09:58:20 +    48s] controls: {'s1_rebuilds_exactly': True, 's1_rebuild_max_abs_error': 0.0, 'perm_does_not_beat_s1': True}
+[09:58:20 +    48s]   c1_month_block_interval        fail
+[09:58:20 +    48s]   c2_lomo_reduction_ge_15pct     fail
+[09:58:20 +    48s]   c3_foldA_reduction_ge_15pct    PASS
+[09:58:20 +    48s]   c4_gain_over_2x_seed_sd        PASS
+[09:58:20 +    48s]   c5_months_improving_ge_8       PASS
+[09:58:20 +    48s] VERDICT (R): NOT WORKING
+[09:58:20 +    48s] reported: {'foldA_july_rome_rmse': {'S1': 3925.647521977898, 'R': 3538.8320564207816}, 'public_july_rome_rmse': 3437.9, 'projected_board_mse': 4656.577163320436}
+[09:58:20 +    48s] json -> /Users/saurabhdxt/Projects/prc-challenge/reports/rome_fill.json   wall 48s   peak RSS 0.57 GB
