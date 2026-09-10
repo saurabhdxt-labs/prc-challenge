@@ -1456,8 +1456,8 @@ def test_amendment_19_modes_name_their_outputs_and_compose_with_queue_only():
     assert lf.output_paths("queue_ytarget", None) == (lf.REPORTS / "lgbm_fold_queue_ytarget.json",
                                                       lf.REPORTS / "lgbm_fold_queue_ytarget.log",
                                                       lf.CACHE / "fold_preds_queue_ytarget.parquet")
-    assert len({lf.OUTPUT_NAMES[m] for m in lf.MODES}) == len(lf.MODES) == 16      # 10 + the unified arm's four + arm F's two
-    for m in ("day", "queue_day", "ytarget", "queue_ytarget", "order", "queue_order"):
+    assert len({lf.OUTPUT_NAMES[m] for m in lf.MODES}) == len(lf.MODES) == 18      # 10 + the unified four + arms F and W
+    for m in ("day", "queue_day", "ytarget", "queue_ytarget", "order", "queue_order", "weather", "queue_weather"):
         assert m in lf.RUNNERS and m in lf.COMMANDS and m in lf.ESTIMATES
     assert "--dayfeats --baseline A2 --pa-trees es" in lf.COMMANDS["day"] and "lgbm_fold_day.console.log" in lf.COMMANDS["day"]
     assert "--dayfeats --queue" in lf.COMMANDS["queue_day"] and "--ytarget --queue" in lf.COMMANDS["queue_ytarget"]
@@ -1490,6 +1490,18 @@ def test_amendment_19_modes_name_their_outputs_and_compose_with_queue_only():
     assert lf.RUNNERS["order"] is lf.run_order and lf.RUNNERS["day"] is lf.run_day
     assert lf.BLOCK_ARMS["day"].cache_attr == "DCACHE" and lf.BLOCK_ARMS["order"].cache_attr == "OCACHE"
     assert lf.BLOCK_ARMS["day"].min_airports == 6 and lf.BLOCK_ARMS["order"].min_airports is None
+    # Amendment 24 arm W: the third block arm, same runner, its own mode and cache attribute
+    assert lf.mode_of(lf.parse_args(["--weatherfeats"])) == "weather"
+    assert lf.mode_of(lf.parse_args(["--weatherfeats", "--queue"])) == "queue_weather"
+    assert lf.output_paths("queue_weather", out)[2] == out / "fold_preds_queue_weather.parquet"
+    for argv in (["--weatherfeats", "--orderfeats"], ["--weatherfeats", "--dayfeats"],
+                 ["--weatherfeats", "--ytarget"], ["--ytarget", "--all-rows", "--weatherfeats"]):
+        with pytest.raises(SystemExit):
+            lf.parse_args(argv)
+    assert lf.FEATS_WEATHER == list(lf.L.FEATS) + lf.WEATHER_FEATS and len(lf.FEATS_WEATHER) == 78
+    assert len(lf.FEATS_QUEUE_WEATHER) == 90 and lf.WEATHER_FEATS == lf.S.WEATHER_FEATS
+    assert lf.RUNNERS["weather"] is lf.run_weather and lf.BLOCK_ARMS["weather"].cache_attr == "WCACHE"
+    assert lf.BLOCK_ARMS["weather"].min_airports is None
 
 
 def test_delta_bands_partition_the_holdout_with_left_closed_edges():
@@ -1935,6 +1947,60 @@ def test_order_arm_end_to_end_recovers_a_planted_per_row_shift(monkeypatch, tmp_
     assert np.array_equal(p2.baseline.to_numpy(), qp.treatment.to_numpy())
 
 
+def test_weather_arm_end_to_end_recovers_a_planted_freezing_hold(monkeypatch, tmp_path):
+    """Amendment 24 arm W on a synthetic cache whose target carries 600 s x w_freezing - a hold on
+    the freezing rows only, visible only through the weather block, the shape 24.1 names. In-process
+    baseline (A2, seeds 0-2), treatment = baseline + WEATHER_FEATS: the paired interval must
+    exclude zero in the improving direction, the record names the block and its cache, arm W has no
+    airport-count clause, and under --queue the design is FEATS + QUEUE + WEATHER (90) with the
+    queue record as the baseline.
+
+    A 600 s effect on a ~1.5%-prevalence flag is deliberately large: at the smoke's 60 rounds a
+    rarer or smaller effect is inside the fixture's own 2% tail and the test would measure noise.
+
+    Fails when the weather block is not in the treatment's design, when the cache path is frozen at
+    import, or when the queue record is not the baseline under --queue. Rehearsed 2026-09-09, each
+    RED: the treatment fitted on `X[:, :nb]`; `cache=WCACHE` frozen in BLOCK_ARMS; `_baseline_record
+    (..., False)` under --queue.
+    """
+    _fold_env(monkeypatch, tmp_path, queue_signal=0.0, weather_signal=600.0)
+    monkeypatch.setattr(lf, "WCACHE", tmp_path / "data" / "cache_weather")
+    out = tmp_path / "out"
+    assert lf.main(["--weatherfeats", "--smoke", "--out-dir", str(out), "--refit-baseline", "--baseline", "A2"]) == 0
+    j = json.loads((out / "lgbm_fold_weather.json").read_text())
+    preds = pd.read_parquet(out / "fold_preds_weather.parquet")
+    log = (out / "lgbm_fold_weather.log").read_text()
+    assert j["mode"] == "weather" and j["amendment"] == "24" and j["config"]["n_features"] == 78
+    assert j["config"]["features"] == list(lf.L.FEATS) + lf.WEATHER_FEATS
+    assert j["config"]["weather_feats"] == lf.WEATHER_FEATS
+    assert j["config"]["weather_cache"] == str(tmp_path / "data" / "cache_weather")
+    assert j["config"]["min_airports"] is None
+    p = j["pairs"]["treatment_vs_baseline"]
+    print(f"\narm W on the fixture: baseline {j['arms']['baseline']['rmse']:.2f}  treatment "
+          f"{j['arms']['treatment']['rmse']:.2f}  gain {p['gain_s']:+.2f} s  CI {p['ci95']}")
+    assert p["gain_s"] > 5.0 and p["excludes_zero"] is True and p["improving"] is True and p["ci95"][0] > 0
+    assert not any(k.startswith("at_least_") for k in p), "arm W has no airport-count clause (24.4)"
+    assert "over10 (the |delta| > 10 min bands of 24.4)" in log
+    _check_bands(j, preds, {"treatment_vs_baseline"})
+    for arm in ("baseline", "treatment"):
+        assert j["arms"][arm]["rmse"] == pytest.approx(_recovered_rmse(preds, arm), abs=1e-9), arm
+
+    q = tmp_path / "q"
+    assert lf.main(["--queue", "--smoke", "--out-dir", str(q), "--refit-baseline", "--n-perm", "2",
+                    "--pa-trees", "share", "--baseline", "A2"]) == 0
+    qp = pd.read_parquet(q / "fold_preds_queue.parquet")
+    out2 = tmp_path / "out2"
+    assert lf.main(["--weatherfeats", "--queue", "--smoke", "--out-dir", str(out2), "--baseline", "A2",
+                    "--queue-preds", str(q / "fold_preds_queue.parquet"),
+                    "--queue-json", str(q / "lgbm_fold_queue.json")]) == 0
+    j2 = json.loads((out2 / "lgbm_fold_queue_weather.json").read_text())
+    p2 = pd.read_parquet(out2 / "fold_preds_queue_weather.parquet")
+    assert j2["mode"] == "queue_weather" and j2["config"]["n_features"] == 90
+    assert j2["config"]["features"] == list(lf.L.FEATS) + QUEUE_FEATS + lf.WEATHER_FEATS
+    assert j2["baseline"]["source"] == "queue predictions"
+    assert np.array_equal(p2.baseline.to_numpy(), qp.treatment.to_numpy())
+
+
 def test_allrows_mode_flags_weights_and_the_2026_total():
     """--all-rows composes with --ytarget only (mode allrows, queue_allrows with --queue);
     --unmatched-weight parses a list of distinct positive floats (default (1.0,)); the 2026
@@ -1969,7 +2035,7 @@ def test_allrows_mode_flags_weights_and_the_2026_total():
     out = pathlib.Path("/o")
     assert lf.output_paths("allrows", out) == (out / "lgbm_fold_allrows.json", out / "lgbm_fold_allrows.log", out / "fold_preds_allrows.parquet")
     assert lf.output_paths("queue_allrows", out)[2] == out / "fold_preds_queue_allrows.parquet"
-    assert len({lf.OUTPUT_NAMES[m] for m in lf.MODES}) == len(lf.MODES) == 16   # + arm F's two
+    assert len({lf.OUTPUT_NAMES[m] for m in lf.MODES}) == len(lf.MODES) == 18   # + arm F's and arm W's two each
     assert lf.mode_of(lf.parse_args(["--ytarget", "--all-rows", "--dayfeats"])) == "allrows_day"
     assert lf.mode_of(lf.parse_args(["--ytarget", "--all-rows", "--queue", "--dayfeats"])) == "queue_allrows_day"
     assert "--ytarget --all-rows --unmatched-weight 1,10" in lf.COMMANDS["allrows"] and "allrows" in lf.ESTIMATES

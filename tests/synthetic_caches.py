@@ -71,6 +71,11 @@ DAY_ARR_FEATS = ["d_arr_p50", "d_arr_p90", "d_arr_long"]
 #: FLIGHT_ID), o_n_line 501 on 95% of rows and 50..500 on the rest (window edges)
 ORDER_FEATS = ["o_dev_mvt", "o_dev_flt", "o_n_line"]
 ORDER_RNG_OFFSET = 8_887
+#: Amendment 24's weather block, from its OWN RNG stream, so no earlier draw moves: a freezing
+#: share near the real 1.5%, a low-visibility share near 1%, thunder near 0.3%
+WEATHER_FEATS = ["w_temp_c", "w_dewspread_c", "w_wind_kt", "w_gust_kt", "w_vis_km", "w_precip_mm",
+                 "w_freezing", "w_lowvis", "w_thunder", "w_age_s"]
+WEATHER_RNG_OFFSET = 9_931
 N_DAYS = 30                       # synthetic airport-days per month for the day block
 DAY_RNG_OFFSET = 7_919            # the day block's own RNG stream: seed * 100 + month + this
 
@@ -188,8 +193,22 @@ def order_block(rng_order, n) -> dict:
     return {"o_dev_mvt": dev_m, "o_dev_flt": dev_f, "o_n_line": n_line}
 
 
+def weather_block(rng_w, n) -> dict:
+    """The weather block from its OWN RNG stream; the flags are rare, as they are in the archive."""
+    temp = rng_w.normal(10.0, 8.0, n)
+    freezing = ((temp <= 3.0) & (rng_w.random(n) < 0.5)).astype(float)
+    vis = np.clip(rng_w.normal(9.0, 3.0, n), 0.1, 20.0)
+    return {"w_temp_c": temp, "w_dewspread_c": np.clip(rng_w.normal(4.0, 2.0, n), 0, None),
+            "w_wind_kt": np.clip(rng_w.normal(10.0, 5.0, n), 0, None),
+            "w_gust_kt": np.where(rng_w.random(n) < 0.15, rng_w.uniform(20, 45, n), 0.0),
+            "w_vis_km": vis, "w_precip_mm": np.where(rng_w.random(n) < 0.2, rng_w.uniform(0, 3, n), 0.0),
+            "w_freezing": freezing, "w_lowvis": (vis < 1.5).astype(float),
+            "w_thunder": (rng_w.random(n) < 0.03).astype(float),
+            "w_age_s": rng_w.uniform(0, 1_800, n)}
+
+
 def _month(rng, rng_day, m, n, cols, queue_signal, fill_feature, day_signal, proxy_levels, serve,
-           rng_order=None, order_signal=0.0) -> tuple:
+           rng_order=None, order_signal=0.0, rng_weather=None, weather_signal=0.0) -> tuple:
     """One synthetic month: (stand frame dict, queue block, day block, order block). The order of
     every draw from `rng` is the original generator's; the day block comes from `rng_day`, the
     order block from `rng_order` (None: no order block, the pre-Amendment-22 callers). With
@@ -222,6 +241,11 @@ def _month(rng, rng_day, m, n, cols, queue_signal, fill_feature, day_signal, pro
         if ordblk is None:
             raise ValueError("order_signal needs an order block (rng_order)")
         delta = delta + order_signal * np.nan_to_num(ordblk["o_dev_flt"])   # per row, visible only through the order block
+    wblk = weather_block(rng_weather, n) if rng_weather is not None else None
+    if weather_signal:
+        if wblk is None:
+            raise ValueError("weather_signal needs a weather block (rng_weather)")
+        delta = delta + weather_signal * wblk["w_freezing"]   # a hold on freezing rows, only through the weather block
     tail = rng.random(n) < 0.02
     delta[tail] = rng.choice([-1.0, 1.0], tail.sum()) * rng.uniform(1_300, 1_400, tail.sum())
     u = rng.random(n)
@@ -243,10 +267,10 @@ def _month(rng, rng_day, m, n, cols, queue_signal, fill_feature, day_signal, pro
     if serve:
         y, delta = np.full(n, np.nan), np.full(n, np.nan)   # the scored file carries no label
     d.update(delta=delta, y=y, proxy=proxy, sp=sp, month=np.full(n, m, "int32"), ap=ap)
-    return d, q, blk, ordblk
+    return d, q, blk, ordblk, wblk
 
 
-def _write_twins(qdir, ddir, name, ids, q, blk, odir=None, ordblk=None) -> None:
+def _write_twins(qdir, ddir, name, ids, q, blk, odir=None, ordblk=None, wdir=None, wblk=None) -> None:
     qf = pd.DataFrame({"MVT_ID_mvt": ids})
     for c in QUEUE_FEATS:
         qf[c] = q[c].astype("float32")
@@ -260,10 +284,15 @@ def _write_twins(qdir, ddir, name, ids, q, blk, odir=None, ordblk=None) -> None:
         for c in ORDER_FEATS:
             of[c] = ordblk[c].astype("float32")
         of.to_parquet(odir / name, index=False)
+    if wdir is not None:
+        wf = pd.DataFrame({"MVT_ID_mvt": ids})
+        for c in WEATHER_FEATS:
+            wf[c] = wblk[c].astype("float32")
+        wf.to_parquet(wdir / name, index=False)
 
 
 def synthetic_caches(root, months, n=600, seed=0, queue_signal=60.0, fill_feature=None, day_signal=0.0,
-                     proxy_levels=None, order_signal=0.0):
+                     proxy_levels=None, order_signal=0.0, weather_signal=0.0):
     """data/cache_stand + data/cache_queue + data/cache_day (+ data/cache_order, Amendment 22) twins
     under `root`, one file per calendar month in `months`. Returns (stand dir, queue dir); the day
     dir is root/cache_day, the order dir root/cache_order.
@@ -278,8 +307,9 @@ def synthetic_caches(root, months, n=600, seed=0, queue_signal=60.0, fill_featur
     """
     stand, queue, day = root / "cache_stand", root / "cache_queue", root / "cache_day"
     unmatched, order = root / "cache_unmatched", root / "cache_order"
+    weather = root / "cache_weather"
     stand.mkdir(parents=True), queue.mkdir(parents=True), day.mkdir(parents=True), unmatched.mkdir(parents=True)
-    order.mkdir(parents=True)
+    order.mkdir(parents=True), weather.mkdir(parents=True)
     assert set(KEYS) == set(S.ENC_KEYS)
     cols = stand_columns()
     ucols = unmatched_columns()
@@ -288,11 +318,13 @@ def synthetic_caches(root, months, n=600, seed=0, queue_signal=60.0, fill_featur
         rng = np.random.default_rng(seed * 100 + m)
         rng_day = np.random.default_rng(seed * 100 + m + DAY_RNG_OFFSET)
         rng_order = np.random.default_rng(seed * 100 + m + ORDER_RNG_OFFSET)
-        d, q, blk, ordblk = _month(rng, rng_day, m, n, cols, queue_signal, fill_feature, day_signal, proxy_levels,
-                                   serve=False, rng_order=rng_order, order_signal=order_signal)
+        rng_weather = np.random.default_rng(seed * 100 + m + WEATHER_RNG_OFFSET)
+        d, q, blk, ordblk, wblk = _month(rng, rng_day, m, n, cols, queue_signal, fill_feature, day_signal, proxy_levels,
+                                         serve=False, rng_order=rng_order, order_signal=order_signal,
+                                         rng_weather=rng_weather, weather_signal=weather_signal)
         name = MONTH_NAME.format(m, m + 1)
         pd.DataFrame(d)[cols].to_parquet(stand / name, index=False)
-        _write_twins(queue, day, name, next_id + np.arange(n, dtype="float64"), q, blk, order, ordblk)
+        _write_twins(queue, day, name, next_id + np.arange(n, dtype="float64"), q, blk, order, ordblk, weather, wblk)
         next_id += n
         # the unmatched rows of the month: their own RNG stream, ids from 500,000 up
         rng_u = np.random.default_rng(seed * 100 + m + UNMATCHED_RNG_OFFSET)
@@ -348,14 +380,17 @@ def synthetic_submission(root, months=(1, 2, 3), n=600, seed=0, n_rank=6_000, n_
     first_id = 1_000_000.0
     parts, ids_all, q_all, blk_all = [], [], {c: [] for c in QUEUE_FEATS}, {c: [] for c in DAY_FEATS}
     ord_all = {c: [] for c in ORDER_FEATS}
+    w_all = {c: [] for c in WEATHER_FEATS}
     per_month = n_rank // 2
     for i, m in enumerate((1, 7)):
         rng = np.random.default_rng(seed * 100 + 50 + m)
         rng_day = np.random.default_rng(seed * 100 + 50 + m + DAY_RNG_OFFSET)
         rng_order = np.random.default_rng(seed * 100 + 50 + m + ORDER_RNG_OFFSET)
-        d, q, blk, ordblk = _month(rng, rng_day, m, per_month, cols, kw.get("queue_signal", 60.0), kw.get("fill_feature"),
-                                   kw.get("day_signal", 0.0), kw.get("proxy_levels"), serve=True,
-                                   rng_order=rng_order, order_signal=kw.get("order_signal", 0.0))
+        rng_weather = np.random.default_rng(seed * 100 + 50 + m + WEATHER_RNG_OFFSET)
+        d, q, blk, ordblk, wblk = _month(rng, rng_day, m, per_month, cols, kw.get("queue_signal", 60.0), kw.get("fill_feature"),
+                                         kw.get("day_signal", 0.0), kw.get("proxy_levels"), serve=True,
+                                         rng_order=rng_order, order_signal=kw.get("order_signal", 0.0),
+                                         rng_weather=rng_weather, weather_signal=kw.get("weather_signal", 0.0))
         ids = first_id + i * per_month + np.arange(per_month, dtype="float64")
         frame = pd.DataFrame(d)[cols]
         frame.insert(0, "MVT_ID_mvt", ids)
@@ -367,12 +402,15 @@ def synthetic_submission(root, months=(1, 2, 3), n=600, seed=0, n_rank=6_000, n_
             blk_all[c].append(blk[c])
         for c in ORDER_FEATS:
             ord_all[c].append(ordblk[c])
+        for c in WEATHER_FEATS:
+            w_all[c].append(wblk[c])
     rank = pd.concat(parts, ignore_index=True)
     rank.to_parquet(stand / "ranking.parquet", index=False)
     rank_ids = np.concatenate(ids_all)
     _write_twins(queue, day, "ranking.parquet", rank_ids,
                  {c: np.concatenate(v) for c, v in q_all.items()}, {c: np.concatenate(v) for c, v in blk_all.items()},
-                 root / "cache_order", {c: np.concatenate(v) for c, v in ord_all.items()})
+                 root / "cache_order", {c: np.concatenate(v) for c, v in ord_all.items()},
+                 root / "cache_weather", {c: np.concatenate(v) for c, v in w_all.items()})
 
     rng = np.random.default_rng(seed * 100 + 99)
     unmatched = first_id + n_rank + np.arange(n_unmatched, dtype="float64")
@@ -406,6 +444,7 @@ def synthetic_submission(root, months=(1, 2, 3), n=600, seed=0, n_rank=6_000, n_
                          "TAXITIME_SEC_mvt": rng.integers(300, 2_000, len(dep_ids)).astype("int32")})
     base_path = subs / f"{TEAM}_v1.parquet"
     base.to_parquet(base_path, index=False)
-    return SimpleNamespace(stand=stand, queue=queue, day=day, order=root / "cache_order", unmatched=root / "cache_unmatched", raw=raw, subs=subs,
+    return SimpleNamespace(stand=stand, queue=queue, day=day, order=root / "cache_order",
+                           weather=root / "cache_weather", unmatched=root / "cache_unmatched", raw=raw, subs=subs,
                            base=base_path, rank_ids=rank_ids, matched_ids=set(rank_ids.tolist()),
                            unmatched_ids=set(unmatched.tolist()))
