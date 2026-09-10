@@ -1,0 +1,179 @@
+base merry-quicksand_v7.parquet: 344,841 rows, dtype int32; template 344,841
+frame: 2,084,659 admissible DEP rows from 12 files in 2s; peak RSS 2.44 GB
+witness: 74,651 airport-hours from 2,062,440 matched rows; on the 22,219 unmatched rows hprox_med is NaN on 481 (2.2%), median hprox_n 33
+fold 1: fit_unmatched(all matched) == fit_unmatched(LIRF matched) bit-exact; releasing the full frame
+2025: 22,219 unmatched rows with the witness ({'<900': 9633, '900-1100': 5363, '1100-1300': 3699, '1300-1500': 1915, '1500-2000': 827, 'NaN': 481, '2000-2400': 203, '>=2400': 98}), 159,216 LIRF matched rows
+ranking: 344,841 DEP rows, 339,551 matched; scored unmatched 5,290, non-LIRF 4,907
+guard 1: S1 rebuilds merry-quicksand_v7.parquet on all 4,907 scored non-LIRF unmatched rows (383 LIRF rows not compared)
+2026 witness: {'n_airport_hours': 12782, 'n_serve_matched_rows': 339551, 'n_scored_covered': 5273, 'n_scored': 5290, 'scored_nan_share': 0.027977315689981096, 'min_n': 5}
+S1C: replaced 4,907 rows, 4,828 values differ, routed to the body 4,897; mean shift +52.4 s, RMS shift 237.1 s, sse shift 800.3 board MSE; changed-row bins {'NaN': 117, '<900': 1659, '900-1100': 1193, '1100-1300': 920, '1300-1500': 433, '1500-2000': 274, '2000-2400': 47, '>=2400': 185}
+--- before / after mean by 2026 witness bin (non-LIRF unmatched scored rows) ---
+  key                          n    before     after    shift  changed
+  NaN                        117    1045.0     951.3    -93.7      117
+  <900                     1,692     858.2     836.7    -21.6    1,659
+  900-1100                 1,207     971.7     978.0     +6.3    1,193
+  1100-1300                  937    1022.1    1026.5     +4.4      920
+  1300-1500                  443    1207.4    1245.6    +38.2      433
+  1500-2000                  279    1235.3    1620.6   +385.4      274
+  2000-2400                   47    1143.2    2075.7   +932.5       47
+  >=2400                     185    1017.6    1690.7   +673.2      185
+--- before / after mean by airport (non-LIRF unmatched scored rows) ---
+  key                          n    before     after    shift  changed
+  EDDF                       421     983.3    1055.8    +72.5      417
+  EDDM                       238    1038.7    1023.4    -15.3      238
+  EGLL                       248    1470.5    1443.2    -27.2      247
+  EHAM                     1,206     784.2     887.5   +103.3    1,188
+  LEBL                       442    1080.6    1077.6     -3.0      435
+  LEMD                       238    1127.2    1131.4     +4.2      237
+  LFPG                       734    1113.4    1241.7   +128.3      731
+  LSZH                       659     726.2     747.7    +21.4      641
+  LTFM                       721    1127.8    1133.7     +6.0      694
+--- before / after mean by airport x witness bin (non-LIRF unmatched scored rows) ---
+  key                          n    before     after    shift  changed
+  EDDF <900                  101     978.4     976.0     -2.5      100
+  EDDF 900-1100              211     979.8     988.0     +8.2      208
+  EDDF 1100-1300              67     994.6    1065.7    +71.1       67
+  EDDF 1300-1500               5    1005.2    1222.0   +216.8        5
+  EDDF 1500-2000              36     994.7    1609.7   +615.0       36
+  EDDF 2000-2400               1     916.0    1995.0  +1079.0        1
+  EDDM NaN                     2    1235.0    1158.5    -76.5        2
+  EDDM <900                  197    1033.0     976.7    -56.3      197
+  EDDM 900-1100               18    1039.6    1084.7    +45.1       18
+  EDDM 1100-1300              15    1044.1    1240.1   +196.1       15
+  EDDM 1300-1500               2    1186.5    1452.5   +266.0        2
+  EDDM 1500-2000               4    1123.8    1951.0   +827.2        4
+  EGLL NaN                     1    1333.0    1172.0   -161.0        1
+  EGLL 900-1100                7    1389.9    1152.9   -237.0        7
+  EGLL 1100-1300              46    1405.8    1271.5   -134.3       46
+  EGLL 1300-1500             122    1481.7    1404.1    -77.6      121
+  EGLL 1500-2000              64    1507.2    1601.1    +93.9       64
+  EGLL 2000-2400               7    1438.1    2029.0   +590.9        7
+  EGLL >=2400                  1    1654.0    2217.0   +563.0        1
+  EHAM NaN                    57     946.6     819.2   -127.4       57
+  EHAM <900                  310     649.6     612.6    -37.0      303
+  EHAM 900-1100              356     763.5     786.1    +22.5      349
+  EHAM 1100-1300             193     858.7     877.1    +18.5      190
+  EHAM 1300-1500              75     738.7     949.7   +211.0       74
+  EHAM 1500-2000              54     985.9    1492.2   +506.3       54
+  EHAM 2000-2400              12     878.8    1386.3   +507.5       12
+  EHAM >=2400                149     897.1    1450.9   +553.8      149
+  LEBL NaN                    34    1147.7    1033.2   -114.6       34
+  LEBL <900                  307    1078.8    1074.7     -4.1      301
+  LEBL 900-1100               35    1032.7    1058.7    +26.0       34
+  LEBL 1100-1300              66    1079.9    1123.9    +44.0       66
+  LEMD NaN                     3    1216.0    1293.7    +77.7        3
+  LEMD <900                    4    1111.8    1035.5    -76.2        4
+  LEMD 900-1100              208    1119.6    1119.0     -0.6      207
+  LEMD 1100-1300              20    1190.5    1226.5    +36.1       20
+  LEMD 1300-1500               3    1158.3    1319.3   +161.0        3
+  LFPG NaN                    17    1198.3    1204.6     +6.4       17
+  LFPG <900                  174    1054.1     980.4    -73.7      173
+  LFPG 900-1100              338    1079.4    1069.1    -10.3      336
+  LFPG 1100-1300              80    1178.9    1244.2    +65.3       80
+  LFPG 1300-1500              19    1298.8    1481.8   +183.0       19
+  LFPG 1500-2000              51    1161.9    1770.6   +608.7       51
+  LFPG 2000-2400              25    1174.6    2403.4  +1228.8       25
+  LFPG >=2400                 30    1366.7    2696.5  +1329.9       30
+  LSZH NaN                     3     487.7     543.7    +56.0        3
+  LSZH <900                  599     716.8     718.0     +1.1      581
+  LSZH 900-1100               18     826.7     924.2    +97.4       18
+  LSZH 1100-1300              10     802.3     903.1   +100.8       10
+  LSZH 1300-1500              10     907.7    1194.4   +286.7       10
+  LSZH 1500-2000              19     830.4    1232.8   +402.4       19
+  LTFM 900-1100               16    1067.8    1043.8    -23.9       16
+  LTFM 1100-1300             440    1017.3     992.6    -24.6      426
+  LTFM 1300-1500             207    1227.4    1237.7    +10.3      199
+  LTFM 1500-2000              51    1560.8    1757.5   +196.7       46
+  LTFM 2000-2400               2    1419.0    2319.0   +900.0        2
+  LTFM >=2400                  5    2385.4    2698.0   +312.6        5
+{
+ "version": 9,
+ "file": "merry-quicksand_v9.parquet",
+ "base": "merry-quicksand_v7.parquet",
+ "arm": "E3C S1C on non-LIRF unmatched rows (plans/PREREG_unm_congestion_2026_09_10.md RESULT E3C, WORKING 2026-09-10)",
+ "prereg": "plans/PREREG_unm_congestion_2026_09_10.md",
+ "git_sha": "8d6d2caf1f1c9a7e2df4af2629d6f44e0f641df3",
+ "git_dirty": true,
+ "seeds": [
+  0,
+  1,
+  2
+ ],
+ "n_train_nonfill": 20823,
+ "rebuild_guard": {
+  "n_checked": 4907,
+  "n_lirf_not_compared": 383,
+  "seeds": [
+   0,
+   1,
+   2
+  ]
+ },
+ "witness_2026": {
+  "n_airport_hours": 12782,
+  "n_serve_matched_rows": 339551,
+  "n_scored_covered": 5273,
+  "n_scored": 5290,
+  "scored_nan_share": 0.027977315689981096,
+  "min_n": 5,
+  "source": "data/raw/ranking.parquet, every matched DEP row (Amendment E3C.1 item 4)"
+ },
+ "n_rows_replaced": 4907,
+ "n_values_differ": 4828,
+ "n_routed_to_body": 4897,
+ "mean_shift_s": 52.37252904014673,
+ "rms_shift_vs_base_s": 237.14969360187592,
+ "per_airport_mean_shift_s": {
+  "EDDF": 72.53919239904988,
+  "EDDM": -15.331932773109244,
+  "EGLL": -27.241935483870968,
+  "EHAM": 103.33167495854063,
+  "LEBL": -3.02262443438914,
+  "LEMD": 4.2100840336134455,
+  "LFPG": 128.27656675749319,
+  "LSZH": 21.435508345978757,
+  "LTFM": 5.954230235783633
+ },
+ "bins_2026_changed_rows": {
+  "NaN": 117,
+  "<900": 1659,
+  "900-1100": 1193,
+  "1100-1300": 920,
+  "1300-1500": 433,
+  "1500-2000": 274,
+  "2000-2400": 47,
+  ">=2400": 185
+ },
+ "bins_2026_replaced_rows": {
+  "NaN": 117,
+  "<900": 1692,
+  "900-1100": 1207,
+  "1100-1300": 937,
+  "1300-1500": 443,
+  "1500-2000": 279,
+  "2000-2400": 47,
+  ">=2400": 185
+ },
+ "sse_shift_vs_base_board_mse": 800.2806162840266,
+ "detail_file": "merry-quicksand_v9.unm_rows.parquet",
+ "wall_s": 6.3
+}
+wrote /Users/saurabhdxt/Projects/prc-challenge/submissions/merry-quicksand_v9.parquet
+        7.13 real         6.66 user         0.44 sys
+          3476324352  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              418433  page reclaims
+                  89  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  32  voluntary context switches
+                1411  involuntary context switches
+        129597544797  instructions retired
+         31519974874  cycles elapsed
+          2922466280  peak memory footprint

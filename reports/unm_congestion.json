@@ -1,0 +1,435 @@
+{
+  "mode": "unm_congestion_score",
+  "prereg": "plans/PREREG_unm_congestion_2026_09_10.md",
+  "tag": "E3C",
+  "smoke": false,
+  "git_sha": "8d6d2caf1f1c9a7e2df4af2629d6f44e0f641df3",
+  "git_dirty": true,
+  "started_utc": "2026-09-10T19:43:39.760387+00:00",
+  "commands": {
+    "lomo": "cd ~/Projects/prc-challenge && PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 nice -n 19 /opt/homebrew/bin/python3.11 -B -u scripts/unm_congestion.py lomo > reports/unm_congestion_lomo.console.log 2>&1",
+    "score": "cd ~/Projects/prc-challenge && PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 nice -n 19 /opt/homebrew/bin/python3.11 -B -u scripts/unm_congestion.py score > reports/unm_congestion_score.console.log 2>&1"
+  },
+  "lomo_metadata": {
+    "prereg": "plans/PREREG_unm_congestion_2026_09_10.md",
+    "tag": "E3C",
+    "smoke": false,
+    "git_sha": "8d6d2caf1f1c9a7e2df4af2629d6f44e0f641df3",
+    "git_dirty": true,
+    "started_utc": "2026-09-10T19:43:03.304458+00:00",
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "witness": {
+      "columns": [
+        "hprox_med",
+        "hprox_n"
+      ],
+      "min_n": 5,
+      "n_airport_hours": 74651,
+      "n_matched_rows": 2062440,
+      "unmatched_nan_share": 0.021648138980152123,
+      "unmatched_bin_counts": {
+        "<900": 9633,
+        "900-1100": 5363,
+        "1100-1300": 3699,
+        "1300-1500": 1915,
+        "1500-2000": 827,
+        "NaN": 481,
+        "2000-2400": 203,
+        ">=2400": 98
+      }
+    },
+    "reproduction": {
+      "status": "reproduced",
+      "n_rows": 22219,
+      "max_abs_diff_s": 0.0,
+      "tolerance_s": 1e-06,
+      "reference": "data/cache_stand/stratum_fold_v7_preds.parquet"
+    },
+    "regressor": {
+      "params": {
+        "max_leaf_nodes": 15,
+        "max_iter": 200,
+        "min_samples_leaf": 100
+      },
+      "numeric": [
+        "sp",
+        "dayoff",
+        "hr",
+        "hprox_med",
+        "hprox_n"
+      ],
+      "encoded": [
+        "ADEP_mvt",
+        "RUNWAY_mvt",
+        "stand_pref",
+        "airline",
+        "AIRCRAFT_OPERATOR_flt"
+      ],
+      "winsor_s": 3000.0,
+      "T_tail_s": 3000.0
+    },
+    "n_rows": 22219,
+    "n_non_lirf": 20731,
+    "wall_s": 23.0,
+    "peak_rss_gb": 3.16
+  },
+  "config": {
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "n_boot": 2000,
+    "boot_seed": 0,
+    "blocks": "calendar dates (UTC) of MVT_TIME",
+    "bins": [
+      "NaN",
+      "<900",
+      "900-1100",
+      "1100-1300",
+      "1300-1500",
+      "1500-2000",
+      "2000-2400",
+      ">=2400"
+    ],
+    "bin_edges": [
+      -Infinity,
+      900.0,
+      1100.0,
+      1300.0,
+      1500.0,
+      2000.0,
+      2400.0,
+      Infinity
+    ],
+    "thin_bin": 30,
+    "n_scored_2026": 344841,
+    "c2_min_mse": 500.0,
+    "min_months": 8,
+    "min_airports": 6,
+    "calm_s": 1100.0,
+    "calm_tolerance": 0.1,
+    "monster_s": 10800.0,
+    "witness_min_n": 5
+  },
+  "data": {
+    "n_lomo_rows": 22219,
+    "n_non_lirf": 20731,
+    "n_lirf": 1488,
+    "n_2026_scored_non_lirf_unmatched": 4907,
+    "bins_2026": {
+      "NaN": 117,
+      "<900": 1692,
+      "900-1100": 1207,
+      "1100-1300": 937,
+      "1300-1500": 443,
+      "1500-2000": 279,
+      "2000-2400": 47,
+      ">=2400": 185
+    },
+    "bins_2025_non_lirf": {
+      "NaN": 333,
+      "<900": 8843,
+      "900-1100": 4886,
+      "1100-1300": 3663,
+      "1300-1500": 1886,
+      "1500-2000": 819,
+      "2000-2400": 203,
+      ">=2400": 98
+    }
+  },
+  "clauses": {
+    "C1_date_block_bootstrap": {
+      "sum_g": 1711682421.1561944,
+      "ci95": [
+        442749742.205278,
+        3454494690.884952
+      ],
+      "n_blocks": 365,
+      "n_draws": 2000,
+      "seed": 0,
+      "passes": true
+    },
+    "C2_priced_2026": {
+      "priced_mse": 3960.2699820963726,
+      "n_scored_2026": 344841,
+      "thin_threshold": 30,
+      "bins": {
+        "NaN": {
+          "n_2025": 333,
+          "sum_g": -6296867.692672805,
+          "per_row_gain": -18909.512590609025,
+          "n_2026": 117,
+          "per_row_gain_used": -18909.512590609025,
+          "borrowed_from": "NaN",
+          "thin": false,
+          "priced_mse": -6.415748049394521
+        },
+        "<900": {
+          "n_2025": 8843,
+          "sum_g": 7718125.076713659,
+          "per_row_gain": 872.7948746707744,
+          "n_2026": 1692,
+          "per_row_gain_used": 872.7948746707744,
+          "borrowed_from": "<900",
+          "thin": false,
+          "priced_mse": 4.282463303212061
+        },
+        "900-1100": {
+          "n_2025": 4886,
+          "sum_g": 7962840.107580858,
+          "per_row_gain": 1629.7257690505237,
+          "n_2026": 1207,
+          "per_row_gain_used": 1629.7257690505237,
+          "borrowed_from": "900-1100",
+          "thin": false,
+          "priced_mse": 5.704307211857007
+        },
+        "1100-1300": {
+          "n_2025": 3663,
+          "sum_g": 34119010.473013595,
+          "per_row_gain": 9314.499173631884,
+          "n_2026": 937,
+          "per_row_gain_used": 9314.499173631884,
+          "borrowed_from": "1100-1300",
+          "thin": false,
+          "priced_mse": 25.309304072581494
+        },
+        "1300-1500": {
+          "n_2025": 1886,
+          "sum_g": 41576808.95635009,
+          "per_row_gain": 22044.96763327152,
+          "n_2026": 443,
+          "per_row_gain_used": 22044.96763327152,
+          "borrowed_from": "1300-1500",
+          "thin": false,
+          "priced_mse": 28.320068267808306
+        },
+        "1500-2000": {
+          "n_2025": 819,
+          "sum_g": 197315813.86553228,
+          "per_row_gain": 240922.84965266456,
+          "n_2026": 279,
+          "per_row_gain_used": 240922.84965266456,
+          "borrowed_from": "1500-2000",
+          "thin": false,
+          "priced_mse": 194.92309514556976
+        },
+        "2000-2400": {
+          "n_2025": 203,
+          "sum_g": 857021068.5300398,
+          "per_row_gain": 4221778.662709556,
+          "n_2026": 47,
+          "per_row_gain_used": 4221778.662709556,
+          "borrowed_from": "2000-2400",
+          "thin": false,
+          "priced_mse": 575.4060484320285
+        },
+        ">=2400": {
+          "n_2025": 98,
+          "sum_g": 572265621.8396368,
+          "per_row_gain": 5839445.12081262,
+          "n_2026": 185,
+          "per_row_gain_used": 5839445.12081262,
+          "borrowed_from": ">=2400",
+          "thin": false,
+          "priced_mse": 3132.74044371271
+        }
+      },
+      "passes": true
+    },
+    "C3_months": {
+      "months_positive": 12,
+      "n_months": 12,
+      "per_month": {
+        "1": {
+          "sum_g": 74498612.21056224,
+          "n": 1348
+        },
+        "10": {
+          "sum_g": 22955364.10052105,
+          "n": 1787
+        },
+        "11": {
+          "sum_g": 122126322.56134667,
+          "n": 1295
+        },
+        "12": {
+          "sum_g": 48204765.494347684,
+          "n": 1543
+        },
+        "2": {
+          "sum_g": 1321334201.49724,
+          "n": 1025
+        },
+        "3": {
+          "sum_g": 44860577.88042281,
+          "n": 1001
+        },
+        "4": {
+          "sum_g": 6728657.814383406,
+          "n": 994
+        },
+        "5": {
+          "sum_g": 3315724.7171178227,
+          "n": 1492
+        },
+        "6": {
+          "sum_g": 8344571.68763715,
+          "n": 2285
+        },
+        "7": {
+          "sum_g": 35603716.739283204,
+          "n": 3576
+        },
+        "8": {
+          "sum_g": 5483414.456684521,
+          "n": 2100
+        },
+        "9": {
+          "sum_g": 18226491.99664762,
+          "n": 2285
+        }
+      },
+      "passes": true
+    },
+    "C4_airports": {
+      "airports_positive": 7,
+      "n_airports": 9,
+      "per_airport": {
+        "EDDF": {
+          "sum_g": -3880556.4007364674,
+          "n": 1956
+        },
+        "EDDM": {
+          "sum_g": 37929985.2484732,
+          "n": 1010
+        },
+        "EGLL": {
+          "sum_g": 69499445.2853106,
+          "n": 1414
+        },
+        "EHAM": {
+          "sum_g": 48648947.638673425,
+          "n": 4083
+        },
+        "LEBL": {
+          "sum_g": 1617356.7927728212,
+          "n": 1862
+        },
+        "LEMD": {
+          "sum_g": 1907673.284391556,
+          "n": 947
+        },
+        "LFPG": {
+          "sum_g": 183187110.74832952,
+          "n": 3762
+        },
+        "LSZH": {
+          "sum_g": -739664.9439668735,
+          "n": 2054
+        },
+        "LTFM": {
+          "sum_g": 1373512123.5029464,
+          "n": 3643
+        }
+      },
+      "passes": true
+    },
+    "C5_calm_control": {
+      "calm_sum_g": 15680965.184294518,
+      "n_calm": 13729,
+      "pooled_sum_g": 1711682421.1561944,
+      "bound": -171168242.11561945,
+      "passes": true
+    },
+    "C6_not_the_monsters": {
+      "exmonster_sum_g": 1728942564.7839704,
+      "n_exmonster": 20725,
+      "passes": true
+    },
+    "C7_seeds": {
+      "pooled_sum_g": 1711682421.1561944,
+      "per_seed_sum_g": {
+        "0": 1723416743.4862435,
+        "1": 1726071476.6553144,
+        "2": 1678757242.0993707
+      },
+      "seed_sd": 26583690.062197648,
+      "passes": true
+    },
+    "pooled_sum_g": 1711682421.1561944,
+    "n_rows": 20731,
+    "verdict": "WORKING"
+  },
+  "verdict": "WORKING",
+  "descriptive": {
+    "non_lirf": {
+      "pooled": {
+        "n": 20731,
+        "S1": 1141.50377370198,
+        "S1C": 1104.7463706148817,
+        "gain_s": 36.75740308709828
+      },
+      "exmonster": {
+        "n": 20725,
+        "S1": 649.3072848222686,
+        "S1C": 581.529799056235,
+        "gain_s": 67.77748576603358
+      }
+    },
+    "fold_a_months": {
+      "months": [
+        1,
+        7
+      ],
+      "sum_g": 110102328.94984545,
+      "n": 4924,
+      "rmse": {
+        "n": 4924,
+        "S1": 1573.6219812510876,
+        "S1C": 1566.5011321007635,
+        "gain_s": 7.120849150324148
+      },
+      "per_month": {
+        "1": 74498612.21056224,
+        "7": 35603716.739283204
+      }
+    },
+    "other_months": {
+      "sum_g": 1601580092.2063487,
+      "n": 15807,
+      "rmse": {
+        "n": 15807,
+        "S1": 968.2731936944721,
+        "S1C": 914.4572368517347,
+        "gain_s": 53.815956842737364
+      }
+    },
+    "lirf_report_only": {
+      "n": 1488,
+      "sum_g": 45716505.369128846,
+      "rmse": {
+        "n": 1488,
+        "S1": 4450.736510850874,
+        "S1C": 4447.2836688378275,
+        "gain_s": 3.452842013046393
+      }
+    }
+  },
+  "judgement_calls": [
+    "the witness hour is the UTC clock hour of MVT_TIME_UTC_mvt floored; the C1 blocks are the UTC calendar dates of the same clock",
+    "hprox_n is 0 (and hprox_med NaN) for an airport-hour with no matched departure in the file",
+    "the 2026 witness is taken from every matched DEP row of data/raw/ranking.parquet (the serve file), not only the scored rows",
+    "C2 borrowing chains downward through the numeric bins; the NaN bin and the <900 bin have no lower bin, so a thin one there is priced at 0 and flagged `borrowed_from: null` (unreachable on the real frame; named for honesty)",
+    "C5's calm mask is hprox_med < 1,100 -- NaN compares False, so the NaN bin is not calm",
+    "C7's seed sd is the ddof=1 sd of the three single-seed sums of g (stratum_fold.seed_sd); the rule is strict >"
+  ],
+  "finished_utc": "2026-09-10T19:43:40.602416+00:00",
+  "wall_s": 0.8,
+  "peak_rss_gb": 0.63
+}

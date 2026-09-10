@@ -1,0 +1,21 @@
+[15:43:03 +      0s] unm_congestion lomo  smoke=False  prereg=plans/PREREG_unm_congestion_2026_09_10.md  paths={'lomo': '/Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/unm_congestion_lomo.parquet', 'witness_2026': '/Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/unm_congestion_2026_witness.parquet', 'json': '/Users/saurabhdxt/Projects/prc-challenge/reports/unm_congestion.json', 'lomo_log': '/Users/saurabhdxt/Projects/prc-challenge/reports/unm_congestion_lomo.log', 'score_log': '/Users/saurabhdxt/Projects/prc-challenge/reports/unm_congestion_score.log'}
+[15:43:06 +      3s] frame: 2,084,659 admissible DEP rows from 12 files in 3s; peak RSS 2.27 GB
+[15:43:09 +      6s] witness: 74,651 airport-hours from 2,062,440 matched rows; on the 22,219 unmatched rows hprox_med is NaN on 481 (2.2%), median hprox_n 33
+[15:43:09 +      6s] fold 1: fit_unmatched(all matched) == fit_unmatched(LIRF matched) bit-exact; releasing the full frame
+[15:43:09 +      7s] stratum: 22,219 rows, fill share 6.3%, non-fill 20,823; LIRF matched 159,216; witness bins on the unmatched rows {'<900': 9633, '900-1100': 5363, '1100-1300': 3699, '1300-1500': 1915, '1500-2000': 827, 'NaN': 481, '2000-2400': 203, '>=2400': 98}
+[15:43:09 +      7s] --- 12-fold LOMO: S1 (stratum_fold.stratum_arms) and S1C ---
+[15:43:11 +      8s]   fold  1: test 1,408  train 20,811  routed 1,405 -> body; S1C differs from S1 on 1,396 rows; witness NaN on    28  (1.4s)
+[15:43:12 +      9s]   fold  2: test 1,083  train 21,136  routed 1,079 -> body; S1C differs from S1 on 1,071 rows; witness NaN on    31  (1.3s)
+[15:43:13 +     11s]   fold  3: test 1,060  train 21,159  routed 1,055 -> body; S1C differs from S1 on 1,045 rows; witness NaN on    19  (1.3s)
+[15:43:15 +     12s]   fold  4: test 1,064  train 21,155  routed 1,053 -> body; S1C differs from S1 on 1,047 rows; witness NaN on    27  (1.2s)
+[15:43:16 +     13s]   fold  5: test 1,591  train 20,628  routed 1,584 -> body; S1C differs from S1 on 1,578 rows; witness NaN on    29  (1.5s)
+[15:43:17 +     15s]   fold  6: test 2,470  train 19,749  routed 2,456 -> body; S1C differs from S1 on 2,448 rows; witness NaN on    63  (1.4s)
+[15:43:19 +     16s]   fold  7: test 3,913  train 18,306  routed 3,886 -> body; S1C differs from S1 on 3,877 rows; witness NaN on    72  (1.3s)
+[15:43:20 +     17s]   fold  8: test 2,297  train 19,922  routed 2,274 -> body; S1C differs from S1 on 2,268 rows; witness NaN on    58  (1.4s)
+[15:43:22 +     19s]   fold  9: test 2,453  train 19,766  routed 2,440 -> body; S1C differs from S1 on 2,434 rows; witness NaN on    49  (1.4s)
+[15:43:23 +     20s]   fold 10: test 1,902  train 20,317  routed 1,892 -> body; S1C differs from S1 on 1,886 rows; witness NaN on    37  (1.4s)
+[15:43:24 +     22s]   fold 11: test 1,347  train 20,872  routed 1,339 -> body; S1C differs from S1 on 1,333 rows; witness NaN on    31  (1.4s)
+[15:43:26 +     23s]   fold 12: test 1,631  train 20,588  routed 1,619 -> body; S1C differs from S1 on 1,614 rows; witness NaN on    37  (1.4s)
+[15:43:26 +     23s] LOMO scored 22,219 rows in 16s; peak RSS 3.16 GB
+[15:43:26 +     23s] reproduction guard: {'status': 'reproduced', 'n_rows': 22219, 'max_abs_diff_s': 0.0, 'tolerance_s': 1e-06, 'reference': 'data/cache_stand/stratum_fold_v7_preds.parquet'}
+[15:43:26 +     23s] predictions -> /Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/unm_congestion_lomo.parquet (22,219 rows, convention taxi_time); non-LIRF RMSE S1 1141.50 S1C 1104.75 (descriptive; the clauses are the `score` step)   wall 23s   peak RSS 3.16 GB
