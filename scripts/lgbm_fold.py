@@ -13,6 +13,8 @@ measurements, never verdict labels - the amendments hold the thresholds and appl
     $ENV scripts/lgbm_fold.py --dayfeats [--queue] [--baseline A2] [--pa-trees es]   # Amendment 19.1, arm D
     $ENV scripts/lgbm_fold.py --orderfeats [--queue] [--baseline A2] [--pa-trees es] # Amendment 22, arm F
     $ENV scripts/lgbm_fold.py --weatherfeats [--queue] [--baseline A2] [--pa-trees es] # Amendment 24, arm W
+    $ENV scripts/lgbm_fold.py --orderfeats --weatherfeats --queue [--baseline A2] [--pa-trees es]
+                                  # arm FW, both blocks fitted together (plans/PREREG_fw_combined_2026_09_10.md)
     $ENV scripts/lgbm_fold.py --ytarget  [--queue] [--baseline A2] [--pa-trees es]   # Amendment 19.2, arm Y
     $ENV scripts/lgbm_fold.py --ytarget --all-rows [--queue] [--dayfeats] --unmatched-weight 1,10 [--baseline A2]
                                                                             # the UNIFIED all-rows arm
@@ -261,6 +263,7 @@ WCACHE = ROOT / "data" / "cache_weather"
 WEATHER_FEATS = list(L.WEATHER_FEATS)
 FEATS_WEATHER = list(L.FEATS) + WEATHER_FEATS             # 78 columns
 FEATS_QUEUE_WEATHER = FEATS_QUEUE + WEATHER_FEATS         # 90 columns: the queue design + the weather block
+FEATS_QUEUE_ORDER_WEATHER = FEATS_QUEUE + ORDER_FEATS + WEATHER_FEATS   # 93 columns: arm FW, both blocks
 YBLEND = 0.5                                              # 19.2: the 0.5/0.5 blend of y_hat_Y with the delta arm's y_hat
 YTARGET_NAMED_AIRPORTS = ("LTFM", "EDDM")                 # 19.2: corr(proxy, y) 0.08 / 0.16 - called out per airport
 DAY_MIN_AIRPORTS = 6                                      # 19.3: arm D needs >= 6 of 10 airports to improve
@@ -281,7 +284,7 @@ UNIFIED_AMENDMENT = "19-unified"
 ALLROWS_MODES = ("allrows", "queue_allrows", "allrows_day", "queue_allrows_day")
 
 MODES = ("v4", "queue", "catboost", "sweep", "confirm", "fillhead", "day", "queue_day", "ytarget", "queue_ytarget",
-         "order", "queue_order", "weather", "queue_weather", *ALLROWS_MODES)
+         "order", "queue_order", "weather", "queue_weather", "queue_order_weather", *ALLROWS_MODES)
 OUTPUT_NAMES = {
     "v4": (JSON_NAME, LOG_NAME, PREDS_NAME),
     "queue": ("lgbm_fold_queue.json", "lgbm_fold_queue.log", "fold_preds_queue.parquet"),
@@ -296,6 +299,8 @@ OUTPUT_NAMES = {
     "queue_weather": ("lgbm_fold_queue_weather.json", "lgbm_fold_queue_weather.log",
                       "fold_preds_queue_weather.parquet"),
     "queue_order": ("lgbm_fold_queue_order.json", "lgbm_fold_queue_order.log", "fold_preds_queue_order.parquet"),
+    "queue_order_weather": ("lgbm_fold_queue_order_weather.json", "lgbm_fold_queue_order_weather.log",
+                            "fold_preds_queue_order_weather.parquet"),
     "ytarget": ("lgbm_fold_ytarget.json", "lgbm_fold_ytarget.log", "fold_preds_ytarget.parquet"),
     "queue_ytarget": ("lgbm_fold_queue_ytarget.json", "lgbm_fold_queue_ytarget.log", "fold_preds_queue_ytarget.parquet"),
     "allrows": ("lgbm_fold_allrows.json", "lgbm_fold_allrows.log", "fold_preds_allrows.parquet"),
@@ -320,6 +325,8 @@ COMMANDS = {
     "weather": f"{_ENV} --weatherfeats --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_weather.console.log",
     "queue_weather": f"{_ENV} --weatherfeats --queue --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_queue_weather.console.log",
     "queue_order": f"{_ENV} --orderfeats --queue --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_queue_order.console.log",
+    "queue_order_weather": f"{_ENV} --orderfeats --weatherfeats --queue --baseline A2 --pa-trees es 2>&1 | tee "
+                           "reports/lgbm_fold_queue_order_weather.console.log",
     "ytarget": f"{_ENV} --ytarget --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_ytarget.console.log",
     "queue_ytarget": f"{_ENV} --ytarget --queue --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_queue_ytarget.console.log",
     "allrows": f"{_ENV} --ytarget --all-rows --unmatched-weight 1,10 --baseline A2 --pa-trees es 2>&1 | tee reports/lgbm_fold_allrows.console.log",
@@ -397,6 +404,12 @@ ESTIMATES = {
         "ALONE. x1.22 for 83 columns: load + the two joins ~3 min; ES ~19 min; 3 refits ~18 min + predict ~6 min "
         "each (~72 min); bootstrap ~3 min. The baseline is READ from the queue record. Writes "
         "reports/lgbm_fold_queue_order.{json,log} and data/cache_stand/fold_preds_queue_order.parquet."),
+    "queue_order_weather": (
+        "~2.2 h (range 1.8-2.8 h), peak RSS ~5.2 GB (the queue fold's 4.8 GB + 13 float32 columns), 4 threads; run "
+        "ALONE. Measured neighbours: arm F (83 columns) 1 h 53 min / 4.84 GB, arm W (90 columns) 1 h 42 min / "
+        "5.00 GB; 93 columns sits just above W. The baseline is READ from the queue record. Writes "
+        "reports/lgbm_fold_queue_order_weather.{json,log} and "
+        "data/cache_stand/fold_preds_queue_order_weather.parquet - never arm F's or arm W's records."),
     "queue_day": (
         "~2.0 h (range 1.6-2.6 h), peak RSS ~5 GB (the queue fold's 4.8 GB + 9 float32 columns), 4 threads; run "
         "ALONE. x1.3 for 89 columns: load + the two joins ~3 min; ES ~20 min; 3 refits ~19 min + predict ~6 min each "
@@ -603,14 +616,17 @@ def parse_args(argv=None) -> argparse.Namespace:
         if not set(on) <= {"ytarget", "queue", "day"}:
             ap.error(f"--all-rows composes only with --queue and --dayfeats as its design: {on}")
     elif len(on) > 1 and set(on) not in COMPOSITIONS:
-        ap.error(f"one arm per run: {on} (--queue composes only with --dayfeats or --ytarget, Amendment 19)")
+        ap.error(f"one arm per run: {on} (--queue composes with ONE of --dayfeats / --ytarget / --orderfeats / "
+                 f"--weatherfeats, or with --orderfeats --weatherfeats together as arm FW)")
     if args.n_perm < 2:
         ap.error("--n-perm must be >= 2 (a percentile needs a distribution)")
     return args
 
 
-#: the only flag pairs one run may carry: --queue as the DESIGN of an Amendment 19 arm
-COMPOSITIONS = ({"queue", "day"}, {"queue", "ytarget"}, {"queue", "order"}, {"queue", "weather"})
+#: the only flag sets one run may carry: --queue as the DESIGN of an Amendment 19 arm, and arm FW
+#: (plans/PREREG_fw_combined_2026_09_10.md) - order + weather together, on the queue design only
+COMPOSITIONS = ({"queue", "day"}, {"queue", "ytarget"}, {"queue", "order"}, {"queue", "weather"},
+                {"queue", "order", "weather"})
 
 
 def _arm_flags(args) -> tuple:
@@ -623,6 +639,10 @@ def _arm_flags(args) -> tuple:
 def mode_of(args) -> str:
     if getattr(args, "all_rows", False):
         return ("queue_" if args.queue else "") + "allrows" + ("_day" if args.dayfeats else "")
+    # arm FW BEFORE either single block: tested after --weatherfeats it would be named queue_weather
+    # and write over RESULT 22's record, the reference it is paired against
+    if args.orderfeats and args.weatherfeats:
+        return "queue_order_weather"
     if args.weatherfeats:
         return "queue_weather" if args.queue else "weather"
     if args.orderfeats:
@@ -2399,31 +2419,39 @@ def _baseline_record(args, cfg, arm, seeds, queue: bool):
 #: a BLOCK arm: the current best design as the baseline, the same procedure on the design plus a
 #: cached feature block as the treatment. Amendment 19.1 (arm D, the airport-day block) and
 #: Amendment 22 (arm F, the record-ordering block) are the same experiment on different columns,
-#: so they are one runner: a copy would drift, and the intervals must be comparable.
-#: `cache_attr` is the MODULE ATTRIBUTE NAME, not the path: the runner resolves it at call time
-#: (globals()[...]), so a test's monkeypatch of DCACHE / OCACHE - or any later re-pointing - is
-#: seen by the arm. A frozen path here read the real 152,250-row cache under a 600-row fixture.
+#: so they are one runner: a copy would drift, and the intervals must be comparable. Arm FW is the
+#: same runner again with two blocks' columns and two caches.
+#: `caches` holds (load_fold keyword, MODULE ATTRIBUTE NAME, record tag) per cache. The attribute
+#: name, not the path: the runner resolves it at call time (globals()[...]), so a test's
+#: monkeypatch of DCACHE / OCACHE / WCACHE - or any later re-pointing - is seen by the arm. A frozen
+#: path here read the real 152,250-row cache under a 600-row fixture.
 BLOCK_ARMS = {
-    "day": SimpleNamespace(name="day", feats=DAY_FEATS, cache_attr="DCACHE", loader_kw="dcache",
+    "day": SimpleNamespace(name="day", feats=DAY_FEATS, caches=(("dcache", "DCACHE", "day"),),
                            amendment="19.1", title="AMENDMENT 19.1 ARM D", label="Amendment 19.1 arm D",
                            min_airports=DAY_MIN_AIRPORTS, clause="19.3"),
-    "order": SimpleNamespace(name="order", feats=ORDER_FEATS, cache_attr="OCACHE", loader_kw="ocache",
+    "order": SimpleNamespace(name="order", feats=ORDER_FEATS, caches=(("ocache", "OCACHE", "order"),),
                              amendment="22", title="AMENDMENT 22 ARM F", label="Amendment 22 arm F",
                              min_airports=None, clause="22.3"),
-    "weather": SimpleNamespace(name="weather", feats=WEATHER_FEATS, cache_attr="WCACHE", loader_kw="wcache",
+    "weather": SimpleNamespace(name="weather", feats=WEATHER_FEATS, caches=(("wcache", "WCACHE", "weather"),),
                                amendment="24", title="AMENDMENT 24 ARM W", label="Amendment 24 arm W",
                                min_airports=None, clause="24.4"),
+    "order_weather": SimpleNamespace(name="order_weather", feats=ORDER_FEATS + WEATHER_FEATS,
+                                     caches=(("ocache", "OCACHE", "order"), ("wcache", "WCACHE", "weather")),
+                                     amendment="FW", title="ARM FW (ORDER + WEATHER)",
+                                     label="arm FW (plans/PREREG_fw_combined_2026_09_10.md)",
+                                     min_airports=None, clause="FW"),
 }
 
 
 def run_block(args, cfg, paths, started, block) -> int:
-    """One BLOCK arm (19.1 arm D / 22 arm F): baseline = the current best design from its record,
-    treatment = the same procedure on the design plus `block.feats`, best_iter re-found."""
+    """One BLOCK arm (19.1 arm D / 22 arm F / 24 arm W / arm FW): baseline = the current best design
+    from its record, treatment = the same procedure on the design plus `block.feats`, best_iter
+    re-found."""
     json_path, log_path, preds_path = paths
     seeds, arm = tuple(args.seeds), args.baseline
     base_feats, queue = _design(args)
     mode = f"queue_{block.name}" if queue else block.name
-    block_cache = globals()[block.cache_attr]          # resolved now, never frozen at import
+    caches = {kw: globals()[attr] for kw, attr, _ in block.caches}     # resolved now, never frozen at import
     feats, nb = base_feats + block.feats, len(base_feats)
     up = f"{block.name.upper()}_FEATS"
     pa_rule = L.PA_TREE_RULE if args.pa_trees == "share" else L.PA_TREE_RULE_ES
@@ -2438,7 +2466,7 @@ def run_block(args, cfg, paths, started, block) -> int:
     rec = _baseline_record(args, cfg, arm, seeds, queue)
 
     fold = load_fold(CACHE, cfg.months, feats, qcache=QCACHE if queue else None,
-                     **{block.loader_kw: block_cache},
+                     **caches,
                      check_counts=not cfg.smoke, label=f"holdout (months {HOLDOUT})")
     X, y, dlt, proxy = fold["X"], fold["y"], fold["dlt"], fold["proxy"]
     te, tr = fold["te"], fold["tr"]
@@ -2512,7 +2540,8 @@ def run_block(args, cfg, paths, started, block) -> int:
                    "pa_trees": args.pa_trees, "pa_tree_rule": pa_rule, "pa_min_rows": L.PA_MIN_ROWS,
                    "pa_tree_floor": cfg.pa_floor, "blend": L.BLEND, "n_boot": cfg.n_boot, "boot_seed": BOOT_SEED,
                    "features": fold["feats"], "n_features": len(fold["feats"]),
-                   f"{block.name}_feats": block.feats, f"{block.name}_cache": str(block_cache),
+                   f"{block.name}_feats": block.feats,
+                   **{f"{tag}_cache": str(caches[kw]) for kw, _, tag in block.caches},
                    "queue_feats": QUEUE_FEATS if queue else None,
                    "queue_cache": str(QCACHE) if queue else None, "min_airports": block.min_airports,
                    "bands": {name: [lo, hi] for name, lo, hi in DELTA_BANDS}, "over10_s": OVER10_S},
@@ -2549,6 +2578,11 @@ def run_order(args, cfg, paths, started) -> int:
 def run_weather(args, cfg, paths, started) -> int:
     """Amendment 24 arm W: the airport-hour weather block."""
     return run_block(args, cfg, paths, started, BLOCK_ARMS["weather"])
+
+
+def run_order_weather(args, cfg, paths, started) -> int:
+    """Arm FW: the record-ordering and weather blocks fitted together on the queue design."""
+    return run_block(args, cfg, paths, started, BLOCK_ARMS["order_weather"])
 
 
 def run_ytarget(args, cfg, paths, started) -> int:
@@ -2890,7 +2924,8 @@ def str_keys(d: dict) -> dict:
 RUNNERS = {"v4": run_v4, "queue": run_queue, "catboost": run_catboost, "sweep": run_sweep, "confirm": run_confirm,
            "fillhead": run_fillhead, "day": run_day, "queue_day": run_day,
            "order": run_order, "queue_order": run_order,
-           "weather": run_weather, "queue_weather": run_weather, "ytarget": run_ytarget,
+           "weather": run_weather, "queue_weather": run_weather, "queue_order_weather": run_order_weather,
+           "ytarget": run_ytarget,
            "queue_ytarget": run_ytarget, **{m: run_allrows for m in ALLROWS_MODES}}
 
 
