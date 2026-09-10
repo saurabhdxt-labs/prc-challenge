@@ -2186,3 +2186,67 @@ binds: **mode rows have a 939 s within-group spread even at stand+runway+hour re
 mode rows predicted perfectly and the body at its own coarse bound, matched lands at 166.0 s —
 within 1.4 s of the leader's implied matched RMSE under 23.0's assumption. Screens:
 scratchpad `turn_anchor_screen.log`, `irreducible_delta_bound.log`.
+
+
+---
+
+# AMENDMENT 24 — weather at the airport-hour, aimed at the mode rows
+
+**2026-09-09 23:20 local. Written BEFORE any weather observation has been downloaded for a
+training month and before any weather-derived number exists.** Nothing above this line is edited.
+
+## 24.0 Why now, when weather already returned +0.49 s
+
+The step-6 weather test (README, "negative results") measured **+0.49 s pooled on taxi time**,
+on the 26-feature HGB, at low capacity, before the queue block existed and before Amendment 19.0
+identified where the error lives. Three things have changed:
+
+1. **The target is now named.** 19.0: 7.63% of matched rows carry 47.8% of matched error, and
+   **78% of them are "pushed back early then held"** — the airport stamps off-block at pushback,
+   NM stamps `AOBT_3` at the real movement. The two physical causes of a hold are **de-icing**
+   (winter) and **ATFM/queue** (summer). January is half the scored file.
+2. **The queue half is now measured** (RESULT 9, +1.57 s, established mechanism in the body not
+   the tail). Weather is the other half of the same mechanism and has never been tested beside it.
+3. **Everything else is closed.** RESULTS 11, 11.4, 11.5, 13, 14 exhaust the file's own columns;
+   ADS-B is closed on sensor coverage (`reports/ADSB_GATE.md`: 4 of 10 airports have zero
+   on-ground samples, whole-lane value 2,243 MSE). Weather is the last unexhausted observable, and
+   unlike ADS-B it covers **all ten airports in both scored months**.
+
+## 24.1 Hypothesis H-24
+
+> Surface weather at the airport in the hour of a departure's pushback — freezing conditions,
+> precipitation, low visibility, thunderstorms, wind — reduces held-out matched RMSE beyond the
+> queue design, **and does so on the |delta| > 10 min rows**, because it names the physical cause
+> of the hold that separates the two clocks.
+
+## 24.2 The data, and its provenance recorded before use
+
+Iowa Environmental Mesonet ASOS/METAR archive (`mesonet.agron.iastate.edu`), **public domain**,
+routine + special reports, for the ten scored airports, for every month the caches use (2025-01 to
+2025-12) and both scored months (2026-01, 2026-07). Archived to `data/weather/` **before use** and
+never re-fetched for a run: the 2024 winner was bitten by upstream back-correction. No licence
+restriction applies and none is claimed; the fetch script and the exact query go in the repo.
+
+## 24.3 The block (`WEATHER_FEATS`, `data/cache_weather/`)
+
+Per row, from the observation valid **at or before the row's own pushback anchor** (`AOBT_3` for
+matched rows; `MVT_TIME` minus the airport's median proxy for rows without one), never after it:
+temperature °C, dewpoint spread, visibility, wind speed, wind gust, one-hour precipitation, and
+the derived flags `w_freezing` (temp <= 3 °C and precipitation > 0, or a wx code containing FZ/SN/
+PL/GS), `w_lowvis` (visibility < 1,500 m), `w_thunder` (TS in the code), plus the observation's age
+in seconds. Missing observations are NaN, never imputed, and the NaN rate is asserted against the
+twelve-month envelope exactly as the unmatched block's is.
+
+## 24.4 Harness and thresholds, locked
+
+`lgbm_fold.py --weatherfeats --queue --baseline A2 --pa-trees es`, baseline = the queue record,
+paired row bootstrap 2,000 draws seed 0, per airport and on 19.0's |delta| bands.
+
+- **ESTABLISHED** iff (i) the paired interval excludes zero in the block's favour, (ii) point gain
+  >= **+1.0 s**, (iii) gain > 2 x seed sd, AND (iv) **the over-10-min band's own interval excludes
+  zero** — the mechanism clause: weather must move the held rows, not the body.
+- **NOT WORKING** iff (i) fails.
+- (i) holding with (iv) failing is reported as INCONCLUSIVE with both numbers, exactly as RESULT 9
+  was, and the ship decision is the owner's.
+- Reported additionally: January vs July separately (the de-icing season against the convective
+  one), because a pooled number would hide a mechanism that only exists in one of them.

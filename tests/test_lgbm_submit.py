@@ -1345,6 +1345,8 @@ def _submission_env(module, monkeypatch, root, **kw):
         monkeypatch.setattr(module, "DCACHE", fx.day)
     if hasattr(module, "OCACHE"):
         monkeypatch.setattr(module, "OCACHE", fx.order)
+    if hasattr(module, "WCACHE"):
+        monkeypatch.setattr(module, "WCACHE", fx.weather)
     monkeypatch.setattr(module, "SUBS", fx.subs)
     monkeypatch.setattr(module, "P", dict(module.P, num_threads=1))
     return fx
@@ -2230,3 +2232,47 @@ def test_orderfeats_end_to_end_on_the_synthetic_submission(tmp_path, monkeypatch
     first = (out2 / "merry-quicksand_v9.parquet").read_bytes()
     _run_submit(ls, fx, out2, ["--queue", "--dayfeats", "--orderfeats", "--seeds", "0,1", "--reuse-booster"])
     assert (out2 / "merry-quicksand_v9.parquet").read_bytes() == first, "reuse did not reproduce the file"
+
+
+def test_weather_block_joins_and_tags_like_the_others(tmp_path, monkeypatch):
+    """Amendment 24 on the submit path: the weather cache's contract is its own (a day or order
+    cache is refused), the twin joins months by position and ranking rows by id, the tag `_weather`
+    follows `_order`, `--weatherfeats` is off by default and refused with --all-rows, and the
+    end-to-end run gives a 78-column design, a `lgbm_v9_weather.txt` booster and a meta that
+    records the block; the predictions differ from the default's.
+
+    Fails when the weather contract reuses another block's columns, when the tag is dropped, or
+    when the block is not in the design. Rehearsed 2026-09-09, each RED: `ORDER_FEATS` in
+    read_weather_cache's contract; `weather=False` hard-wired in booster_files' call; `feats`
+    built without WEATHER_FEATS.
+    """
+    w = pd.DataFrame({"MVT_ID_mvt": np.arange(7, dtype="float64") + 100.0})
+    for i, c in enumerate(_syn.WEATHER_FEATS):
+        w[c] = (np.arange(7) + 10 * i).astype("float32")
+    got = ls.attach_weather_positional(7, w, "training_2025-02-01_2025-03-01.parquet")
+    assert list(got.columns) == _syn.WEATHER_FEATS and len(got) == 7
+    with pytest.raises(ValueError, match="rows"):
+        ls.attach_weather_positional(8, w, "x")
+    with pytest.raises(ValueError, match="columns"):
+        ls.attach_weather_positional(7, _day_frame(7), "x")          # a day cache is not a weather cache
+    with pytest.raises(FileNotFoundError, match="weather cache"):
+        ls.read_weather_cache(pathlib.Path("/nowhere/training_2025-02-01_2025-03-01.parquet"))
+    assert ls.WEATHER_FEATS == stand_ab.WEATHER_FEATS == _syn.WEATHER_FEATS and len(ls.WEATHER_FEATS) == 10
+    assert ls.WCACHE == stand_ab.WCACHE
+    assert ls.booster_tag(weather=True) == "_weather"
+    assert ls.booster_tag(queue=True, order=True, weather=True) == "_queue_order_weather"
+    assert ls.booster_files(pathlib.Path("/x"), 8, (0,), weather=True) == [
+        (pathlib.Path("/x/lgbm_v8_weather.txt"), pathlib.Path("/x/lgbm_v8_weather.fit.json"))]
+    assert ls.parse_args(["--version", "8"]).weatherfeats is False
+    with pytest.raises(SystemExit):
+        ls.parse_args(["--version", "8", "--weatherfeats", "--target", "y", "--all-rows"])
+
+    fx = _submission_env(ls, monkeypatch, tmp_path / "data")
+    ids, pred, meta = _run_submit(ls, fx, tmp_path / "out", ["--weatherfeats"])
+    assert meta["weatherfeats"] is True and meta["weather_feats"] == stand_ab.WEATHER_FEATS
+    assert meta["features"] == list(ls.FEATS) + stand_ab.WEATHER_FEATS and meta["n_features"] == 78
+    assert meta["booster_files"] == ["lgbm_v9_weather.txt"]
+    fj = _fit_json(tmp_path / "out", "lgbm_v9_weather.fit.json")
+    assert fj["n_features"] == 78 and fj["target"] == "delta"
+    ids0, pred0, _ = _run_submit(ls, fx, tmp_path / "out0", [])
+    assert np.array_equal(ids0, ids) and not np.array_equal(pred0, pred), "the weather block changed nothing"

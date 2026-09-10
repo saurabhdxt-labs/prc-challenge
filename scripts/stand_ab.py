@@ -8,6 +8,7 @@ Pre-registered in plans/PREREG_taxiout_2026_09_08.md Amendment 5.
                                   # v6 push-anchored queue block -> data/cache_queue/ (Amendment 14)
     python3.11 scripts/stand_ab.py day-cache   [--ranking] [--smoke]
     python3.11 scripts/stand_ab.py order-cache [--ranking] [--smoke]   # Amendment 22, Arm F
+    python3.11 scripts/stand_ab.py weather-cache [--ranking] [--smoke] # Amendment 24, Arm W
                                   # airport-day regime block -> data/cache_day/ (Amendment 19, arm D)
     python3.11 scripts/stand_ab.py unmatched-cache [--ranking] [--smoke]
                                   # the UNMATCHED departures' features -> data/cache_unmatched/ (the
@@ -1064,6 +1065,167 @@ def cmd_order_cache(smoke: bool, ranking: bool = False):
         gc.collect()
 
 
+# =============================================================================================
+# Amendment 24: the weather block (arm W) - data/cache_weather/, read from the FROZEN archive
+# =============================================================================================
+WCACHE = ROOT / "data" / "cache_weather"
+WEATHER_RAW = ROOT / "data" / "weather"
+#: the raw movement columns the weather block reads. A departure's own BLOCK/TAXITIME appear only
+#: in the training-mode row filter, never in a feature - as in the queue and day blocks.
+WCOLS = ["PHASE_mvt", "MVT_ID_mvt", "ADEP_mvt", "ADES_mvt", "MVT_TIME_UTC_mvt", "SCHED_TIME_UTC_mvt",
+         "BLOCK_TIME_UTC_mvt", "TAXITIME_SEC_mvt", "AOBT_3_flt"]
+#: per row, from the observation valid AT OR BEFORE the row's own pushback anchor - never after it,
+#: so nothing downstream of the hidden off-block can leak in:
+#:   w_temp_c, w_dewspread_c   temperature and (temperature - dewpoint), the de-icing axis
+#:   w_wind_kt, w_gust_kt      wind; a METAR omits the gust group when there is no gust, so a
+#:                             missing gust is 0 kt (absence of gust), not an unknown
+#:   w_vis_km, w_precip_mm     visibility and one-hour precipitation ("T", a trace, is 0.05 mm)
+#:   w_freezing                temp <= 3 C AND (precipitation > 0 OR a FZ/SN/PL/GS code)
+#:   w_lowvis                  visibility < 1.5 km
+#:   w_thunder                 a TS code
+#:   w_age_s                   how old the observation is at the anchor; a stale one says so
+WEATHER_FEATS = ["w_temp_c", "w_dewspread_c", "w_wind_kt", "w_gust_kt", "w_vis_km", "w_precip_mm",
+                 "w_freezing", "w_lowvis", "w_thunder", "w_age_s"]
+WX_FREEZE_C = 3.0
+WX_LOWVIS_KM = 1.5
+WX_TRACE_MM = 0.05
+WX_FREEZE_CODES = ("FZ", "SN", "PL", "GS", "GR", "IC")
+
+
+def _wx_num(series) -> np.ndarray:
+    """The archive's numeric field: 'M' is missing, 'T' a trace; everything else a float."""
+    v = pd.to_numeric(series.replace({"M": np.nan, "T": WX_TRACE_MM}), errors="coerce")
+    return v.to_numpy(dtype="float64")
+
+
+def load_weather(raw_dir: pathlib.Path | None = None) -> pd.DataFrame:
+    """The frozen archive as one frame: station, valid (UTC) and the derived observation columns,
+    sorted by time. Never fetches - `scripts/fetch_weather.py` archives, this reads."""
+    raw_dir = WEATHER_RAW if raw_dir is None else pathlib.Path(raw_dir)
+    files = sorted(raw_dir.glob("*.csv"))
+    if not files:
+        raise FileNotFoundError(f"no weather archive in {raw_dir} (run scripts/fetch_weather.py first)")
+    frames = [pd.read_csv(f, dtype=str) for f in files]
+    w = pd.concat(frames, ignore_index=True)
+    need = {"station", "valid", "tmpf", "dwpf", "sknt", "gust", "vsby", "p01i", "wxcodes"}
+    missing = need - set(w.columns)
+    if missing:
+        raise ValueError(f"weather archive is missing columns {sorted(missing)} (a partial fetch?)")
+    o = pd.DataFrame({"station": w.station.astype(str)})
+    o["valid"] = pd.to_datetime(w.valid, utc=True, errors="coerce")
+    if o.valid.isna().any():
+        raise ValueError(f"{int(o.valid.isna().sum())} weather rows have an unparseable timestamp")
+    tmpf, dwpf = _wx_num(w.tmpf), _wx_num(w.dwpf)
+    o["w_temp_c"] = (tmpf - 32.0) * 5.0 / 9.0
+    o["w_dewspread_c"] = (tmpf - dwpf) * 5.0 / 9.0
+    o["w_wind_kt"] = _wx_num(w.sknt)
+    o["w_gust_kt"] = np.nan_to_num(_wx_num(w.gust), nan=0.0)      # a METAR omits the group when calm
+    o["w_vis_km"] = _wx_num(w.vsby) * 1.609344
+    o["w_precip_mm"] = _wx_num(w.p01i) * 25.4
+    codes = w.wxcodes.fillna("").astype(str).str.upper()
+    freeze_code = np.zeros(len(w), dtype=bool)
+    for c in WX_FREEZE_CODES:
+        freeze_code |= codes.str.contains(c, regex=False).to_numpy()
+    o["w_freezing"] = ((o.w_temp_c <= WX_FREEZE_C) & ((o.w_precip_mm > 0) | freeze_code)).astype("float64")
+    o["w_lowvis"] = (o.w_vis_km < WX_LOWVIS_KM).astype("float64")
+    o["w_thunder"] = codes.str.contains("TS", regex=False).to_numpy().astype("float64")
+    o = o.sort_values("valid", kind="mergesort").reset_index(drop=True)
+    #: the as-of join runs on SECONDS SINCE EPOCH via `es`, the one place this project defines the
+    #: time scale: pandas refuses a merge between datetime64 columns of different resolutions (the
+    #: archive parses to [us]), and `.astype("int64")` on a timestamp yields MICROseconds, a
+    #: landmine this repo has already paid for once. Both sides of the join call `es`.
+    o["valid_s"] = es(o.valid)
+    return o
+
+
+def build_weather(t: pd.DataFrame, serve: bool = False, w: pd.DataFrame | None = None) -> pd.DataFrame:
+    """`MVT_ID_mvt` + WEATHER_FEATS (float32) for exactly the rows build_features(t, serve) returns,
+    in the same take-off order.
+
+    The anchor is the row's own pushback, `AOBT_3` - a schedule-side quantity, never anything
+    derived from the hidden BLOCK_TIME. Amendment 24.3 also registered a median-proxy fallback for
+    rows without an `AOBT_3`; it is NOT implemented because it cannot be reached: `_dep_stream`
+    requires `AOBT_3_flt.notna()` in BOTH modes, so every row this block covers has one. The
+    guarantee is asserted rather than worked around - an unmatched-row weather block would be its
+    own amendment with its own anchor and its own tests. The observation is the last one at that
+    airport valid at or before the anchor; `w_age_s` carries how stale it is, so the model can
+    discount a gap rather than have one imputed for it.
+    """
+    d = _dep_stream(t, serve)
+    if len(d) == 0:
+        raise ValueError(f"no admissible departures (serve={serve}) - nothing to build")
+    w = load_weather() if w is None else w
+    anchor = es(d.AOBT_3_flt)
+    apt = sarr(d.ADEP_mvt)
+    if not np.isfinite(anchor).all():
+        raise ValueError(f"{int((~np.isfinite(anchor)).sum())} rows of the departure stream have no "
+                         "AOBT_3: the stream's own filter should make that impossible")
+    if "valid_s" not in w.columns:
+        raise ValueError("the weather frame must come from load_weather (no valid_s column)")
+    left = pd.DataFrame({"row": np.arange(len(d)), "station": apt,
+                         "anchor_s": np.asarray(anchor, dtype="float64")}).sort_values("anchor_s", kind="mergesort")
+    j = pd.merge_asof(left, w, left_on="anchor_s", right_on="valid_s", by="station", direction="backward")
+    j["w_age_s"] = j.anchor_s - j.valid_s
+    j = j.sort_values("row", kind="mergesort")
+    o = pd.DataFrame({"MVT_ID_mvt": d.MVT_ID_mvt.to_numpy()})
+    for c in WEATHER_FEATS:
+        o[c] = j[c].to_numpy(dtype="float64").astype(np.float32)
+    return o
+
+
+def build_weather_month(path: pathlib.Path, serve: bool = False, w: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Weather features for one calendar-month file."""
+    return build_weather(pq.read_table(path, columns=WCOLS).to_pandas(), serve=serve, w=w)
+
+
+def build_weather_ranking(path: pathlib.Path, w: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Serve-mode weather features for the evaluation file, one calendar month at a time, as
+    build_day_ranking does; MVT_ID uniqueness across the months asserted."""
+    t = pq.read_table(path, columns=WCOLS).to_pandas()
+    if t.MVT_TIME_UTC_mvt.isna().any():
+        raise ValueError(f"{t.MVT_TIME_UTC_mvt.isna().sum()} rows without MVT_TIME cannot "
+                         "be assigned to a calendar month")
+    w = load_weather() if w is None else w
+    ym = (t.MVT_TIME_UTC_mvt.dt.year * 100 + t.MVT_TIME_UTC_mvt.dt.month).to_numpy()
+    parts = [build_weather(t[ym == m], serve=True, w=w) for m in np.unique(ym)]
+    o = pd.concat(parts, ignore_index=True)
+    assert o.MVT_ID_mvt.is_unique, "duplicate MVT_ID across the per-month builds"
+    return o
+
+
+def cmd_weather_cache(smoke: bool, ranking: bool = False):
+    """Write data/cache_weather/<raw stem>.parquet: MVT_ID_mvt + WEATHER_FEATS, one file per
+    calendar month, joined onto the stand caches by MVT_ID (or positionally: same rows, order)."""
+    WCACHE.mkdir(parents=True, exist_ok=True)
+    w = load_weather()
+    print(f"weather archive: {len(w):,} observations, {w.station.nunique()} stations, "
+          f"{w.valid.min():%Y-%m-%d} .. {w.valid.max():%Y-%m-%d}", flush=True)
+    if ranking:
+        if smoke:
+            raise ValueError("--smoke does not apply to --ranking: a partial ranking cache "
+                             "at the real path would be consumed by the full fold")
+        t0 = time.time()
+        o = build_weather_ranking(RAW / "ranking.parquet", w=w)
+        out = WCACHE / "ranking.parquet"
+        o.to_parquet(out, index=False)
+        print(f"ranking.parquet -> {out.name}  rows={len(o):,}  cols={o.shape[1]}  "
+              f"wall {time.time() - t0:.1f}s  peak RSS {_peak_rss_gb():.2f} GB", flush=True)
+        return
+    paths = sorted(glob.glob(str(RAW / "training_2025-*.parquet")))
+    if smoke:
+        paths = paths[:1]
+    for p in paths:
+        p = pathlib.Path(p)
+        t0 = time.time()
+        o = build_weather_month(p, w=w)
+        out = WCACHE / (p.stem + ".parquet")
+        o.to_parquet(out, index=False)
+        print(f"{p.name} -> {out.name}  rows={len(o):,}  cols={o.shape[1]}  "
+              f"wall {time.time() - t0:.1f}s  peak RSS {_peak_rss_gb():.2f} GB", flush=True)
+        del o
+        gc.collect()
+
+
 UCACHE = ROOT / "data" / "cache_unmatched"
 #: the reference columns the unmatched builder needs of the OTHER movements (the matched
 #: departures and the arrivals): QCOLS plus the arrivals' ARVT_3 (cdiff). The unmatched rows
@@ -1351,7 +1513,8 @@ def cmd_unmatched_cache(smoke: bool, ranking: bool = False):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("cmd", choices=["cache", "fit", "queue-cache", "day-cache", "unmatched-cache", "order-cache"])
+    ap.add_argument("cmd", choices=["cache", "fit", "queue-cache", "day-cache", "unmatched-cache", "order-cache",
+                                    "weather-cache"])
     ap.add_argument("--smoke", action="store_true")
     ap.add_argument("--ranking", action="store_true",
                     help="cache / queue-cache / day-cache / unmatched-cache / order-cache: build <cache dir>/ranking.parquet "
@@ -1367,5 +1530,7 @@ if __name__ == "__main__":
         cmd_unmatched_cache(a.smoke, ranking=a.ranking)
     elif a.cmd == "order-cache":
         cmd_order_cache(a.smoke, ranking=a.ranking)
+    elif a.cmd == "weather-cache":
+        cmd_weather_cache(a.smoke, ranking=a.ranking)
     else:
         cmd_fit(a.smoke)
