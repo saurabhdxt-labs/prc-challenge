@@ -2760,3 +2760,59 @@ January/July holdout was never contaminated, so every held-out RMSE and every pa
 in this file remains a valid measurement of the model that was fitted; what is not established is that
 those models were tuned as well as they could have been. The repair is `prc/encoding.py`, built and
 tested by the auditing session and deliberately not wired while this file's arms were running.
+
+
+---
+
+# RESULT 23 · 2026-09-10 19:50 local · every overnight interval re-drawn with DATE blocks — the row bootstrap understated arm F by 4.6x; F still passes every clause
+
+**Why.** An independent review (session 80a473c1, project memory only, raw output lost with its
+scratchpad) stated that "arm F's interval is 4.6x too narrow" because the matched-lane paired bootstrap
+resamples rows independently. The audit's own date-block check on the queue block gave ~1.5x, so the
+factor looked lane-specific. It was measured here rather than adopted.
+
+**Method** (`tools/dayblock_reinterval.py`). Each fold record's rows are dated through the positional
+twins — `cache_stand` month file (y, take-off order) = `cache_order` month file (MVT_ID, same order) →
+raw month file (MVT_ID → MVT_TIME) — and the alignment is asserted by requiring the record's y to equal
+the stand cache's y row for row. Dates are resampled within January and within July separately
+(62 dates), 2,000 draws, beside the row bootstrap every RESULT above used. The row intervals recorded
+in RESULTS 9, 18, 19, 20, 21 and 22 are reproduced exactly, and the queue block's date-block interval
+reproduces TOP_PATH's independent figure to within 0.02 s.
+
+| lane | gain | row 95% | **date-block 95%** | width ratio |
+|---|---|---|---|---|
+| queue block (v5) | +1.568 | [+1.316, +1.812] | **[+1.165, +1.955]** | 1.59x |
+| **arm F** (RESULT 21) | +1.694 | [+1.407, +1.993] | **[+0.633, +3.327]** | **4.60x** |
+| arm W (RESULT 22) | +0.725 | [+0.495, +0.947] | **[+0.370, +1.085]** | 1.58x |
+| arm D (RESULT 18) | −0.054 | [−0.311, +0.210] | [−0.440, +0.324] | 1.47x |
+| arm Y 0.5 blend (RESULT 19) | −9.083 | [−27.996, +1.094] | [−28.579, +1.145] | 1.02x |
+| gated blend on Y, ex-LIRF (RESULT 20) | +0.527 | [+0.234, +0.820] | [+0.241, +0.816] | 0.98x |
+
+**The review's 4.6x is exactly right for arm F and for no other lane.** F's gain lives on the held
+rows, and Amendment 19.0 already showed those cluster on days; a row bootstrap treats a day's worth of
+correlated tail gains as independent evidence. The lanes whose gain is spread through the body widen
+~1.5x; the blends, whose gain is diluted across many rows, barely move.
+
+**Arm F's verdict under date blocks — every clause re-checked:**
+
+| clause (22.3) | date-block 95% | holds |
+|---|---|---|
+| (i) pooled interval excludes zero | [+0.633, +3.327] | yes |
+| (iv) the over-10-min band excludes zero | **[+7.307, +19.973]** (4.79x) | yes |
+| beyond twenty minutes | [+10.572, +41.290] (4.53x) | yes |
+| the body's loss | [−1.594, −0.275] (3.63x) | a real cost, still |
+
+**ESTABLISHED stands.** What changes is the size: the plausible board gain is roughly 280–1,500 MSE,
+not a tight ~745. RESULT 21's "~745" is the point estimate of a wide interval.
+
+**Claims recorded above that weaken, stated here rather than edited in place:**
+- **RESULT 22, arm W beyond twenty minutes, "−2.673 with an interval excluding zero"** → date-block
+  [−7.002, +1.279]. Weather is *no better* on the tail, not demonstrably worse. The verdict is unchanged
+  (its mechanism clause needed the tail to improve, and it does not: over10 [−2.418, +1.155]).
+- **RESULT 19a, "Y alone" on the tail** → over10 [−0.252, +6.549], gt20 [−1.227, +18.143]: neither
+  excludes zero. **The 0.5 BLEND's tail gains survive** (over10 [+2.695, +6.235], gt20
+  [+5.037, +15.210]); it was the blend, not Y alone, that was the better tail model.
+
+**Rule adopted from here on:** any lane whose gain is aimed at the disagreeing rows is intervalled with
+date blocks, stratified by month. The row bootstrap is retained only for lanes whose gain is spread
+through the body, and is reported beside the date-block interval, never alone.
