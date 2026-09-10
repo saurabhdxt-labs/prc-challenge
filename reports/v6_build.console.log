@@ -1,0 +1,64 @@
+[10:59:00 +      0s] version 6  smoke=False  seeds=[0, 1, 2]  per-airport=False  queue=True (83 features)  dayfeats=False  orderfeats=True  weatherfeats=False  target=delta  all-rows=False  fillhead=False  out=/Users/saurabhdxt/Projects/prc-challenge/submissions/merry-quicksand_v6.parquet  boosters=['lgbm_v6_queue_order_seed0.txt', 'lgbm_v6_queue_order_seed1.txt', 'lgbm_v6_queue_order_seed2.txt'] in /Users/saurabhdxt/Projects/prc-challenge/data/cache_stand
+[10:59:01 +      1s] loaded 12 training months (2,062,440 rows) + ranking (339,551 rows); peak RSS 3.15 GB
+[10:59:08 +      8s] design matrix 2,401,991 x 83 float32 (0.80 GB); peak RSS 3.85 GB
+[10:59:08 +      8s] early-stopping run (seed 0, target delta): fit 1,717,600 rows, stop on 344,840 rows (months (3, 9)), lr 0.01, max 50,000 rounds, patience 200
+[10:59:09 +      9s]     iter      0  valid_0 rmse (delta) 374.752
+[11:01:23 +    142s]     iter  1,000  valid_0 rmse (delta) 205.504
+[11:02:49 +    228s]     iter  2,000  valid_0 rmse (delta) 201.472
+[11:03:53 +    292s]     iter  3,000  valid_0 rmse (delta) 200.037
+[11:04:49 +    349s]     iter  4,000  valid_0 rmse (delta) 199.303
+[11:05:42 +    401s]     iter  5,000  valid_0 rmse (delta) 198.821
+[11:06:34 +    454s]     iter  6,000  valid_0 rmse (delta) 198.423
+[11:07:26 +    506s]     iter  7,000  valid_0 rmse (delta) 198.122
+[11:08:16 +    556s]     iter  8,000  valid_0 rmse (delta) 197.906
+[11:09:08 +    607s]     iter  9,000  valid_0 rmse (delta) 197.724
+[11:09:56 +    656s]     iter 10,000  valid_0 rmse (delta) 197.564
+[11:10:43 +    702s]     iter 11,000  valid_0 rmse (delta) 197.423
+[11:11:28 +    748s]     iter 12,000  valid_0 rmse (delta) 197.324
+[11:12:13 +    793s]     iter 13,000  valid_0 rmse (delta) 197.229
+[11:12:57 +    837s]     iter 14,000  valid_0 rmse (delta) 197.146
+[11:13:42 +    881s]     iter 15,000  valid_0 rmse (delta) 197.085
+[11:14:26 +    925s]     iter 16,000  valid_0 rmse (delta) 197.026
+[11:15:09 +    969s]     iter 17,000  valid_0 rmse (delta) 196.973
+[11:15:53 +   1013s]     iter 18,000  valid_0 rmse (delta) 196.927
+[11:16:36 +   1056s]     iter 19,000  valid_0 rmse (delta) 196.892
+[11:17:20 +   1100s]     iter 20,000  valid_0 rmse (delta) 196.853
+[11:18:03 +   1143s]     iter 21,000  valid_0 rmse (delta) 196.830
+[11:18:46 +   1185s]     iter 22,000  valid_0 rmse (delta) 196.804
+[11:19:28 +   1228s]     iter 23,000  valid_0 rmse (delta) 196.776
+[11:20:12 +   1272s]     iter 24,000  valid_0 rmse (delta) 196.752
+[11:20:56 +   1316s]     iter 25,000  valid_0 rmse (delta) 196.734
+[11:27:52 +   1731s] best_iter 25,316   stopping-set RMSE (taxi-time) 196.50   proxy-only on the 344,840 rows with a proxy 366.28   ratio 0.536   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 4.32 GB
+[11:27:52 +   1732s] n_ref 30,398: refit on all 2,062,440 training rows (best_iter 25,316 x 1.201), no early stopping
+[11:53:54 +   3293s] refit seed 0 done: 30,398 trees on 2,062,440 rows in 1562s   peak RSS 5.12 GB
+[11:53:55 +   3295s] saved booster -> /Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/lgbm_v6_queue_order_seed0.txt
+[12:28:04 +   5344s] refit seed 1 done: 30,398 trees on 2,062,440 rows in 1575s   peak RSS 5.13 GB
+[12:28:05 +   5345s] saved booster -> /Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/lgbm_v6_queue_order_seed1.txt
+[13:02:27 +   7406s] refit seed 2 done: 30,398 trees on 2,062,440 rows in 1594s   peak RSS 5.13 GB
+[13:02:28 +   7408s] saved booster -> /Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/lgbm_v6_queue_order_seed2.txt
+[13:10:33 +   7893s] fit wall 7885s for the early-stopping run + 3 refit(s)
+[13:10:33 +   7893s] seed mean over 3 refits: mean per-row seed sd of delta_hat 11.83s (p99 65.4s)
+[13:10:33 +   7893s] predicted 339,551 matched rows: median 957s  mean 1028s  min 1  max 85263  floor binds on 0.003%
+[13:10:34 +   7893s] splice: 339,551 rows replaced (328,214 values differ from the base), 5,290 rows untouched; matched-row shift vs base: mean -0.9s, RMS 30.9s
+[13:10:34 +   7893s] wrote /Users/saurabhdxt/Projects/prc-challenge/submissions/merry-quicksand_v6.parquet  rows=344,841  median=958s  mean=1034s
+[13:10:34 +   7893s] meta -> /Users/saurabhdxt/Projects/prc-challenge/submissions/merry-quicksand_v6.meta.json
+[13:10:34 +   7893s] done: wall 7893s, peak RSS 5.13 GB
+     7894.57 real     24805.51 user      1495.45 sys
+          5512724480  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             2959244  page reclaims
+                1426  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                6555  voluntary context switches
+           545806215  involuntary context switches
+     293713145320028  instructions retired
+     103366952716171  cycles elapsed
+          7774001680  peak memory footprint
+exit 0

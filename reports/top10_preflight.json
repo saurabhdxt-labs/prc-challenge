@@ -1,0 +1,245 @@
+{
+  "run_utc": "2026-09-10T10:15:53.016023+00:00",
+  "scope": "Read-only diagnostics of existing predictions. No new model, gate, or calibration fit.",
+  "score_source": "User September 10 snapshot; live leaderboard refresh unavailable.",
+  "fill_branch_gain_mse": 1781.9429319221383,
+  "rome_share_of_fill_branch_gain": 0.8074443469393854,
+  "old_fill_blend_by_airport": [
+    {
+      "airport": "EDDF",
+      "fill_gain_mse": 21.014420464414197,
+      "nonfill_gain_mse": -37.94909746269607,
+      "net_gain_mse": -16.934676998281876
+    },
+    {
+      "airport": "EDDM",
+      "fill_gain_mse": 24.18255913379381,
+      "nonfill_gain_mse": -38.58251321341277,
+      "net_gain_mse": -14.399954079618956
+    },
+    {
+      "airport": "EGLL",
+      "fill_gain_mse": 57.243982969557514,
+      "nonfill_gain_mse": -81.85854646876787,
+      "net_gain_mse": -24.61456349921036
+    },
+    {
+      "airport": "EHAM",
+      "fill_gain_mse": 20.841921923224827,
+      "nonfill_gain_mse": -35.672512130362165,
+      "net_gain_mse": -14.830590207137332
+    },
+    {
+      "airport": "LEBL",
+      "fill_gain_mse": 67.07377323180503,
+      "nonfill_gain_mse": -84.59076134799429,
+      "net_gain_mse": -17.516988116189253
+    },
+    {
+      "airport": "LEMD",
+      "fill_gain_mse": 29.482650627373122,
+      "nonfill_gain_mse": -61.953490843562236,
+      "net_gain_mse": -32.47084021618911
+    },
+    {
+      "airport": "LFPG",
+      "fill_gain_mse": 35.73153848428921,
+      "nonfill_gain_mse": -66.30854688865719,
+      "net_gain_mse": -30.57700840436798
+    },
+    {
+      "airport": "LIRF",
+      "fill_gain_mse": 1438.8197469491247,
+      "nonfill_gain_mse": -1207.699804927052,
+      "net_gain_mse": 231.1199420220725
+    },
+    {
+      "airport": "LSZH",
+      "fill_gain_mse": 9.772418077349666,
+      "nonfill_gain_mse": -16.233989170972283,
+      "net_gain_mse": -6.461571093622617
+    },
+    {
+      "airport": "LTFM",
+      "fill_gain_mse": 77.77992006120638,
+      "nonfill_gain_mse": -87.80763996825645,
+      "net_gain_mse": -10.027719907050065
+    }
+  ],
+  "probability_diagnostics": {
+    "mean_p": 0.08550500272701028,
+    "prevalence": 0.08898426323319027,
+    "reliability_deciles": [
+      {
+        "n": 33902,
+        "mean_p": 3.0342468276894656e-05,
+        "actual_fill_rate": 2.94967848504513e-05
+      },
+      {
+        "n": 33902,
+        "mean_p": 0.000154290200212155,
+        "actual_fill_rate": 5.89935697009026e-05
+      },
+      {
+        "n": 33902,
+        "mean_p": 0.0005015753125033022,
+        "actual_fill_rate": 0.0004424517727567695
+      },
+      {
+        "n": 33902,
+        "mean_p": 0.0017951409752386437,
+        "actual_fill_rate": 0.0016813167364757241
+      },
+      {
+        "n": 33902,
+        "mean_p": 0.006091890304384278,
+        "actual_fill_rate": 0.006518789451949738
+      },
+      {
+        "n": 33901,
+        "mean_p": 0.018977085899919525,
+        "actual_fill_rate": 0.023362142709654584
+      },
+      {
+        "n": 33901,
+        "mean_p": 0.0540880704298314,
+        "actual_fill_rate": 0.06285950266953777
+      },
+      {
+        "n": 33901,
+        "mean_p": 0.1290711151960191,
+        "actual_fill_rate": 0.13866847585616943
+      },
+      {
+        "n": 33901,
+        "mean_p": 0.2335435593771449,
+        "actual_fill_rate": 0.24067136662635322
+      },
+      {
+        "n": 33901,
+        "mean_p": 0.410809315201448,
+        "actual_fill_rate": 0.4155629627444618
+      }
+    ],
+    "caveat": "Pooled deciles do not establish calibration by airport or error severity."
+  },
+  "ars_census": [
+    {
+      "file": "training_2025-01-01_2025-02-01.parquet",
+      "n": 152250,
+      "ars_already_airport_scoped": 152250
+    },
+    {
+      "file": "training_2025-02-01_2025-03-01.parquet",
+      "n": 142611,
+      "ars_already_airport_scoped": 142611
+    },
+    {
+      "file": "training_2025-03-01_2025-04-01.parquet",
+      "n": 163361,
+      "ars_already_airport_scoped": 163361
+    },
+    {
+      "file": "training_2025-04-01_2025-05-01.parquet",
+      "n": 174192,
+      "ars_already_airport_scoped": 174192
+    },
+    {
+      "file": "training_2025-05-01_2025-06-01.parquet",
+      "n": 183590,
+      "ars_already_airport_scoped": 183590
+    },
+    {
+      "file": "training_2025-06-01_2025-07-01.parquet",
+      "n": 180610,
+      "ars_already_airport_scoped": 180610
+    },
+    {
+      "file": "training_2025-07-01_2025-08-01.parquet",
+      "n": 186765,
+      "ars_already_airport_scoped": 186765
+    },
+    {
+      "file": "training_2025-08-01_2025-09-01.parquet",
+      "n": 188840,
+      "ars_already_airport_scoped": 188840
+    },
+    {
+      "file": "training_2025-09-01_2025-10-01.parquet",
+      "n": 181479,
+      "ars_already_airport_scoped": 181479
+    },
+    {
+      "file": "training_2025-10-01_2025-11-01.parquet",
+      "n": 183752,
+      "ars_already_airport_scoped": 183752
+    },
+    {
+      "file": "training_2025-11-01_2025-12-01.parquet",
+      "n": 160967,
+      "ars_already_airport_scoped": 160967
+    },
+    {
+      "file": "training_2025-12-01_2026-01-01.parquet",
+      "n": 164023,
+      "ars_already_airport_scoped": 164023
+    },
+    {
+      "file": "ranking.parquet",
+      "n": 339551,
+      "ars_already_airport_scoped": 339551
+    }
+  ],
+  "budget_scenarios": [
+    {
+      "mse_gain": 232.0,
+      "board_rmse_if_gain_transfers": 287.73773712942136,
+      "matched_rmse_if_only_matched_changes": 223.73168889013678
+    },
+    {
+      "mse_gain": 322.0,
+      "board_rmse_if_gain_transfers": 287.58130218837243,
+      "matched_rmse_if_only_matched_changes": 223.52732823495677
+    },
+    {
+      "mse_gain": 1782.0,
+      "board_rmse_if_gain_transfers": 285.03158661516795,
+      "matched_rmse_if_only_matched_changes": 220.18565018527056
+    },
+    {
+      "mse_gain": 6883.611837069999,
+      "board_rmse_if_gain_transfers": 275.9373,
+      "matched_rmse_if_only_matched_changes": 208.08803106317234
+    },
+    {
+      "mse_gain": 9000.0,
+      "board_rmse_if_gain_transfers": 272.0753670738312,
+      "matched_rmse_if_only_matched_changes": 202.85775424263784
+    },
+    {
+      "mse_gain": 10000.0,
+      "board_rmse_if_gain_transfers": 270.23139227032823,
+      "matched_rmse_if_only_matched_changes": 200.3389354540649
+    }
+  ],
+  "scenario_caveat": "Planning arithmetic conditional on equal MSE transfer; not a leaderboard prediction.",
+  "rome_targets": [
+    {
+      "rmse": 350.0,
+      "matched_fold_mse_gain": 1897.9276643312644
+    },
+    {
+      "rmse": 325.0,
+      "matched_fold_mse_gain": 3178.685480921864
+    },
+    {
+      "rmse": 300.0,
+      "matched_fold_mse_gain": 4364.572348135382
+    },
+    {
+      "rmse": 280.0,
+      "matched_fold_mse_gain": 5244.974758354698
+    }
+  ],
+  "rome_target_caveat": "Desired improvements, not demonstrated or necessarily achievable."
+}

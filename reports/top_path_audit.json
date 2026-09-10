@@ -1,0 +1,216 @@
+{
+  "status": "diagnostic; no new model fitted; no score projection",
+  "run_utc": "2026-09-10T04:48:08.689037+00:00",
+  "score_source": "User screenshot / local September 10 snapshot; not a live API refresh",
+  "score_snapshot": {
+    "ours": 288.1406,
+    "tenth": 275.9373,
+    "leader": 245.2901
+  },
+  "gaps_mse": {
+    "tenth": 6883.611837069999,
+    "leader": 22857.77221035
+  },
+  "counterpart_census": {
+    "training_2025-01-01_2025-02-01.parquet": {
+      "departures": 153706,
+      "unmatched": 1435,
+      "unmatched_unique_candidates": 67,
+      "candidate_precision_on_known_id_pairs": 0.9992820676451819,
+      "known_id_candidates": 12536,
+      "same_id_pairs": 24398,
+      "same_id_aobt_disagreements": 0,
+      "caveat": "Known-id precision need not transfer to unmatched rows."
+    },
+    "training_2025-07-01_2025-08-01.parquet": {
+      "departures": 190713,
+      "unmatched": 3938,
+      "unmatched_unique_candidates": 206,
+      "candidate_precision_on_known_id_pairs": 0.9979166666666667,
+      "known_id_candidates": 12960,
+      "same_id_pairs": 26513,
+      "same_id_aobt_disagreements": 0,
+      "caveat": "Known-id precision need not transfer to unmatched rows."
+    },
+    "ranking.parquet": {
+      "departures": 344841,
+      "unmatched": 5290,
+      "unmatched_unique_candidates": 227,
+      "candidate_precision_on_known_id_pairs": 0.9994134209291412,
+      "known_id_candidates": 25572,
+      "same_id_pairs": 50923,
+      "same_id_aobt_disagreements": 0,
+      "caveat": "Known-id precision need not transfer to unmatched rows."
+    }
+  },
+  "encoding_dependency_check": {
+    "inner_stop_label_changes_fit_and_stop_features": true,
+    "outer_holdout_label_changes_features": false,
+    "scope": "Synthetic dependency check of existing encoder; no model gain measured."
+  },
+  "matched_v5_fold_rmse": 224.25762647868322,
+  "matched_by_airport": [
+    {
+      "airport": "EDDF",
+      "n": 36231,
+      "rmse": 177.91877411532215,
+      "sse_share": 0.06726831034997162,
+      "contribution_at_scored_stratum_weight": 3331.12615026897
+    },
+    {
+      "airport": "EDDM",
+      "n": 26854,
+      "rmse": 166.51724603458035,
+      "sse_share": 0.04367310470957932,
+      "contribution_at_scored_stratum_weight": 2162.6917697892786
+    },
+    {
+      "airport": "EGLL",
+      "n": 39744,
+      "rmse": 229.0671035705999,
+      "sse_share": 0.12231611147958087,
+      "contribution_at_scored_stratum_weight": 6057.092788997312
+    },
+    {
+      "airport": "EHAM",
+      "n": 40141,
+      "rmse": 163.11576384179327,
+      "sse_share": 0.06264215631257615,
+      "contribution_at_scored_stratum_weight": 3102.039042105164
+    },
+    {
+      "airport": "LEBL",
+      "n": 28489,
+      "rmse": 220.29320708734454,
+      "sse_share": 0.08108976827237489,
+      "contribution_at_scored_stratum_weight": 4015.5646277723554
+    },
+    {
+      "airport": "LEMD",
+      "n": 35019,
+      "rmse": 174.70589534550064,
+      "sse_share": 0.06269104421689403,
+      "contribution_at_scored_stratum_weight": 3104.459970706728
+    },
+    {
+      "airport": "LFPG",
+      "n": 38713,
+      "rmse": 244.46367157714883,
+      "sse_share": 0.13569758880373212,
+      "contribution_at_scored_stratum_weight": 6719.743431057483
+    },
+    {
+      "airport": "LIRF",
+      "n": 26131,
+      "rmse": 384.06601284171705,
+      "sse_share": 0.22607598236495274,
+      "contribution_at_scored_stratum_weight": 11195.280703285247
+    },
+    {
+      "airport": "LSZH",
+      "n": 21811,
+      "rmse": 174.1629127894265,
+      "sse_share": 0.03880373943854058,
+      "contribution_at_scored_stratum_weight": 1921.5608434261858
+    },
+    {
+      "airport": "LTFM",
+      "n": 45882,
+      "rmse": 243.63817110942952,
+      "sse_share": 0.1597421940517977,
+      "contribution_at_scored_stratum_weight": 7910.43207624596
+    }
+  ],
+  "queue_vs_previous_date_bootstrap": {
+    "draws": 2000,
+    "seed": 0,
+    "date_blocks": 62,
+    "gain_s_ci95": [
+      1.186119559253995,
+      1.9544975598247807
+    ],
+    "weighted_mse_gain_ci95": [
+      531.0665630112159,
+      864.810444306629
+    ]
+  },
+  "matched_diagnostic_ceilings_mse": {
+    "perfect_on_schedule_fills_only": 7324.454327510398,
+    "perfect_on_clock_disagreement_gt_600_only": 23900.93276121627,
+    "perfect_on_lirf_only": 11195.280703285247
+  },
+  "unmatched_counterpart_candidate_ceiling": {
+    "fold_A_candidates": 273,
+    "perfect_prediction_gain_at_scored_stratum_weight": 1354.7656840637596,
+    "all_unmatched_fold_mse_at_scored_stratum_weight": 52830.498791034115,
+    "caveat": "Perfect 2025 subset prediction, not an achievable or 2026 gain."
+  },
+  "unmatched_fold_top_error_share": {
+    "1": 0.3786959887906152,
+    "2": 0.5584182106341895,
+    "5": 0.6490438119524882,
+    "20": 0.7682933792753
+  },
+  "unmatched_fold_by_airport": [
+    {
+      "airport": "EDDF",
+      "n": 599,
+      "rmse": 380.1335752086208,
+      "sse_share": 0.004723436585944327
+    },
+    {
+      "airport": "EDDM",
+      "n": 237,
+      "rmse": 654.4390330774812,
+      "sse_share": 0.005539180800473785
+    },
+    {
+      "airport": "EGLL",
+      "n": 466,
+      "rmse": 1157.2289729385877,
+      "sse_share": 0.034055190936508994
+    },
+    {
+      "airport": "EHAM",
+      "n": 808,
+      "rmse": 618.8048339292945,
+      "sse_share": 0.01688408626008196
+    },
+    {
+      "airport": "LEBL",
+      "n": 496,
+      "rmse": 327.1750573588994,
+      "sse_share": 0.0028973493063379177
+    },
+    {
+      "airport": "LEMD",
+      "n": 309,
+      "rmse": 306.8774344123875,
+      "sse_share": 0.0015879879223613534
+    },
+    {
+      "airport": "LFPG",
+      "n": 876,
+      "rmse": 3462.0406609849433,
+      "sse_share": 0.5729638751569021
+    },
+    {
+      "airport": "LIRF",
+      "n": 397,
+      "rmse": 3935.2951403180855,
+      "sse_share": 0.3355088122286692
+    },
+    {
+      "airport": "LSZH",
+      "n": 476,
+      "rmse": 643.1830507752126,
+      "sse_share": 0.010745705688500242
+    },
+    {
+      "airport": "LTFM",
+      "n": 657,
+      "rmse": 648.8517516071382,
+      "sse_share": 0.01509437511422018
+    }
+  ]
+}

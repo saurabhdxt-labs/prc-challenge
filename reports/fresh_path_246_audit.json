@@ -1,0 +1,346 @@
+{
+  "scope": "Saved predictions only; no candidate fitted or submitted.",
+  "board_score_source": "reports/MSE_LEDGER.md, v7 recorded 2026-09-10 13:14; not live refreshed",
+  "board_score": 285.8013,
+  "target": 246.0,
+  "mse_gap": 21166.383081690015,
+  "n_scored": 344841,
+  "n_scored_matched": 339551,
+  "matched_weight": 0.9846595967416868,
+  "v7_changed_rows": 382,
+  "v7_matched_unchanged": true,
+  "matched_reference_rmse": 222.56316251601282,
+  "matched_weighted_fold_mse": 48774.4842315041,
+  "partitions": {
+    "schedule_fill": {
+      "n": 30167,
+      "rmse": 285.6315925543166,
+      "weighted_fold_mse": 7148.448777670761
+    },
+    "nonfill_abs_delta_gt600": {
+      "n": 22906,
+      "rmse": 508.5758655597131,
+      "weighted_fold_mse": 17207.903180686426
+    },
+    "other_nonfill": {
+      "n": 285942,
+      "rmse": 171.4682217460273,
+      "weighted_fold_mse": 24418.13227314692
+    }
+  },
+  "airports": {
+    "EDDF": {
+      "n": 36231,
+      "rmse": 176.5074999085297,
+      "weighted_fold_mse": 3278.4899127449935,
+      "partitions": {
+        "schedule_fill": {
+          "n": 2410,
+          "rmse": 135.79896958525268,
+          "weighted_fold_mse": 129.08542098888182
+        },
+        "nonfill_abs_delta_gt600": {
+          "n": 673,
+          "rmse": 740.0698205777676,
+          "weighted_fold_mse": 1070.6010295641397
+        },
+        "other_nonfill": {
+          "n": 33148,
+          "rmse": 146.94149321410907,
+          "weighted_fold_mse": 2078.803462191972
+        }
+      }
+    },
+    "EDDM": {
+      "n": 26854,
+      "rmse": 164.43961150934936,
+      "weighted_fold_mse": 2109.0606671413684,
+      "partitions": {
+        "schedule_fill": {
+          "n": 2522,
+          "rmse": 129.49851516939415,
+          "weighted_fold_mse": 122.84058147416685
+        },
+        "nonfill_abs_delta_gt600": {
+          "n": 2051,
+          "rmse": 366.27536908066367,
+          "weighted_fold_mse": 799.1867837845682
+        },
+        "other_nonfill": {
+          "n": 22281,
+          "rmse": 135.43487474311203,
+          "weighted_fold_mse": 1187.0333018826332
+        }
+      }
+    },
+    "EGLL": {
+      "n": 39744,
+      "rmse": 229.0030840740809,
+      "weighted_fold_mse": 6053.707598914899,
+      "partitions": {
+        "schedule_fill": {
+          "n": 3450,
+          "rmse": 183.2851686472083,
+          "weighted_fold_mse": 336.6207983619374
+        },
+        "nonfill_abs_delta_gt600": {
+          "n": 3001,
+          "rmse": 533.9732148785108,
+          "weighted_fold_mse": 2485.2617979342017
+        },
+        "other_nonfill": {
+          "n": 33293,
+          "rmse": 182.8158520996452,
+          "weighted_fold_mse": 3231.8250026187593
+        }
+      }
+    },
+    "EHAM": {
+      "n": 40141,
+      "rmse": 163.21569708153822,
+      "weighted_fold_mse": 3105.8411488312267,
+      "partitions": {
+        "schedule_fill": {
+          "n": 2349,
+          "rmse": 123.25249550643525,
+          "weighted_fold_mse": 103.64340272904771
+        },
+        "nonfill_abs_delta_gt600": {
+          "n": 2423,
+          "rmse": 382.20822325350684,
+          "weighted_fold_mse": 1028.0652300368276
+        },
+        "other_nonfill": {
+          "n": 35369,
+          "rmse": 138.6255105327975,
+          "weighted_fold_mse": 1974.1325160653514
+        }
+      }
+    },
+    "LEBL": {
+      "n": 28489,
+      "rmse": 218.92369347593586,
+      "weighted_fold_mse": 3965.7920877145098,
+      "partitions": {
+        "schedule_fill": {
+          "n": 2956,
+          "rmse": 330.4790912936078,
+          "weighted_fold_mse": 937.6907006172627
+        },
+        "nonfill_abs_delta_gt600": {
+          "n": 1120,
+          "rmse": 623.2430142113388,
+          "weighted_fold_mse": 1263.57220739356
+        },
+        "other_nonfill": {
+          "n": 24413,
+          "rmse": 157.7503185543052,
+          "weighted_fold_mse": 1764.5291797036873
+        }
+      }
+    },
+    "LEMD": {
+      "n": 35019,
+      "rmse": 173.93502512536918,
+      "weighted_fold_mse": 3077.124247268106,
+      "partitions": {
+        "schedule_fill": {
+          "n": 2839,
+          "rmse": 154.70694774360294,
+          "weighted_fold_mse": 197.35686235071498
+        },
+        "nonfill_abs_delta_gt600": {
+          "n": 928,
+          "rmse": 543.5351216466378,
+          "weighted_fold_mse": 796.2884276034592
+        },
+        "other_nonfill": {
+          "n": 31252,
+          "rmse": 151.5032850017267,
+          "weighted_fold_mse": 2083.4789573139315
+        }
+      }
+    },
+    "LFPG": {
+      "n": 38713,
+      "rmse": 244.6071033992495,
+      "weighted_fold_mse": 6727.630965316061,
+      "partitions": {
+        "schedule_fill": {
+          "n": 2768,
+          "rmse": 188.56508686075924,
+          "weighted_fold_mse": 285.8616265004262
+        },
+        "nonfill_abs_delta_gt600": {
+          "n": 2767,
+          "rmse": 634.7436381461208,
+          "weighted_fold_mse": 3237.9719059937347
+        },
+        "other_nonfill": {
+          "n": 33178,
+          "rmse": 182.336586972157,
+          "weighted_fold_mse": 3203.7974328218984
+        }
+      }
+    },
+    "LIRF": {
+      "n": 26131,
+      "rmse": 375.89764314246776,
+      "weighted_fold_mse": 10724.139114014968,
+      "partitions": {
+        "schedule_fill": {
+          "n": 4947,
+          "rmse": 555.5914996743883,
+          "weighted_fold_mse": 4435.272412769149
+        },
+        "nonfill_abs_delta_gt600": {
+          "n": 2886,
+          "rmse": 564.1601452745695,
+          "weighted_fold_mse": 2667.8925563463795
+        },
+        "other_nonfill": {
+          "n": 18298,
+          "rmse": 261.02211146144106,
+          "weighted_fold_mse": 3620.974144899439
+        }
+      }
+    },
+    "LSZH": {
+      "n": 21811,
+      "rmse": 174.0552799364623,
+      "weighted_fold_mse": 1919.1865243018933,
+      "partitions": {
+        "schedule_fill": {
+          "n": 1198,
+          "rmse": 162.35973809010596,
+          "weighted_fold_mse": 91.72351849840952
+        },
+        "nonfill_abs_delta_gt600": {
+          "n": 639,
+          "rmse": 595.6254897948903,
+          "weighted_fold_mse": 658.4375830042878
+        },
+        "other_nonfill": {
+          "n": 19974,
+          "rmse": 141.95341776028852,
+          "weighted_fold_mse": 1169.0254227991961
+        }
+      }
+    },
+    "LTFM": {
+      "n": 45882,
+      "rmse": 242.14102064066216,
+      "weighted_fold_mse": 7813.511965256088,
+      "partitions": {
+        "schedule_fill": {
+          "n": 4728,
+          "rmse": 192.40243024252237,
+          "weighted_fold_mse": 508.353453380764
+        },
+        "nonfill_abs_delta_gt600": {
+          "n": 6418,
+          "rmse": 414.365876049117,
+          "weighted_fold_mse": 3200.6256590252715
+        },
+        "other_nonfill": {
+          "n": 34736,
+          "rmse": 201.70114481188048,
+          "weighted_fold_mse": 4104.532852850051
+        }
+      }
+    }
+  },
+  "months": {
+    "1": {
+      "n": 152250,
+      "rmse": 200.7217784305814,
+      "weighted_fold_mse": 17816.135106547536
+    },
+    "7": {
+      "n": 186765,
+      "rmse": 238.8952688116518,
+      "weighted_fold_mse": 30958.349124956578
+    }
+  },
+  "expert_diagnostics": {
+    "F": {
+      "rmse": 222.56316251601282,
+      "net_weighted_fold_mse_gain": 0.0,
+      "label_oracle_switch_gain": 0.0
+    },
+    "schedule": {
+      "rmse": 2460.073463417499,
+      "net_weighted_fold_mse_gain": -5910347.432103098,
+      "label_oracle_switch_gain": 14995.85148697272
+    },
+    "NM": {
+      "rmse": 410.1809939349899,
+      "net_weighted_fold_mse_gain": -116892.96451737735,
+      "label_oracle_switch_gain": 12093.484378493344
+    },
+    "Y": {
+      "rmse": 260.65105816399597,
+      "net_weighted_fold_mse_gain": -18122.278630518947,
+      "label_oracle_switch_gain": 5391.534774483793
+    },
+    "W": {
+      "rmse": 223.53299925542325,
+      "net_weighted_fold_mse_gain": -426.0035680731447,
+      "label_oracle_switch_gain": 4691.165024521906
+    }
+  },
+  "label_oracle_best_of_five_gain": 28583.79904407331,
+  "oracle_limit": "Uses true labels to choose a prediction per row. Not a trained gate, forecast, or bound on arbitrary models or convex ensembles. Individual gains overlap.",
+  "unmatched_fold_A_after_R2": {
+    "n": 5321,
+    "rmse": 1779.005054589462,
+    "two_largest_errors_share_sse": 0.6076494979895264,
+    "all_rows_fold_rmse": 312.5304044241453,
+    "warning": "Fold totals and extreme-row gains are not leaderboard forecasts."
+  },
+  "conditional_scenarios": {
+    "assumption": "Assume current board matched RMSE equals 222.563 fold RMSE. Unverified.",
+    "implied_unmatched_mse_contribution": 32907.89885018591,
+    "matched_only_required_rmse": 167.44616666799143,
+    "targets": [
+      {
+        "matched_rmse": 205,
+        "unmatched_required_rmse": 1116.8724206326156,
+        "unmatched_mse_gain_needed": 13772.218403255298
+      },
+      {
+        "matched_rmse": 195,
+        "unmatched_required_rmse": 1226.4392941943966,
+        "unmatched_mse_gain_needed": 9833.580016288557
+      },
+      {
+        "matched_rmse": 190,
+        "unmatched_required_rmse": 1275.8189375599807,
+        "unmatched_mse_gain_needed": 7938.110292560807
+      },
+      {
+        "matched_rmse": 185,
+        "unmatched_required_rmse": 1322.144172849401,
+        "unmatched_mse_gain_needed": 6091.873548670148
+      }
+    ]
+  },
+  "score_arithmetic": {
+    "3000": 280.50380225888205,
+    "5000": 276.9158411533909,
+    "10000": 267.73565896549906,
+    "15000": 258.22932266047945,
+    "20000": 248.3593829145378
+  },
+  "source_sha256": {
+    "data/cache_stand/fold_preds_queue_order.parquet": "8536bb872ebae4770ee705bcbcb7af25aa8fe083d19dd507bf9a8bcda3fb6c06",
+    "reports/lgbm_fold_queue_order.json": "fd635acb8940cc04c665ca773548d5a9c8bbf136ba7783b5411acb588f22c6c3",
+    "data/raw/ranking.parquet": "9db75e3a56fa09b87aab72e191a53da3fe763d9887ad2b23aea9cde6a6325f86",
+    "submissions/merry-quicksand_v6.parquet": "285cb4fe277300dd68236d923573202cd0aef926338fa5f87485e262f2f52437",
+    "submissions/merry-quicksand_v7.parquet": "d177cb3131299c056269d70ffeffe220976e3c5234659575203af62eb73046d2",
+    "data/cache_stand/fold_preds_queue_ytarget.parquet": "0478f5d19537fb5b4b9a0261da6e6d1c453e7023cb88d3ff1b2e21b387302aab",
+    "data/cache_stand/fold_preds_queue_weather.parquet": "7494c2c6064b624a4c92fd906cc4efea01b708de41ae43af13192301edf7b9db",
+    "data/cache_stand/stratum_fold_v7_preds.parquet": "7023a0acf32aed4c7cb4af4849e5af786d009ba3240c678cf823c6c17883e015",
+    "data/cache_stand/rome_dateslip_preds.parquet": "888e5715e68c864345089c1a588a14abc1a01e980babc39a409aaa7cfc5e3f86"
+  }
+}

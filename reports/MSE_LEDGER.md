@@ -383,3 +383,158 @@ Rule confirmed a third time: a matched-side paired fold gain, in MSE, lands on t
 Stratum gains are not projected (Amendment 9). The 10th place at 20:45 was 276.51 (= 76,458 MSE):
 **6,567 MSE below v5**, and the cut is still falling. Every remaining matched-side gain must be
 measured as a paired interval on the fold and then banked here in MSE, never in seconds.
+
+---
+
+## 2026-09-10 01:45 — three findings that change what is open, and one that changes what is trusted
+
+Added after the owner's audit (`reports/top_path_audit.json`, `plans/TOP_PATH_2026_09_10.md`)
+established that several lanes this ledger records as closed were closed on evidence narrower than
+the conclusion drawn. Nothing here is a banked gain; two are defects and one is a re-pricing.
+
+**1. A validation defect, in this ledger's own instrument.** Target encodings for the
+early-stopping rows were fitted on data including those rows' own labels
+(`lgbm_fold.py:1464`, and `fold_masks` at :657 puts ES inside `tr`). Measured on 861,290 real rows:
+**24 of 24 encoding columns on ES rows move when ES labels move.** Outer-holdout numbers and every
+paired interval in this file remain valid — the holdout was never contaminated — but **`best_iter`
+was selected against a biased signal for every arm ever run, and for every shipped version**
+(`lgbm_submit.py:1452`). Full sibling list and scope: `reports/bug_classes.md` BC-1. Repair built
+and tested in `prc/encoding.py`; NOT wired, because the arms queue is live against those files.
+
+**2. The fill lane was mispriced. The fill branch is worth +1,782 MSE with a broken blend on top.**
+RESULT 8's arm was `p·sp + (1−p)·m(X)` where `m` is the all-rows model — already `E[y|X]`, itself
+the mixture — so it applies fill behaviour twice. Recomputed per subset from its own record:
+
+| subset | rows | baseline | treatment | MSE |
+|---|---|---|---|---|
+| fill (`F=1`) | 30,167 | 288.725 | **251.047** | **+1,782** |
+| non-fill | 308,848 | 218.714 | 223.051 | **−1,719** |
+| pooled — what got reported | 339,015 | 225.825 | 225.683 | +63 |
+
+*(Both arms carry the shipped `max(proxy − pred, 1)` floor. A first version of this block floored
+only the treatment and read +1,789 / −1,534 / +256; corrected 2026-09-10 02:05.)*
+
+The classifier is sound (holdout AUC **0.8957**, decile fill rates monotone 0.000 → 0.416). A
+pre-registered gate test (`plans/PREREG_fill_gate_2026_09_10.md`, RESULT G) confirmed the mechanism
+on all three clauses — the real rule's gain is **12× the p95** of the same-size random-subset null —
+and recovered **+322 MSE**, only 18% of the prize, because `p` is mis-calibrated (mean 0.297 on true
+fills against an 8.90% base rate, so a 0.5 threshold has 10.4% recall). Harness for the fitted
+design: `scripts/cond_experts.py`. Detail: `reports/PRIORITY2_FILL_LANE_PRICED.md`.
+
+**3. The encoding keys are not airport-scoped.** Stand `210` exists at six of the ten airports;
+**55.3% of rows carry a shared `STAND_mvt` name, 44.6% a shared `RUNWAY_mvt` name**, and ~~`ars` is
+`STAND|RUNWAY` with no airport in it (`stand_ab.py:340`)~~ **— false, corrected 2026-09-10 06:40 in
+`reports/PRIORITY1_IDENTITY_SCREEN.md` §2 and carried here only now: `ars` is `<airport>|<stand>|<runway>`
+on 100% of cached rows.** Single-key out-of-fold, scoped against
+unscoped: aircraft type **−24.1 s**, destination **−19.9 s**, stand −6.9, runway −2.3. Single-key
+magnitudes do not transfer to a 68-feature model that already carries `ADEP_mvt`; what they
+establish is that the statistic is corrupted on a majority of rows. Cheapest open bet — no new data,
+no new cache. Harness: `scripts/enc_ab.py`. Detail: `reports/PRIORITY1_IDENTITY_SCREEN.md`.
+
+**A retraction, recorded against this file's own framing.** `reports/WHERE_WE_STAND_2026_09_10.md`
+first claimed a ~250 ceiling for any approach not identifying extreme rows. **False.** Perfect
+prediction on the 25,870 matched rows with `|delta| > 600 s` removes **23,901 MSE** and would score
+**243.15** — beating the leader, with no extreme row involved (max `y` in that set is 15,059 s). The
+error was pricing two convenient oracles and generalising their sum into a bound. Retraction and
+root cause are at the top of that file.
+
+
+---
+
+## 2026-09-10 late morning — the gap located, and Rome rebuilt (nothing banked until the board says so)
+
+Detail: `reports/GAP_LOCATED_2026_09_10.md`, preregs `plans/PREREG_rome_{fill,dateslip,matched_fill,body}_2026_09_10.md`.
+
+- **The gap to the 271–274 tier is our unmatched lane at Rome.** On July 2025, against a public GPLv3
+  system (elegant-alligator, board 274 → 271) that also held July out: the unmatched-lane SSE gap to
+  our SHIPPED S1 is 1,145 M = 6,006 MSE in July's frame — the whole July all-rows gap — and LIRF alone is
+  1,210 M (the other nine airports are 65 M better than theirs).
+- **The leader's one-submission jump (262.7 → 248.5, 09-08) is one ~50,000 s row;** the LIRF 24 h
+  date-slip row that public arithmetic puts at ≈ 84,200 s is already ≈ right in v5 (84,904).
+- **Arm R** (stake-weighted LIRF fill classifier): NOT WORKING as registered (month interval spans
+  zero; fold A −27.1%). **Arm R2** (R + the 24 h date-slip class): **all registered clauses pass**
+  (LOMO −15.2%, fold A −24.1%), July Rome 3,925.6 → 3,459.5 vs the public 3,437.9; the date-slip part is
+  boundary-fragile (post-hoc sensitivity). Projected ≈ 4,150 board MSE — **projection, not banked.**
+- **Arm M** (fill blend over arm F on LIRF matched rows): NOT WORKING / INCONCLUSIVE — the body pays
+  (RESULT 8's double counting, caught by its registered clause). Arm B (a conditioned body refit) is
+  registered and queued behind the v6 build.
+- **Arm FW**: code built and tested (`--orderfeats --weatherfeats --queue`), NOT run — ≤ ~300 MSE, not
+  worth the heavy slot against the Rome work.
+
+## MEASURED 2026-09-10 13:13–13:14 — v6 and v7 on the board
+
+| version | board RMSE | board MSE | Δ MSE vs prev | lane | fold projection | transfer |
+|---|---|---|---|---|---|---|
+| **v6** | **286.9017** | 82,313 | **−712** vs v5 | arm F (record ordering), matched rows only, base v5 | −745 | **0.96×** |
+| **v7** | **285.8013** | 81,682 | **−630** vs v6 | Rome R2 (stake-weighted fill classifier + 24 h date-slip), 382 LIRF unmatched rows only | ≈ −4,150 (fold A) | **≈ 0.15×** |
+
+- The matched-lane rule holds a fourth time (0.96–1.17×).
+- **The Rome unmatched projection did NOT transfer.** R2 helped (−630 MSE, the right sign) but delivered
+  ~15% of its fold-A projection. The projection rested on a few extreme 2025 rows each worth thousands
+  of MSE; 2026's Rome rows evidently differ (a public team reports the same about LIRF's tail). Rule
+  from today: **an unmatched/extreme-row fold projection is not a board forecast** — price such lanes
+  at a steep discount until a board reading calibrates them.
+- Rank 21 of 103 unchanged; 10th 275.09, 5th 266.40. **274 now needs −6,606 MSE.**
+
+## 2026-09-10 14:46–14:50 — arm B (Rome) scored; E1 registered and v8 built (nothing banked)
+
+- **RESULT B** (`plans/PREREG_rome_body_2026_09_10.md`, `reports/rome_body.json`): B +7.76 s [3.59, 12.18],
+  B_hyb +6.63 s [3.44, 10.08] on LIRF matched fold-A rows — both **INCONCLUSIVE**: clause 4 fails
+  (non-fill rows +3.49 / +4.83 s vs the 1.0 s bound). Projected +438 / +375 board MSE. The conditioned
+  body ALONE beats F on LIRF non-fill rows by 21.2 s (298.55 vs 319.70); the body loss is the mixture
+  weight `p` on non-fill rows, not the body. B.1 / B.2 (all airports) pending on AC power.
+- **E1 registered** (`plans/PREREG_rome_bandfloor_2026_09_10.md`, from `reports/PATH_TO_245_FABLE_2026_09_10.md`,
+  re-verified): 2025 has no LIRF unmatched row with `sp ≥ 24,000` and `y < sp − 60` (56 rows). v8 = v7 +
+  `max(v7, rint(sp))` on LIRF unmatched `24,000 ≤ sp < 86,400`: 13 rows move, two carry 5,612 of 5,627 MSE.
+  **A two-row bet:** −5,627 if both fills, +7,012 if both ordinary. Priced on the 2026 file's own
+  composition, never on a fold draw. Not uploaded.
+
+## 2026-09-10 14:50 — arm B (conditioned body): a Rome-only effect, ≈ 400 MSE, not shortlisted
+Gated all-airport mixture +379, continuous +314 weighted fold MSE (clause 4 fails for all four arms; none
+reaches the 1,000 shortlist rule). Nearly all of it is LIRF, where a body fitted without fill rows beats F on
+non-fill rows by 21 s; elsewhere ±1.4 s. Detail: `plans/PREREG_rome_body_2026_09_10.md` RESULT B.
+
+## 2026-09-10 15:43 — E3C (congestion-aware unmatched body): WORKING on 12-month LOMO (not yet shipped)
+
+`plans/PREREG_unm_congestion_2026_09_10.md` RESULT E3C, `reports/unm_congestion.json`. S1's unmatched body
+had no congestion input; adding the same-file airport-hour median of matched `MVT − AOBT_3` passes all
+seven clauses (12/12 months, 7/9 airports, calm control, ex-monster, seeds; S1 reproduced bit-exact).
+**2026-priced +3,960 board MSE (registered); post-hoc sensitivities +1,664 to +2,299** because the 2026
+stake is EHAM's January disruption and the 2025 evidence for the hottest bin is mostly LTFM Feb 2025.
+Priced on the 2026 file's own composition; the board will say. Ship path not yet built.
+- **15:49 — arm B B.1 / B.2 (all airports): both INCONCLUSIVE, +379 / +314 projected, NOT shortlisted**
+  (`reports/rome_body_all.json`). Gated form fires almost only at LIRF; the continuous form loses at six
+  airports through `p` on body rows. Arm B closed at this scale; the body expert survives as a component.
+- **15:42–~15:59 — an uncoordinated `catboost_native.py fit --target delta` (launched from another session,
+  not this one; no memory probe, no gate here) ran to iteration 2,000 and exited; no prediction written.
+  NOT a result — no number from its log is quoted anywhere. Owner: PRC heavy jobs only from prc-challenge-25
+  for now. The C_delta / C_sched prereg stands; rerun deliberately later.**
+
+## MEASURED 2026-09-10 16:08 — v9 on the board: 282.6790 (rank 15 of 106)
+
+| version | board RMSE | board MSE | Δ MSE vs v7 | lane | fold projection | transfer |
+|---|---|---|---|---|---|---|
+| **v9** | **282.6790** | 79,907 | **−1,775** | E3C congestion-aware unmatched body, 4,828 non-LIRF unmatched rows, base v7 | +3,960 registered / +1,664–2,299 event-excluded / +800 unbiased floor | **0.45× registered, ≈ 1.0× event-excluded** |
+
+An unmatched-lane mechanism (not a row draw) transferred. v8 (E1) is built and NOT yet uploaded. 274 now
+needs −4,831 MSE; 5th (266.40) −10,935.
+
+## MEASURED 2026-09-10 16:13 — v10 on the board: 281.5182 (rank 15 of 106) — E1 PARTIAL
+
+| version | board RMSE | board MSE | Δ MSE vs v9 | lane | pre-written shapes | verdict |
+|---|---|---|---|---|---|---|
+| **v10** | **281.5182** | 79,252 | **−655** | E1 LIRF schedule floor (13 rows), base v9 (rows disjoint from E3C) | −5,627 both fills / −680 one / +7,012 none | **PARTIAL** |
+
+Today: v7 285.8013 → v9 282.6790 (E3C −1,775) → **v10 281.5182** (E1 −655). Total −2,430 MSE this afternoon.
+274 now needs −4,176 MSE; 5th (266.40) −10,280. The E1 reading is used for nothing else (pledge).
+- **16:50 — E3R (offset-to-witness unmatched body): NOT WORKING** (`reports/unm_congestion_resid.json`; C1 interval
+  spans zero, 6/12 months, 5/9 airports, calm hours lose). Pooled +1.6 s; the ≥ 2,400 bin gains, everything else
+  pays. Not shipped. The E3C winsorised body stays the shipped unmatched body.
+- **16:48 — matched-lane congestion bias checked (research lead, re-verified here):** arm F's mean residual by
+  airport-hour witness bin is −1.5 / −8.6 / +1.8 / −18.5 / −12.8 / −5.1 s (and −120 s on 133 rows ≥ 2,400) — the
+  matched model already carries congestion; the E3C analogue on matched rows is not a lever.
+- **Correction (16:57) to the 15:42 line above:** the stopped C_delta run was registered-and-gated by the earlier PRC
+  session (prc-challenge-90: real-data probe 14:50 peak 3.67 GB, an `assemble_output` name-collision bug fixed with a
+  test, full input 14:53, gate recorded in `plans/PREREG_catboost_native_2026_09_10.md`); it was uncoordinated with this
+  session, not ungated. Its log is kept as `reports/catboost_native_delta_STOPPED_1542.console.log`; not a result.
+  C_delta relaunched 16:57 from this session.

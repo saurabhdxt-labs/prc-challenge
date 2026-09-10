@@ -1,0 +1,22 @@
+[10:58:32 +      0s] SMOKE — code path only, NOT a result
+[10:58:32 +      0s] version 6  smoke=True  seeds=[0, 1, 2]  per-airport=False  queue=True (83 features)  dayfeats=False  orderfeats=True  weatherfeats=False  target=delta  all-rows=False  fillhead=False  out=/var/folders/hq/vl8hk8_n0vq50t1y2f0kjzzw0000gn/T/lgbm_submit_smoke_pg4ne_f0/merry-quicksand_v6.parquet  boosters=['lgbm_v6_queue_order_seed0.txt', 'lgbm_v6_queue_order_seed1.txt', 'lgbm_v6_queue_order_seed2.txt'] in /var/folders/hq/vl8hk8_n0vq50t1y2f0kjzzw0000gn/T/lgbm_submit_smoke_pg4ne_f0
+[10:58:32 +      0s] loaded 2 training months (315,611 rows) + ranking (5,000 rows); peak RSS 0.89 GB
+[10:58:33 +      1s] design matrix 320,611 x 83 float32 (0.11 GB); peak RSS 0.95 GB
+[10:58:33 +      1s] early-stopping run (seed 0, target delta): fit 152,250 rows, stop on 163,361 rows (months (3, 9)), lr 0.05, max 60 rounds, patience 50
+[10:58:33 +      2s]     iter      0  valid_0 rmse (delta) 337.890
+[10:58:35 +      3s] best_iter 60   stopping-set RMSE (taxi-time) 214.65   proxy-only on the 163,361 rows with a proxy 342.10   ratio 0.627   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 1.15 GB
+[10:58:35 +      3s] n_ref 124: refit on all 315,611 training rows (best_iter 60 x 2.073), no early stopping
+[10:58:39 +      8s] refit seed 0 done: 124 trees on 315,611 rows in 4s   peak RSS 1.28 GB
+[10:58:39 +      8s] saved booster -> /var/folders/hq/vl8hk8_n0vq50t1y2f0kjzzw0000gn/T/lgbm_submit_smoke_pg4ne_f0/lgbm_v6_queue_order_seed0.txt
+[10:58:43 +     12s] refit seed 1 done: 124 trees on 315,611 rows in 4s   peak RSS 1.28 GB
+[10:58:43 +     12s] saved booster -> /var/folders/hq/vl8hk8_n0vq50t1y2f0kjzzw0000gn/T/lgbm_submit_smoke_pg4ne_f0/lgbm_v6_queue_order_seed1.txt
+[10:58:47 +     16s] refit seed 2 done: 124 trees on 315,611 rows in 4s   peak RSS 1.28 GB
+[10:58:47 +     16s] saved booster -> /var/folders/hq/vl8hk8_n0vq50t1y2f0kjzzw0000gn/T/lgbm_submit_smoke_pg4ne_f0/lgbm_v6_queue_order_seed2.txt
+[10:58:47 +     16s] fit wall 15s for the early-stopping run + 3 refit(s)
+[10:58:47 +     16s] seed mean over 3 refits: mean per-row seed sd of delta_hat 18.71s (p99 106.1s)
+[10:58:47 +     16s] predicted 5,000 matched rows: median 974s  mean 1033s  min 190  max 6629  floor binds on 0.000%
+[10:58:48 +     16s] splice: 5,000 rows replaced (4,961 values differ from the base), 339,841 rows untouched; matched-row shift vs base: mean +6.8s, RMS 133.0s
+[10:58:48 +     16s] wrote /var/folders/hq/vl8hk8_n0vq50t1y2f0kjzzw0000gn/T/lgbm_submit_smoke_pg4ne_f0/merry-quicksand_v6.parquet  rows=344,841  median=959s  mean=1035s
+[10:58:48 +     16s] meta -> /var/folders/hq/vl8hk8_n0vq50t1y2f0kjzzw0000gn/T/lgbm_submit_smoke_pg4ne_f0/merry-quicksand_v6.meta.json
+[10:58:48 +     16s] SMOKE — code path only, NOT a result
+[10:58:48 +     16s] done: wall 16s, peak RSS 1.31 GB

@@ -1456,7 +1456,7 @@ def test_amendment_19_modes_name_their_outputs_and_compose_with_queue_only():
     assert lf.output_paths("queue_ytarget", None) == (lf.REPORTS / "lgbm_fold_queue_ytarget.json",
                                                       lf.REPORTS / "lgbm_fold_queue_ytarget.log",
                                                       lf.CACHE / "fold_preds_queue_ytarget.parquet")
-    assert len({lf.OUTPUT_NAMES[m] for m in lf.MODES}) == len(lf.MODES) == 18      # 10 + the unified four + arms F and W
+    assert len({lf.OUTPUT_NAMES[m] for m in lf.MODES}) == len(lf.MODES) == 19      # 10 + the unified four + arms F, W and FW
     for m in ("day", "queue_day", "ytarget", "queue_ytarget", "order", "queue_order", "weather", "queue_weather"):
         assert m in lf.RUNNERS and m in lf.COMMANDS and m in lf.ESTIMATES
     assert "--dayfeats --baseline A2 --pa-trees es" in lf.COMMANDS["day"] and "lgbm_fold_day.console.log" in lf.COMMANDS["day"]
@@ -1488,7 +1488,8 @@ def test_amendment_19_modes_name_their_outputs_and_compose_with_queue_only():
     # the two block arms are ONE runner (a copy would drift and the intervals must be comparable),
     # and each resolves its cache attribute at call time rather than freezing the path at import
     assert lf.RUNNERS["order"] is lf.run_order and lf.RUNNERS["day"] is lf.run_day
-    assert lf.BLOCK_ARMS["day"].cache_attr == "DCACHE" and lf.BLOCK_ARMS["order"].cache_attr == "OCACHE"
+    assert lf.BLOCK_ARMS["day"].caches == (("dcache", "DCACHE", "day"),)
+    assert lf.BLOCK_ARMS["order"].caches == (("ocache", "OCACHE", "order"),)
     assert lf.BLOCK_ARMS["day"].min_airports == 6 and lf.BLOCK_ARMS["order"].min_airports is None
     # Amendment 24 arm W: the third block arm, same runner, its own mode and cache attribute
     assert lf.mode_of(lf.parse_args(["--weatherfeats"])) == "weather"
@@ -1500,8 +1501,11 @@ def test_amendment_19_modes_name_their_outputs_and_compose_with_queue_only():
             lf.parse_args(argv)
     assert lf.FEATS_WEATHER == list(lf.L.FEATS) + lf.WEATHER_FEATS and len(lf.FEATS_WEATHER) == 78
     assert len(lf.FEATS_QUEUE_WEATHER) == 90 and lf.WEATHER_FEATS == lf.S.WEATHER_FEATS
-    assert lf.RUNNERS["weather"] is lf.run_weather and lf.BLOCK_ARMS["weather"].cache_attr == "WCACHE"
+    assert lf.RUNNERS["weather"] is lf.run_weather and lf.BLOCK_ARMS["weather"].caches == (("wcache", "WCACHE", "weather"),)
     assert lf.BLOCK_ARMS["weather"].min_airports is None
+    # arm FW: the same runner with both caches, each still an attribute name resolved at call time
+    assert lf.BLOCK_ARMS["order_weather"].caches == (("ocache", "OCACHE", "order"), ("wcache", "WCACHE", "weather"))
+    assert all(isinstance(attr, str) for b in lf.BLOCK_ARMS.values() for _, attr, _ in b.caches)
 
 
 def test_delta_bands_partition_the_holdout_with_left_closed_edges():
@@ -2001,6 +2005,92 @@ def test_weather_arm_end_to_end_recovers_a_planted_freezing_hold(monkeypatch, tm
     assert np.array_equal(p2.baseline.to_numpy(), qp.treatment.to_numpy())
 
 
+def test_order_weather_mode_is_its_own_and_never_names_arm_f_or_w_outputs():
+    """Arm FW (plans/PREREG_fw_combined_2026_09_10.md): --orderfeats --weatherfeats --queue is its
+    own mode, queue_order_weather, with its own json / log / parquet names that share NOTHING with
+    arm F's (RESULT 21) or arm W's (RESULT 22) records - those two records are the reference FW is
+    paired against, and overwriting either destroys the comparison. The pair without --queue, and
+    the pair with any third arm, is refused. The design list is FEATS + QUEUE + ORDER + WEATHER (93).
+
+    Fails when mode_of tests --weatherfeats before the pair (the run is named queue_weather and
+    writes over RESULT 22's record), when the composition rule admits the pair without --queue, or
+    when the mode is missing from RUNNERS / COMMANDS / ESTIMATES. Rehearsed 2026-09-10, each RED:
+    the pair branch moved below the weatherfeats branch in mode_of; {"order", "weather"} added to
+    COMPOSITIONS; the RUNNERS entry removed.
+    """
+    a = lf.parse_args(["--orderfeats", "--weatherfeats", "--queue", "--baseline", "A2", "--pa-trees", "es"])
+    assert lf.mode_of(a) == "queue_order_weather"
+    names = lf.OUTPUT_NAMES["queue_order_weather"]
+    assert names == ("lgbm_fold_queue_order_weather.json", "lgbm_fold_queue_order_weather.log",
+                     "fold_preds_queue_order_weather.parquet")
+    for other in ("queue_order", "queue_weather", "order", "weather"):
+        assert not set(names) & set(lf.OUTPUT_NAMES[other]), other
+    for argv in (["--orderfeats", "--weatherfeats"], ["--orderfeats", "--weatherfeats", "--queue", "--dayfeats"],
+                 ["--orderfeats", "--weatherfeats", "--queue", "--ytarget"],
+                 ["--orderfeats", "--weatherfeats", "--queue", "--catboost"],
+                 ["--ytarget", "--all-rows", "--orderfeats", "--weatherfeats", "--queue"]):
+        with pytest.raises(SystemExit):
+            lf.parse_args(argv)
+    assert lf.mode_of(lf.parse_args(["--orderfeats", "--queue"])) == "queue_order"          # F unchanged
+    assert lf.mode_of(lf.parse_args(["--weatherfeats", "--queue"])) == "queue_weather"      # W unchanged
+    assert lf.RUNNERS["queue_order_weather"] is lf.run_order_weather
+    cmd = lf.COMMANDS["queue_order_weather"]
+    assert "--orderfeats --weatherfeats --queue --baseline A2 --pa-trees es" in cmd
+    assert "lgbm_fold_queue_order_weather.console.log" in cmd and "queue_order_weather" in lf.ESTIMATES
+    assert lf.FEATS_QUEUE_ORDER_WEATHER == list(lf.L.FEATS) + QUEUE_FEATS + lf.ORDER_FEATS + lf.WEATHER_FEATS
+    assert len(lf.FEATS_QUEUE_ORDER_WEATHER) == 93
+
+
+def test_order_weather_arm_end_to_end_uses_both_blocks(monkeypatch, tmp_path):
+    """Arm FW on a synthetic cache whose target carries BOTH planted effects - 300 s x o_dev_flt
+    (visible only through the order block) and a 600 s hold on freezing rows (visible only through
+    the weather block). The queue record is the baseline; FW's treatment design is 93 columns, the
+    record names both caches, the paired interval excludes zero, and - the test that the WEATHER
+    columns are really in the fit - FW beats arm F fitted on the same fixture with the same queue
+    baseline, since F cannot see the freezing hold.
+
+    Fails when the treatment is fitted without the weather columns, when either cache is not handed
+    to the loader, or when the queue record is not the baseline. Rehearsed 2026-09-10, each RED: the
+    treatment fitted on `X[:, :nb + len(ORDER_FEATS)]`; the weather entry dropped from the block's
+    caches (the loader refuses: weather features without a weather cache directory);
+    `_baseline_record(..., False)` under --queue.
+    """
+    _fold_env(monkeypatch, tmp_path, queue_signal=0.0, order_signal=300.0, weather_signal=600.0)
+    monkeypatch.setattr(lf, "OCACHE", tmp_path / "data" / "cache_order")
+    monkeypatch.setattr(lf, "WCACHE", tmp_path / "data" / "cache_weather")
+    q = tmp_path / "q"
+    assert lf.main(["--queue", "--smoke", "--out-dir", str(q), "--refit-baseline", "--n-perm", "2",
+                    "--pa-trees", "share", "--baseline", "A2"]) == 0
+    qp = pd.read_parquet(q / "fold_preds_queue.parquet")
+    rec = ["--baseline", "A2", "--queue-preds", str(q / "fold_preds_queue.parquet"),
+           "--queue-json", str(q / "lgbm_fold_queue.json")]
+    fw, f = tmp_path / "fw", tmp_path / "f"
+    assert lf.main(["--orderfeats", "--weatherfeats", "--queue", "--smoke", "--out-dir", str(fw), *rec]) == 0
+    assert lf.main(["--orderfeats", "--queue", "--smoke", "--out-dir", str(f), *rec]) == 0
+    j = json.loads((fw / "lgbm_fold_queue_order_weather.json").read_text())
+    preds = pd.read_parquet(fw / "fold_preds_queue_order_weather.parquet")
+    jf = json.loads((f / "lgbm_fold_queue_order.json").read_text())
+    log = (fw / "lgbm_fold_queue_order_weather.log").read_text()
+    assert j["mode"] == "queue_order_weather" and j["amendment"] == "FW" and j["config"]["n_features"] == 93
+    assert j["config"]["features"] == list(lf.L.FEATS) + QUEUE_FEATS + lf.ORDER_FEATS + lf.WEATHER_FEATS
+    assert j["config"]["order_weather_feats"] == lf.ORDER_FEATS + lf.WEATHER_FEATS
+    assert j["config"]["order_cache"] == str(tmp_path / "data" / "cache_order")
+    assert j["config"]["weather_cache"] == str(tmp_path / "data" / "cache_weather")
+    assert j["config"]["queue"] is True and j["config"]["min_airports"] is None
+    assert j["baseline"]["source"] == "queue predictions"
+    assert np.array_equal(preds.baseline.to_numpy(), qp.treatment.to_numpy())
+    p = j["pairs"]["treatment_vs_baseline"]
+    assert p["gain_s"] > 20.0 and p["excludes_zero"] is True and p["ci95"][0] > 0
+    assert not any(k.startswith("at_least_") for k in p)
+    assert "order block" in log and "weather block" in log and "over10 (the |delta| > 10 min bands of FW)" in log
+    _check_bands(j, preds, {"treatment_vs_baseline"})
+    for arm in ("baseline", "treatment"):
+        assert j["arms"][arm]["rmse"] == pytest.approx(_recovered_rmse(preds, arm), abs=1e-9), arm
+    r_fw, r_f = j["arms"]["treatment"]["rmse"], jf["arms"]["treatment"]["rmse"]
+    print(f"\narm FW on the fixture: baseline {j['arms']['baseline']['rmse']:.2f}  F {r_f:.2f}  FW {r_fw:.2f}")
+    assert r_fw < r_f - 5.0, f"FW {r_fw:.2f} does not beat F {r_f:.2f}: the weather block is not in the fit"
+
+
 def test_allrows_mode_flags_weights_and_the_2026_total():
     """--all-rows composes with --ytarget only (mode allrows, queue_allrows with --queue);
     --unmatched-weight parses a list of distinct positive floats (default (1.0,)); the 2026
@@ -2035,7 +2125,7 @@ def test_allrows_mode_flags_weights_and_the_2026_total():
     out = pathlib.Path("/o")
     assert lf.output_paths("allrows", out) == (out / "lgbm_fold_allrows.json", out / "lgbm_fold_allrows.log", out / "fold_preds_allrows.parquet")
     assert lf.output_paths("queue_allrows", out)[2] == out / "fold_preds_queue_allrows.parquet"
-    assert len({lf.OUTPUT_NAMES[m] for m in lf.MODES}) == len(lf.MODES) == 18   # + arm F's and arm W's two each
+    assert len({lf.OUTPUT_NAMES[m] for m in lf.MODES}) == len(lf.MODES) == 19   # + arm F's and arm W's two each + arm FW
     assert lf.mode_of(lf.parse_args(["--ytarget", "--all-rows", "--dayfeats"])) == "allrows_day"
     assert lf.mode_of(lf.parse_args(["--ytarget", "--all-rows", "--queue", "--dayfeats"])) == "queue_allrows_day"
     assert "--ytarget --all-rows --unmatched-weight 1,10" in lf.COMMANDS["allrows"] and "allrows" in lf.ESTIMATES
