@@ -1414,3 +1414,688 @@ def test_fillhead_arm_end_to_end_gains_on_the_planted_fills_and_leaves_the_non_f
     with pytest.raises(ValueError, match="tree rule"):
         lf.main(["--fillhead", "--smoke", "--out-dir", str(tmp_path / "f_es"), "--pa-trees", "es",
                  "--baseline-preds", str(out4 / "fold_v4_preds.parquet"), "--v4-json", str(out4 / "lgbm_fold_v4.json")])
+
+
+# =============================================================================================
+# Amendment 19: arm D (--dayfeats, the airport-day regime block) and arm Y (--ytarget, the y
+# formulation and its 0.5/0.5 blend with the delta arm). Both compose with --queue, which then
+# names the current best design (A2 + QUEUE_FEATS, read from the queue record) instead of the
+# v4 record. Reported per 19.3: paired intervals pooled and per airport, and on the |delta| bands
+# of 19.0. Every end-to-end test runs on the synthetic caches of tests/synthetic_caches.py.
+# =============================================================================================
+
+def test_amendment_19_modes_name_their_outputs_and_compose_with_queue_only():
+    """--dayfeats is the arm D mode, --ytarget the arm Y mode; each composes with --queue into
+    its own mode (queue_day / queue_ytarget) with its own json / log / parquet names, so a run
+    with and one without the queue block never overwrite each other; --queue alone is still the
+    Amendment 14 arm; the two new arms never combine with each other or with catboost / sweep /
+    confirm / fillhead; `--blend-with` is the same knob as `--baseline` (19.2's blend partner IS
+    the delta arm the treatment is paired against - two knobs could disagree); the queue record
+    paths default to the queue fold's outputs; the design lists and 19.2/19.3 constants.
+
+    Fails when a mode inherits another mode's names, when the composition rule admits
+    dayfeats + ytarget, or when the alias is dropped. Rehearsed 2026-09-09, each RED: `"day":
+    OUTPUT_NAMES["queue"]`; the composition check replaced by `if False:`; `"--blend-with"`
+    removed from the option strings.
+    """
+    assert lf.mode_of(lf.parse_args(["--dayfeats"])) == "day"
+    assert lf.mode_of(lf.parse_args(["--dayfeats", "--queue"])) == "queue_day"
+    assert lf.mode_of(lf.parse_args(["--ytarget"])) == "ytarget"
+    assert lf.mode_of(lf.parse_args(["--queue", "--ytarget"])) == "queue_ytarget"
+    assert lf.mode_of(lf.parse_args(["--queue"])) == "queue" and lf.mode_of(lf.parse_args([])) == "v4"
+    for argv in (["--dayfeats", "--ytarget"], ["--dayfeats", "--catboost"], ["--ytarget", "--sweep"],
+                 ["--ytarget", "--fillhead"], ["--dayfeats", "--confirm", "255,40,0.8"],
+                 ["--dayfeats", "--queue", "--ytarget"], ["--ytarget", "--catboost", "--queue"]):
+        with pytest.raises(SystemExit):
+            lf.parse_args(argv)
+    out = pathlib.Path("/o")
+    assert lf.output_paths("day", out) == (out / "lgbm_fold_day.json", out / "lgbm_fold_day.log", out / "fold_preds_day.parquet")
+    assert lf.output_paths("queue_day", out) == (out / "lgbm_fold_queue_day.json", out / "lgbm_fold_queue_day.log",
+                                                 out / "fold_preds_queue_day.parquet")
+    assert lf.output_paths("ytarget", out)[2] == out / "fold_preds_ytarget.parquet"
+    assert lf.output_paths("queue_ytarget", None) == (lf.REPORTS / "lgbm_fold_queue_ytarget.json",
+                                                      lf.REPORTS / "lgbm_fold_queue_ytarget.log",
+                                                      lf.CACHE / "fold_preds_queue_ytarget.parquet")
+    assert len({lf.OUTPUT_NAMES[m] for m in lf.MODES}) == len(lf.MODES) == 14      # 10 + the unified arm's four
+    for m in ("day", "queue_day", "ytarget", "queue_ytarget"):
+        assert m in lf.RUNNERS and m in lf.COMMANDS and m in lf.ESTIMATES
+    assert "--dayfeats --baseline A2 --pa-trees es" in lf.COMMANDS["day"] and "lgbm_fold_day.console.log" in lf.COMMANDS["day"]
+    assert "--dayfeats --queue" in lf.COMMANDS["queue_day"] and "--ytarget --queue" in lf.COMMANDS["queue_ytarget"]
+    assert lf.parse_args(["--ytarget", "--blend-with", "A2"]).baseline == "A2"
+    assert lf.parse_args(["--ytarget", "--baseline", "A2"]).baseline == "A2" and lf.parse_args(["--ytarget"]).baseline == "A3"
+    with pytest.raises(SystemExit):
+        lf.parse_args(["--ytarget", "--blend-with", "A0"])
+    assert lf.parse_args([]).queue_preds is None and lf.parse_args([]).queue_json is None
+    assert lf.QUEUE_PREDS == lf.CACHE / "fold_preds_queue.parquet" and lf.QUEUE_JSON == lf.REPORTS / "lgbm_fold_queue.json"
+    assert lf.FEATS_DAY == list(lf.L.FEATS) + DAY_FEATS and len(lf.FEATS_DAY) == 77
+    assert lf.FEATS_QUEUE_DAY == list(lf.L.FEATS) + QUEUE_FEATS + DAY_FEATS and len(lf.FEATS_QUEUE_DAY) == 89
+    assert lf.DAY_FEATS == DAY_FEATS == lf.S.DAY_FEATS
+    assert lf.YBLEND == 0.5 and lf.YTARGET_NAMED_AIRPORTS == ("LTFM", "EDDM") and lf.DAY_MIN_AIRPORTS == 6
+
+
+def test_delta_bands_partition_the_holdout_with_left_closed_edges():
+    """19.0's |delta| bands - < 2 min, 2-10 min, 10-20 min, > 20 min - as masks on |delta| in
+    seconds with left-closed, right-open edges [0, 120), [120, 600), [600, 1200), [1200, inf), so
+    the four partition every row exactly once; `over10` is the union of the two upper bands
+    (19.3's "|delta| > 10 min bands"), i.e. |delta| >= 600. The sign of delta is irrelevant.
+
+    Fails when an edge moves (600 s into the lower band, or 1,200 s into 10-20), when the
+    partition leaks, or when over10 is not the union. Rehearsed 2026-09-09, each RED:
+    `abs_d < hi` -> `<=` (the 600 row lands in two bands); `over10 = abs_d > OVER10_S`.
+    """
+    delta = np.array([0.0, 119.999, 120.0, 599.999, 600.0, 1_199.999, 1_200.0, -120.0, -600.0, 5_000.0])
+    b = lf.delta_bands(delta)
+    assert list(b) == ["lt2", "2to10", "10to20", "gt20", "over10"]
+    assert b["lt2"].tolist() == [1, 1, 0, 0, 0, 0, 0, 0, 0, 0]
+    assert b["2to10"].tolist() == [0, 0, 1, 1, 0, 0, 0, 1, 0, 0]
+    assert b["10to20"].tolist() == [0, 0, 0, 0, 1, 1, 0, 0, 1, 0]
+    assert b["gt20"].tolist() == [0, 0, 0, 0, 0, 0, 1, 0, 0, 1]
+    assert b["over10"].tolist() == [0, 0, 0, 0, 1, 1, 1, 0, 1, 1]
+    four = np.stack([b[k] for k in ("lt2", "2to10", "10to20", "gt20")])
+    assert (four.sum(axis=0) == 1).all(), "the four bands must partition every row exactly once"
+    assert np.array_equal(b["over10"], b["10to20"] | b["gt20"])
+    assert lf.DELTA_BANDS[0][0] == "lt2" and lf.DELTA_BANDS[-1][2] == float("inf") and lf.OVER10_S == 600.0
+    assert all(isinstance(v, np.ndarray) and v.dtype == bool for v in b.values())
+
+
+def test_blend_taxi_times_is_the_weighted_mean_of_the_two_taxi_times():
+    """The 19.2 blend: weight x the y arm's taxi time + (1 - weight) x the delta arm's, row by
+    row in float64, weight 0.5 by default (YBLEND); pinned with an asymmetric weight so a swap of
+    the two operands is visible (0.25 x 100 + 0.75 x 300 = 250, not 150). Shape mismatch and a
+    non-finite input are refusals.
+
+    Fails when the weights are swapped or the constant drifts. Rehearsed 2026-09-09, each RED:
+    `(1.0 - weight) * a + weight * b`; `YBLEND = 0.6`.
+    """
+    a, b = np.array([100.0, 400.0, 1.0]), np.array([300.0, 200.0, 1.0])
+    got = lf.blend_taxi_times(a, b)
+    assert got.dtype == np.float64 and got.tolist() == [200.0, 300.0, 1.0]
+    assert lf.blend_taxi_times(a, b, 0.25).tolist() == [250.0, 250.0, 1.0]
+    assert lf.blend_taxi_times(a, b, 1.0).tolist() == a.tolist() and lf.blend_taxi_times(a, b, 0.0).tolist() == b.tolist()
+    assert lf.YBLEND == 0.5
+    with pytest.raises(ValueError, match="shape"):
+        lf.blend_taxi_times(a[:2], b)
+    with pytest.raises(ValueError, match="finite"):
+        lf.blend_taxi_times(np.array([1.0, np.nan, 1.0]), b)
+
+
+def test_taxi_time_under_target_y_is_the_prediction_floored_without_reading_proxy():
+    """taxi_time(proxy, pred, target="y") = max(pred, 1) in float64 - proxy is not read (a NaN
+    proxy must not leak), the same floor-bind guard as the delta form; the default is unchanged.
+
+    Fails when the y branch subtracts proxy. Rehearsed 2026-09-09: `lf.L.raw_taxi_time` replaced
+    by `proxy - pred` in taxi_time's y branch went RED (NaN).
+    """
+    pred = np.full(1_000, 250.4)
+    pred[0] = -3.0
+    got = lf.taxi_time(np.full(1_000, np.nan), pred, target="y")
+    assert got.dtype == np.float64 and got[0] == 1.0 and got[1] == pytest.approx(250.4, abs=1e-12)
+    assert np.array_equal(lf.taxi_time(np.full(1_000, 1_000.0), np.full(1_000, 899.6)),
+                          lf.taxi_time(np.full(1_000, 1_000.0), np.full(1_000, 899.6), target="delta"))
+    with pytest.raises(AssertionError, match="positivity floor"):
+        lf.taxi_time(np.full(1_000, 100.0), np.full(1_000, -5.0), target="y")
+    with pytest.raises(ValueError, match="target"):
+        lf.taxi_time(np.full(3, 1.0), np.full(3, 1.0), target="z")
+
+
+def test_band_record_reports_every_pair_on_the_masked_rows_only():
+    """A band record holds the row count and share, the band's share of the reference arm's SSE,
+    every arm's RMSE on the band's rows only, and one paired interval PER PAIR on those rows;
+    an empty band has no RMSE and no pairs, a single row has RMSEs but no interval. Pinned by
+    hand on four rows (baseline errors 3, 4, 0, 10; Y 0, 0, 0, 10; blend 2, 2, 0, 10) masked to
+    the first two: RMSEs 3.5355 / 0 / 2, gains 3.5355 and 1.5355, SSE share 25 / 125.
+
+    Fails when an RMSE is pooled instead of masked or a pair is drawn on every row. Rehearsed
+    2026-09-09, each RED: `v.mean()` for `v[mask].mean()`; the pairs drawn on `se` unmasked.
+    """
+    se = {"baseline": np.array([9.0, 16.0, 0.0, 100.0]), "Y": np.array([0.0, 0.0, 0.0, 100.0]),
+          "blend": np.array([4.0, 4.0, 0.0, 100.0])}
+    pairs = [("Y", "baseline"), ("blend", "baseline")]
+    r = lf.band_record("first two", np.array([True, True, False, False]), se, 200, pairs, "baseline")
+    assert r["definition"] == "first two" and r["n_rows"] == 2 and r["share_of_holdout_rows"] == 0.5
+    assert r["share_of_baseline_sse"] == pytest.approx(25 / 125)
+    assert r["rmse"]["baseline"] == pytest.approx(np.sqrt(12.5)) and r["rmse"]["Y"] == 0.0 and r["rmse"]["blend"] == 2.0
+    assert set(r["pairs"]) == {"Y_vs_baseline", "blend_vs_baseline"}
+    assert r["pairs"]["Y_vs_baseline"]["gain_s"] == pytest.approx(np.sqrt(12.5))
+    assert r["pairs"]["blend_vs_baseline"]["gain_s"] == pytest.approx(np.sqrt(12.5) - 2.0)
+    assert r["pairs"]["Y_vs_baseline"]["ci95"][0] >= 3.0 - 1e-9 and r["pairs"]["Y_vs_baseline"]["ci95"][1] <= 4.0 + 1e-9
+    one = lf.band_record("one", np.array([False, False, False, True]), se, 200, pairs, "baseline")
+    assert one["n_rows"] == 1 and one["rmse"] == {"baseline": 10.0, "Y": 10.0, "blend": 10.0} and one["pairs"] is None
+    none = lf.band_record("none", np.zeros(4, bool), se, 200, pairs, "baseline")
+    assert none["n_rows"] == 0 and none["rmse"] is None and none["pairs"] is None
+
+
+def _fake_queue_record(base, seed=0, arm="A2"):
+    """A fold_preds_queue.parquet-shaped frame + its json, as run_queue writes them with
+    --baseline A2: the treatment's per-seed columns and `treatment` = their mean."""
+    rng = np.random.default_rng(seed)
+    n = len(base)
+    p = base.copy()
+    for s in (0, 1, 2):
+        p[f"baseline_seed{s}"] = rng.normal(size=n) - 5 + s
+    p["baseline"] = (p.baseline_seed0.to_numpy() + p.baseline_seed1.to_numpy() + p.baseline_seed2.to_numpy()) / 3
+    for s in (0, 1, 2):
+        p[f"delta_hat_seed{s}"] = rng.normal(size=n) + s
+    p["treatment"] = (p.delta_hat_seed0.to_numpy() + p.delta_hat_seed1.to_numpy() + p.delta_hat_seed2.to_numpy()) / 3
+    j = dict(mode="queue", smoke=False, amendment="14",
+             config=dict(seeds=[0, 1, 2], baseline_arm=arm, pa_trees="es", n_features=80,
+                         features=list(lf.L.FEATS) + QUEUE_FEATS, queue_feats=QUEUE_FEATS),
+             seed_sd=dict(sd=0.145, source="v4 json", treatment_sd=0.2), treatment=dict(best_iter=100, n_ref=125))
+    return p, j
+
+
+def test_baseline_from_a_queue_record_rebuilds_the_treatment_column_and_checks_the_design():
+    """Under --queue the current best design is the queue fold's treatment (A2 + QUEUE_FEATS):
+    it is rebuilt from the queue record's per-seed columns exactly as the v4 arm is rebuilt from
+    the v4 record, checked against the parquet's stored `treatment` column (arm_col), on the
+    identical fold; the queue json must be a queue-mode record whose baseline_arm is the arm
+    asked for, whose design ends with the twelve QUEUE_FEATS at 80 columns, with the seeds and
+    the per-airport rule of this run and the same smoke flag.
+
+    Fails when the stored-column check is skipped (arm_col ignored: the check silently looks
+    for a column named A2 that a queue record does not have), or when the baseline_arm / mode /
+    design checks are dropped. Rehearsed 2026-09-09, each RED: `arm_col = arm` unconditionally;
+    `if False:` for the baseline_arm check; `if False:` for the features check.
+    """
+    base = _base_frame()
+    p, j = _fake_queue_record(base)
+    b = lf.baseline_from_preds(p, base, "A2", (0, 1, 2), arm_col="treatment")
+    assert np.allclose(b["delta"], p.treatment.to_numpy(), atol=1e-12, rtol=0) and b["fitted"] is None
+    assert sorted(b["single"]) == [0, 1, 2] and np.array_equal(b["single"][1], p.delta_hat_seed1.to_numpy())
+    bad = p.copy()
+    bad["treatment"] = bad.treatment + 1e-3
+    with pytest.raises(ValueError, match="disagrees"):
+        lf.baseline_from_preds(bad, base, "A2", (0, 1, 2), arm_col="treatment")
+    lf.check_queue_record(j, "A2", (0, 1, 2), "es", smoke=False)
+    lf.check_queue_record(j, "A2", (0, 1), "share", smoke=False)            # A2: no per-airport rule to match
+    with pytest.raises(ValueError, match="baseline_arm"):
+        lf.check_queue_record(j, "A3", (0, 1, 2), "es", smoke=False)
+    with pytest.raises(ValueError, match="queue record"):
+        lf.check_queue_record(dict(j, mode="v4"), "A2", (0, 1, 2), "es", smoke=False)
+    with pytest.raises(ValueError, match="QUEUE_FEATS"):
+        lf.check_queue_record(dict(j, config=dict(j["config"], features=list(lf.L.FEATS) + QUEUE_FEATS[:11] + ["x"])),
+                              "A2", (0, 1, 2), "es", smoke=False)
+    with pytest.raises(ValueError, match="smoke"):
+        lf.check_queue_record(j, "A2", (0, 1, 2), "es", smoke=True)
+    with pytest.raises(ValueError, match="seed"):
+        lf.check_queue_record(j, "A2", (0, 5), "es", smoke=False)
+    with pytest.raises(ValueError, match="tree rule"):
+        lf.check_queue_record(dict(j, config=dict(j["config"], baseline_arm="A3")), "A3", (0, 1, 2), "share", smoke=False)
+
+
+def test_load_fold_joins_the_day_block_positionally_after_the_queue_block(monkeypatch, tmp_path):
+    """load_fold with DAY_FEATS among the features joins the day cache onto every month by
+    position (row counts asserted by lgbm_submit.attach_day_positional), after the queue
+    block when both are asked for: FEATS_DAY gives 77 columns whose last nine are the day
+    cache's values (float32) in month order, FEATS_QUEUE_DAY 89 with the queue block at 68:80
+    and the day block at 80:89; without a day cache directory the request is refused.
+
+    The join ORDER cannot show in the matrix - design_matrix picks columns by name - so only the
+    presence of the join is pinned here (the frame order is pinned in lgbm_submit's load_frames
+    test). Fails when the day block is not joined. Rehearsed 2026-09-09: `day = []` in load_fold
+    went RED (KeyError building the matrix).
+    """
+    stand, queue = _fold_env(monkeypatch, tmp_path, queue_signal=0.0)
+    day = tmp_path / "data" / "cache_day"
+    fold = lf.load_fold(stand, (1, 2, 3), lf.FEATS_DAY, dcache=day)
+    X = fold["X"]
+    assert X.shape == (1_800, 77) and fold["feats"] == lf.FEATS_DAY
+    want = np.concatenate([pd.read_parquet(day / f"training_2025-{m:02d}-01_2025-{m + 1:02d}-01.parquet")[DAY_FEATS].to_numpy()
+                           for m in (1, 2, 3)])
+    assert np.array_equal(np.nan_to_num(X[:, 68:], nan=-1.0), np.nan_to_num(want, nan=-1.0))
+    both = lf.load_fold(stand, (1, 2, 3), lf.FEATS_QUEUE_DAY, qcache=queue, dcache=day)
+    assert both["X"].shape == (1_800, 89) and both["feats"][68:80] == QUEUE_FEATS and both["feats"][80:] == DAY_FEATS
+    assert np.array_equal(np.nan_to_num(both["X"][:, 80:], nan=-1.0), np.nan_to_num(want, nan=-1.0))
+    assert np.array_equal(both["X"][:, :68], X[:, :68])
+    with pytest.raises(ValueError, match="day cache"):
+        lf.load_fold(stand, (1, 2, 3), lf.FEATS_DAY)
+
+
+def _band_counts(preds):
+    d = np.abs(preds.delta.to_numpy())
+    return {"lt2": int((d < 120).sum()), "2to10": int(((d >= 120) & (d < 600)).sum()),
+            "10to20": int(((d >= 600) & (d < 1_200)).sum()), "gt20": int((d >= 1_200).sum()), "over10": int((d >= 600).sum())}
+
+
+def _check_bands(j, preds, pairs):
+    bands = j["bands"]
+    assert list(bands) == ["lt2", "2to10", "10to20", "gt20", "over10"]
+    counts = _band_counts(preds)
+    for k, rec in bands.items():
+        assert rec["n_rows"] == counts[k], k
+        assert rec["n_rows"] > 1, f"the fixture leaves band {k} without rows"
+        assert set(rec["rmse"]) == set(j["arms"]) and set(rec["pairs"]) == set(pairs)
+        for pr in rec["pairs"].values():
+            assert pr["ci95"][0] <= pr["gain_s"] <= pr["ci95"][1]
+    assert sum(bands[k]["n_rows"] for k in ("lt2", "2to10", "10to20", "gt20")) == len(preds)
+    assert bands["over10"]["n_rows"] == bands["10to20"]["n_rows"] + bands["gt20"]["n_rows"]
+
+
+def test_day_arm_end_to_end_recovers_a_planted_day_level_shift(monkeypatch, tmp_path):
+    """Arm D on a synthetic cache whose target carries 150 s x a N(0, 1) per-day effect visible
+    only through the day block (a 60 s effect was tried first: the fixture's 2% tail at
+    +-1,350 s floors both arms near 190 s RMSE and left a gain of 8.9 s, too close to the bar
+    to be decisive). In-process baseline (A2, seeds 0-2), treatment = baseline + DAY_FEATS
+    with best_iter re-found: the paired interval must exclude zero in the improving direction
+    with a gain above 20 s, at least 6 of 10 airports must improve (19.3's bar, reported as
+    at_least_6_airports), the five |delta| bands are reported with each arm's RMSE and the
+    treatment's paired interval on the band's rows and their counts equal the true-delta cuts
+    of the parquet, the parquet holds every column a later cut needs and the JSON's RMSEs are
+    recomputable from it. Then the arm reads a v4 record as its A3 baseline (per-airport
+    blended treatment), and reads a QUEUE record under --queue: the baseline is the queue
+    fold's own treatment column, the design is FEATS + QUEUE + DAY (89), the seed sd the queue
+    json's; a queue record for another arm is refused.
+
+    Measured 2026-09-09 on the first green run: baseline 212.95, treatment 167.72, gain +45.23 s,
+    CI [+36.17, +56.26], 10/10 airports.
+
+    Fails when the day block is not in the treatment's design (no gain), when the bands are cut
+    on something other than the true delta, when the queue record is not the baseline under
+    --queue, when the baseline_arm check is dropped, or when the 6-of-10 rule drifts. Rehearsed
+    2026-09-09, each RED: the treatment fitted on `X[:, :nb]`; `band_records(proxy_te, ...)`;
+    `_baseline_record(..., False)` under --queue (the smoke then refits in-process: source
+    "in-process"); `if False:` for the baseline_arm check; `>= DAY_MIN_AIRPORTS + 5`.
+    """
+    _fold_env(monkeypatch, tmp_path, queue_signal=0.0, day_signal=150.0)
+    out = tmp_path / "out"
+    assert lf.main(["--dayfeats", "--smoke", "--out-dir", str(out), "--refit-baseline", "--baseline", "A2"]) == 0
+    j = json.loads((out / "lgbm_fold_day.json").read_text())
+    preds = pd.read_parquet(out / "fold_preds_day.parquet")
+    log = (out / "lgbm_fold_day.log").read_text()
+    assert j["mode"] == "day" and j["amendment"] == "19.1" and j["config"]["baseline_arm"] == "A2"
+    assert j["config"]["n_features"] == 77 and j["config"]["features"] == list(lf.L.FEATS) + DAY_FEATS
+    assert j["config"]["day_feats"] == DAY_FEATS and j["config"]["queue"] is False and j["config"]["seeds"] == [0, 1, 2]
+    assert j["baseline"]["source"] == "in-process" and j["treatment"]["best_iter"] >= 1
+    p = j["pairs"]["treatment_vs_baseline"]
+    print(f"\narm D on the fixture: baseline {j['arms']['baseline']['rmse']:.2f}  treatment {j['arms']['treatment']['rmse']:.2f}"
+          f"  gain {p['gain_s']:+.2f} s  CI [{p['ci95'][0]:+.2f}, {p['ci95'][1]:+.2f}]  airports {p['airports_improving']}/10")
+    assert p["gain_s"] > 20.0 and p["excludes_zero"] is True and p["improving"] is True and p["ci95"][0] > 0
+    assert p["airports_improving"] >= 6 and p["at_least_6_airports"] is True and p["n_airports"] == 10
+    assert p["exceeds_2x_seed_sd"] is True and set(p["per_airport"]) == set(APTS)
+    assert j["seed_sd"]["source"] == "baseline single seeds (in-process)" and j["seed_sd"]["treatment_sd"] >= 0
+    _check_bands(j, preds, ["treatment_vs_baseline"])
+    assert j["bands"]["over10"]["pairs"]["treatment_vs_baseline"]["gain_s"] > 0
+    cols = (["row", "month", "ap", "y", "proxy", "delta", "sp"] + [f"baseline_seed{s}" for s in range(3)] + ["baseline"]
+            + [f"delta_hat_seed{s}" for s in range(3)] + ["treatment"])
+    assert list(preds.columns) == cols and len(preds) == 600
+    s = [preds[f"delta_hat_seed{i}"].to_numpy() for i in range(3)]
+    assert np.allclose(preds.treatment.to_numpy(), (s[0] + s[1] + s[2]) / 3, atol=1e-9, rtol=0)
+    for arm in ("baseline", "treatment"):
+        assert j["arms"][arm]["rmse"] == pytest.approx(_recovered_rmse(preds, arm), abs=1e-9), arm
+    lines = [line for line in log.splitlines() if line.strip()]
+    assert lf.L.SMOKE_BANNER in lines[0] and lf.L.SMOKE_BANNER in lines[-1] and "over10" in log and "bands" in log
+
+    out4 = tmp_path / "v4"
+    assert lf.main(["--smoke", "--out-dir", str(out4)]) == 0
+    v4p = pd.read_parquet(out4 / "fold_v4_preds.parquet")
+    v4j = json.loads((out4 / "lgbm_fold_v4.json").read_text())
+    read = ["--dayfeats", "--smoke", "--out-dir", str(tmp_path / "d2"), "--baseline-preds", str(out4 / "fold_v4_preds.parquet"),
+            "--v4-json", str(out4 / "lgbm_fold_v4.json"), "--pa-trees", "share", "--baseline", "A3"]
+    assert lf.main(read) == 0
+    j2 = json.loads((tmp_path / "d2" / "lgbm_fold_day.json").read_text())
+    p2 = pd.read_parquet(tmp_path / "d2" / "fold_preds_day.parquet")
+    assert j2["baseline"]["source"] == "v4 predictions" and j2["seed_sd"]["source"] == "v4 json"
+    assert j2["seed_sd"]["sd"] == v4j["seed_sd"]["sd"] and np.array_equal(p2.baseline.to_numpy(), v4p.A3.to_numpy())
+    assert list(p2.columns) == (cols[:10] + [f"baseline_pa_seed{s}" for s in range(3)] + ["baseline_pa_fitted", "baseline"]
+                                + [f"delta_hat_seed{s}" for s in range(3)] + [f"pa_seed{s}" for s in range(3)]
+                                + ["pa_fitted", "treatment"])
+    assert p2.pa_fitted.all() and j2["pairs"]["treatment_vs_baseline"]["gain_s"] > 20.0
+
+    q = tmp_path / "q"
+    assert lf.main(["--queue", "--smoke", "--out-dir", str(q), "--refit-baseline", "--n-perm", "2", "--pa-trees", "share",
+                    "--baseline", "A2"]) == 0
+    qp = pd.read_parquet(q / "fold_preds_queue.parquet")
+    qj = json.loads((q / "lgbm_fold_queue.json").read_text())
+    qd = ["--dayfeats", "--queue", "--smoke", "--out-dir", str(tmp_path / "qd"), "--queue-preds", str(q / "fold_preds_queue.parquet"),
+          "--queue-json", str(q / "lgbm_fold_queue.json"), "--baseline", "A2", "--pa-trees", "share"]
+    assert lf.main(qd) == 0
+    j3 = json.loads((tmp_path / "qd" / "lgbm_fold_queue_day.json").read_text())
+    p3 = pd.read_parquet(tmp_path / "qd" / "fold_preds_queue_day.parquet")
+    assert j3["mode"] == "queue_day" and j3["config"]["queue"] is True and j3["config"]["n_features"] == 89
+    assert j3["config"]["features"] == list(lf.L.FEATS) + QUEUE_FEATS + DAY_FEATS
+    assert j3["baseline"]["source"] == "queue predictions" and j3["baseline"]["preds"] == str(q / "fold_preds_queue.parquet")
+    assert j3["seed_sd"]["source"] == "queue json" and j3["seed_sd"]["sd"] == qj["seed_sd"]["sd"]
+    assert np.array_equal(p3.baseline.to_numpy(), qp.treatment.to_numpy())
+    assert np.array_equal(p3.baseline_seed2.to_numpy(), qp.delta_hat_seed2.to_numpy())
+    assert list(p3.columns) == cols
+    assert j3["pairs"]["treatment_vs_baseline"]["gain_s"] > 20.0
+    with pytest.raises(ValueError, match="baseline_arm"):
+        lf.main(qd[:-4] + ["--baseline", "A3", "--pa-trees", "share"] + ["--out-dir", str(tmp_path / "qd_bad")])
+    with pytest.raises(FileNotFoundError, match="refit-baseline"):
+        lf.main(["--dayfeats", "--queue", "--smoke", "--out-dir", str(tmp_path / "qd_missing"),
+                 "--queue-preds", str(tmp_path / "missing.parquet")])
+
+
+def test_ytarget_arm_end_to_end_reproduces_the_delta_arm_within_noise_and_blends(monkeypatch, tmp_path):
+    """Arm Y on a synthetic cache whose proxy takes three exact levels (a tree recovers
+    y = proxy - f(x) from proxy with two splits, so the y formulation can reproduce the delta
+    formulation): in-process delta baseline (A2, seeds 0-2), the Y arm fitted on y with the same
+    configuration and seeds, y_hat_Y = max(prediction, 1) with no proxy anchor, the 0.5/0.5
+    blend of the two taxi times. Reported per 19.2/19.3: Y alone and the blend, each paired
+    against the delta arm pooled, per airport (LTFM and EDDM named) and on the |delta| bands;
+    the parquet's y_seed columns are on y's scale, its Y and blend columns are the delta form
+    (max(proxy - col, 1) recovers the taxi time) and the JSON's RMSEs are recomputable from it.
+    Y must land within YTARGET_TOL_S of the delta arm on this fixture (measured 2026-09-09 on
+    the first green run: delta 172.27, Y 171.18, blend 171.09, |Y - delta| 1.09 s, label sd
+    345.7 s), far below the label's own spread, and the blend no worse than the worse of the
+    two. Then the arm reads a v4 record as its delta arm: baseline == v4 A2, seed sd from the
+    v4 json.
+
+    Fails when the Y arm is fitted on delta (its taxi time then sits on the delta scale and
+    the RMSE explodes), when fit_arm refits on the delta label after stopping on y, when the
+    blend is not the weighted mean, or when the bands are not reported for both pairs.
+    Rehearsed 2026-09-09, each RED: `target=L.TARGET_DELTA` in the Y arm's fit_arm call;
+    `L.regression_label(dlt, y, L.TARGET_DELTA)` in fit_arm; `blend_taxi_times(yh_y, yh_base,
+    1.0)`; the Y pair dropped from the bands.
+    """
+    _fold_env(monkeypatch, tmp_path, queue_signal=0.0, proxy_levels=3)
+    out = tmp_path / "out"
+    assert lf.main(["--ytarget", "--smoke", "--out-dir", str(out), "--refit-baseline", "--baseline", "A2"]) == 0
+    j = json.loads((out / "lgbm_fold_ytarget.json").read_text())
+    preds = pd.read_parquet(out / "fold_preds_ytarget.parquet")
+    log = (out / "lgbm_fold_ytarget.log").read_text()
+    assert j["mode"] == "ytarget" and j["amendment"] == "19.2" and j["config"]["target"] == "y"
+    assert j["config"]["blend"] == 0.5 and j["config"]["n_features"] == 68 and j["config"]["queue"] is False
+    assert set(j["arms"]) == {"baseline", "Y", "blend"} and set(j["pairs"]) == {"Y_vs_baseline", "blend_vs_baseline"}
+    assert j["y_arm"]["target"] == "y" and j["y_arm"]["best_iter"] >= 1 and sorted(j["y_arm"]["single_seed_rmses"]) == ["0", "1", "2"]
+    cols = (["row", "month", "ap", "y", "proxy", "delta", "sp"] + [f"baseline_seed{s}" for s in range(3)] + ["baseline"]
+            + [f"y_seed{s}" for s in range(3)] + ["Y", "blend"])
+    assert list(preds.columns) == cols and len(preds) == 600
+    ys = [preds[f"y_seed{i}"].to_numpy() for i in range(3)]
+    assert 1_500 < np.median(ys[0]) < 3_500, "y_seed must be on y's scale"
+    yh_y = np.maximum((ys[0] + ys[1] + ys[2]) / 3, 1.0)
+    yh_b = np.maximum(preds.proxy.to_numpy() - preds.baseline.to_numpy(), 1.0)
+    assert np.allclose(np.maximum(preds.proxy.to_numpy() - preds.Y.to_numpy(), 1.0), yh_y, atol=1e-9, rtol=0)
+    assert np.allclose(np.maximum(preds.proxy.to_numpy() - preds.blend.to_numpy(), 1.0), 0.5 * yh_y + 0.5 * yh_b, atol=1e-9, rtol=0)
+    for arm in ("baseline", "Y", "blend"):
+        assert j["arms"][arm]["rmse"] == pytest.approx(_recovered_rmse(preds, arm), abs=1e-9), arm
+    r_b, r_y, r_bl = (j["arms"][a]["rmse"] for a in ("baseline", "Y", "blend"))
+    print(f"\narm Y on the fixture: delta {r_b:.2f}  Y {r_y:.2f}  blend {r_bl:.2f}  |Y - delta| {abs(r_y - r_b):.2f} s"
+          f"  label sd {float(preds.y.std()):.1f}")
+    assert r_y < 0.5 * float(preds.y.std()), "the y arm learned nothing"
+    assert abs(r_y - r_b) <= YTARGET_TOL_S, f"Y {r_y:.2f} vs delta {r_b:.2f}: not within noise on this fixture"
+    assert r_bl <= max(r_y, r_b) + 1e-9
+    for key in ("Y_vs_baseline", "blend_vs_baseline"):
+        pr = j["pairs"][key]
+        assert pr["ci95"][0] <= pr["gain_s"] <= pr["ci95"][1] and pr["n_airports"] == 10
+        assert set(pr["per_airport"]) == set(APTS) and set(pr["named_airports"]) == {"LTFM", "EDDM"}
+        assert isinstance(pr["exceeds_2x_seed_sd"], bool)
+    _check_bands(j, preds, ["Y_vs_baseline", "blend_vs_baseline"])
+    assert j["seed_sd"]["source"] == "baseline single seeds (in-process)" and j["seed_sd"]["y_sd"] >= 0
+    lines = [line for line in log.splitlines() if line.strip()]
+    assert lf.L.SMOKE_BANNER in lines[0] and lf.L.SMOKE_BANNER in lines[-1]
+    assert "LTFM" in log and "EDDM" in log and "blend" in log and "bands" in log
+
+    out4 = tmp_path / "v4"
+    assert lf.main(["--smoke", "--out-dir", str(out4)]) == 0
+    v4p = pd.read_parquet(out4 / "fold_v4_preds.parquet")
+    v4j = json.loads((out4 / "lgbm_fold_v4.json").read_text())
+    assert lf.main(["--ytarget", "--smoke", "--out-dir", str(tmp_path / "y2"), "--baseline-preds", str(out4 / "fold_v4_preds.parquet"),
+                    "--v4-json", str(out4 / "lgbm_fold_v4.json"), "--blend-with", "A2"]) == 0
+    j2 = json.loads((tmp_path / "y2" / "lgbm_fold_ytarget.json").read_text())
+    p2 = pd.read_parquet(tmp_path / "y2" / "fold_preds_ytarget.parquet")
+    assert j2["baseline"]["source"] == "v4 predictions" and j2["seed_sd"]["sd"] == v4j["seed_sd"]["sd"]
+    assert np.array_equal(p2.baseline.to_numpy(), v4p.A2.to_numpy()) and list(p2.columns) == cols
+
+
+#: |RMSE_Y - RMSE_delta| on the three-level-proxy fixture: measured 1.09 s on 2026-09-09 (see the
+#: test docstring), set at ~14x that for the 4-thread run-to-run spread; a wrong formulation is
+#: off by thousands of seconds.
+YTARGET_TOL_S = 15.0
+
+
+# =============================================================================================
+# The unified all-rows arm (the Amendment 19 addition): --ytarget --all-rows. ONE regressor with
+# target y on matched AND unmatched training rows (the unmatched rows from data/cache_unmatched
+# with their NaN pattern, an is_unmatched column, an optional sample weight W on the unmatched
+# rows), y_hat = max(pred, 1) everywhere, paired against the CURRENT PIPELINE: the matched rows'
+# v4/queue record and the unmatched rows' shipped fit_unmatched (S0 of stratum_fold_v7_preds).
+# Reported three ways - matched, unmatched (pooled and ex-monster), the fold TOTAL at the 2026
+# weights - plus the 0.5/0.5 blend with the pipeline on each, for every W asked for.
+# =============================================================================================
+
+def test_allrows_mode_flags_weights_and_the_2026_total():
+    """--all-rows composes with --ytarget only (mode allrows, queue_allrows with --queue);
+    --unmatched-weight parses a list of distinct positive floats (default (1.0,)); the 2026
+    weights are the scored file's shares (339,551 / 5,290 of 344,841: 0.984660 / 0.015340,
+    summing to one); total_rmse_2026 is sqrt(w_m x MSE_m + w_u x MSE_u), pinned by hand (100 /
+    10,000 -> sqrt(251.866) = 15.8703); MONSTER_S is 10,800 s; the stratum record path defaults
+    to data/cache_stand/stratum_fold_v7_preds.parquet; the output names are the arm's own.
+
+    Fails when --all-rows is accepted without --ytarget, when the weights drift, or when the
+    total is a plain pooled RMSE. Rehearsed 2026-09-09, each RED: the requirement check
+    replaced by `if False:`; `W_UNMATCHED_2026 = 0.02`; `np.sqrt((mse_m + mse_u) / 2)`.
+    """
+    assert lf.mode_of(lf.parse_args(["--ytarget", "--all-rows"])) == "allrows"
+    assert lf.mode_of(lf.parse_args(["--ytarget", "--all-rows", "--queue"])) == "queue_allrows"
+    for argv in (["--all-rows"], ["--dayfeats", "--all-rows"], ["--queue", "--all-rows"], ["--ytarget", "--all-rows", "--fillhead"],
+                 ["--ytarget", "--all-rows", "--unmatched-weight", "0"], ["--ytarget", "--all-rows", "--unmatched-weight", "1,1"]):
+        with pytest.raises(SystemExit):
+            lf.parse_args(argv)
+    assert lf.parse_args(["--ytarget", "--all-rows"]).unmatched_weight == (1.0,)
+    assert lf.parse_args(["--ytarget", "--all-rows", "--unmatched-weight", "1,10"]).unmatched_weight == (1.0, 10.0)
+    assert lf.parse_weights(" 10 , 1") == (10.0, 1.0)
+    for bad in ("", "a", "0", "-1", "1,1", "nan"):
+        with pytest.raises(argparse.ArgumentTypeError):
+            lf.parse_weights(bad)
+    assert round(lf.W_MATCHED_2026, 6) == 0.984660 and round(lf.W_UNMATCHED_2026, 6) == 0.015340
+    assert lf.W_MATCHED_2026 + lf.W_UNMATCHED_2026 == pytest.approx(1.0, abs=1e-12)
+    assert lf.W_MATCHED_2026 == 339_551 / 344_841 and lf.MONSTER_S == 10_800.0
+    assert lf.total_rmse_2026(100.0, 10_000.0) == pytest.approx(np.sqrt(0.98466 * 100 + 0.01534 * 10_000), abs=2e-3)
+    assert lf.total_rmse_2026(100.0, 10_000.0) == pytest.approx(15.8703, abs=1e-3)
+    assert lf.total_rmse_2026(4.0, 4.0) == 2.0
+    assert lf.STRATUM_PREDS == lf.CACHE / "stratum_fold_v7_preds.parquet" and lf.parse_args([]).stratum_preds is None
+    out = pathlib.Path("/o")
+    assert lf.output_paths("allrows", out) == (out / "lgbm_fold_allrows.json", out / "lgbm_fold_allrows.log", out / "fold_preds_allrows.parquet")
+    assert lf.output_paths("queue_allrows", out)[2] == out / "fold_preds_queue_allrows.parquet"
+    assert len({lf.OUTPUT_NAMES[m] for m in lf.MODES}) == len(lf.MODES) == 14
+    assert lf.mode_of(lf.parse_args(["--ytarget", "--all-rows", "--dayfeats"])) == "allrows_day"
+    assert lf.mode_of(lf.parse_args(["--ytarget", "--all-rows", "--queue", "--dayfeats"])) == "queue_allrows_day"
+    assert "--ytarget --all-rows --unmatched-weight 1,10" in lf.COMMANDS["allrows"] and "allrows" in lf.ESTIMATES
+    assert lf.UCACHE == lf.ROOT / "data" / "cache_unmatched"
+
+
+#: the noise fixture's seed: seed 0 with 400 unmatched rows at correlation 0.95 drew a 2.3-sigma
+#: realised offset on the unmatched stratum (its interval excluded zero for that draw alone);
+#: 2,000 rows at 0.98 keep the offset inside a half-width, and the seed is pinned for determinism
+NOISE_SEED = 1
+
+
+def test_stratified_paired_bootstrap_detects_a_planted_gain_on_the_2026_total_and_rejects_noise():
+    """The paired bootstrap of the 2026-weighted TOTAL: matched and unmatched rows are resampled
+    within their own stratum (the same draws for every arm and pair), the total is
+    sqrt(w_m x mean_m + w_u x mean_u) per draw, the point estimate is the actual total gain. A
+    noise pair (same variance, correlation 0.95 in both strata) gets an interval that includes
+    zero; an arm with 10% smaller residuals in both strata gets one that excludes zero with the
+    point equal to the total gain; an empty stratum is refused.
+
+    Fails when the strata are pooled (the unmatched rows' weight would be their row share, not
+    0.015), when the draws are not paired, or when the point is not the weighted total.
+    Rehearsed 2026-09-09, each RED: `idx_u = idx_m` (one stratum's draws reused); the total
+    computed at equal weights.
+    """
+    rng = np.random.default_rng(NOISE_SEED)
+    n_m, n_u = 20_000, 2_000
+    ra_m, ra_u = rng.normal(0, 100, n_m), rng.normal(0, 800, n_u)
+    rb_m = 0.95 * ra_m + np.sqrt(1 - 0.95 ** 2) * rng.normal(0, 100, n_m)
+    rb_u = 0.98 * ra_u + np.sqrt(1 - 0.98 ** 2) * rng.normal(0, 800, n_u)
+    se_m = {"A": ra_m ** 2, "B": rb_m ** 2, "C": (0.9 * rb_m) ** 2}
+    se_u = {"A": ra_u ** 2, "B": rb_u ** 2, "C": (0.9 * rb_u) ** 2}
+    res = lf.stratified_paired_bootstrap(se_m, se_u, [("B", "A"), ("C", "A")], n_draws=2_000, seed=0)
+    total = {a: lf.total_rmse_2026(se_m[a].mean(), se_u[a].mean()) for a in "ABC"}
+    noise, planted = res["B_vs_A"], res["C_vs_A"]
+    assert noise["gain_s"] == pytest.approx(total["A"] - total["B"], abs=1e-12)
+    half = (noise["ci95"][1] - noise["ci95"][0]) / 2
+    assert abs(noise["gain_s"]) < half, "fixture is not a noise pair (the realised offset exceeds one interval half-width)"
+    assert noise["ci95"][0] <= 0.0 <= noise["ci95"][1] and noise["excludes_zero"] is False
+    assert planted["gain_s"] == pytest.approx(total["A"] - total["C"], abs=1e-12)
+    assert planted["ci95"][0] > 0 and planted["excludes_zero"] is True and planted["improving"] is True
+    assert planted["n_draws"] == 2_000 and planted["seed"] == 0 and planted["n_matched"] == n_m and planted["n_unmatched"] == n_u
+    assert planted["w_matched"] == lf.W_MATCHED_2026
+    again = lf.stratified_paired_bootstrap(se_m, se_u, [("B", "A")], n_draws=2_000, seed=0)
+    assert again["B_vs_A"]["ci95"] == noise["ci95"]
+    # the unmatched stratum's weight is 0.015, not its row share: an arm that only fixes the unmatched rows
+    # moves the total by w_u x delta MSE_u, pinned against the pooled-rows arithmetic
+    se_m2 = {"A": se_m["A"], "D": se_m["A"]}
+    se_u2 = {"A": se_u["A"], "D": np.zeros(n_u)}
+    d = lf.stratified_paired_bootstrap(se_m2, se_u2, [("D", "A")], n_draws=200, seed=0)["D_vs_A"]
+    assert d["gain_s"] == pytest.approx(total["A"] - np.sqrt(lf.W_MATCHED_2026 * se_m["A"].mean()), abs=1e-9)
+    with pytest.raises(ValueError, match="stratum"):
+        lf.stratified_paired_bootstrap(se_m, {"A": np.array([]), "B": np.array([])}, [("B", "A")], n_draws=10, seed=0)
+
+
+def test_unmatched_baseline_from_the_stratum_record_joins_fold_a_rows_by_id_and_checks_identity():
+    """The unmatched rows' pipeline prediction is the stratum record's fold-"A" S0, joined by
+    MVT_ID_mvt onto the fold's unmatched holdout rows in THEIR order; every holdout row must be
+    present exactly once among the fold-A rows, and y and month must agree row by row (the same
+    fold), else the pairing is refused; lomo rows are ignored.
+
+    Fails when the join ignores the fold label, the order, or the identity check. Rehearsed
+    2026-09-09, each RED: `preds` used without the `fold == "A"` filter (a lomo duplicate);
+    `.loc[ids]` dropped (record order returned); `if False:` for the y check.
+    """
+    base_u = pd.DataFrame({"MVT_ID_mvt": [5.0, 3.0, 9.0], "y": [100.0, 200.0, 300.0], "month": [1, 7, 1],
+                           "ap": ["EGLL", "LIRF", "LTFM"]})
+    rec = pd.DataFrame({"MVT_ID_mvt": [3.0, 9.0, 5.0, 5.0, 8.0], "fold": ["A", "A", "A", "lomo", "A"],
+                        "month": [7, 1, 1, 1, 1], "ADEP_mvt": ["LIRF", "LTFM", "EGLL", "EGLL", "EHAM"],
+                        "y": [200.0, 300.0, 100.0, 100.0, 50.0], "sp": [1.0] * 5, "monster": [False] * 5,
+                        "S0": [21.0, 31.0, 11.0, 99.0, 41.0], "S1": [0.0] * 5})
+    got = lf.unmatched_baseline_from_stratum(rec, base_u)
+    assert got["yhat"].tolist() == [11.0, 21.0, 31.0] and got["n_record_fold_a"] == 4 and got["n_joined"] == 3
+    with pytest.raises(ValueError, match="missing"):
+        lf.unmatched_baseline_from_stratum(rec[rec.MVT_ID_mvt != 9.0], base_u)
+    dup = pd.concat([rec, rec.iloc[[0]]], ignore_index=True)
+    with pytest.raises(ValueError, match="duplicate"):
+        lf.unmatched_baseline_from_stratum(dup, base_u)
+    bad = rec.copy()
+    bad.loc[0, "y"] = 201.0
+    with pytest.raises(ValueError, match="same fold"):
+        lf.unmatched_baseline_from_stratum(bad, base_u)
+    bad = rec.copy()
+    bad.loc[1, "month"] = 2
+    with pytest.raises(ValueError, match="same fold"):
+        lf.unmatched_baseline_from_stratum(bad, base_u)
+    with pytest.raises(ValueError, match="S0"):
+        lf.unmatched_baseline_from_stratum(rec.drop(columns=["S0"]), base_u)
+
+
+def _yhat_rmse(preds, col, mask=None):
+    e = (preds.y.to_numpy() - preds[col].to_numpy()) ** 2
+    return float(np.sqrt(e.mean() if mask is None else e[mask].mean()))
+
+
+def test_allrows_arm_end_to_end_reports_matched_unmatched_and_the_total(monkeypatch, tmp_path):
+    """The unified arm on the synthetic caches (600 matched + 40 unmatched rows per month; the
+    unmatched target is the matched structure without its proxy anchor, ~2% monsters; a
+    synthetic stratum record whose fold-A S0 is the target + N(0, 500)), `--ytarget --all-rows
+    --unmatched-weight 1,10` with an in-process matched baseline: the JSON holds the pipeline arm and, per weight,
+    U_w{W} and Ublend_w{W}; the three subsets partition the holdout exactly (matched + unmatched
+    = every row; ex-monster = the unmatched rows with y <= 10,800, fewer than all of them) with
+    each arm's RMSE, per-airport cuts and one paired interval per pair on the subset's rows; the
+    TOTAL at the 2026 weights carries the stratified paired intervals; the |delta| bands are
+    reported on the matched rows; the parquet's arm columns are TAXI TIMES (this fold's rows
+    have no proxy on the unmatched side) with is_unmatched and MVT_ID_mvt; the JSON's numbers
+    are recomputable from it; U_w1 == max(mean of its seeds, 1) on EVERY row (no proxy anywhere);
+    the pipeline's unmatched values are the record's S0; the unified arm learned the unmatched
+    rows (ex-monster RMSE below 0.7 x their spread: measured 2026-09-09 109 / 100 s at weights
+    1 / 10 against a spread of 271 s and the record's 554 s); U_w10 differs from U_w1 (the weight
+    reached LightGBM); the NaN pattern is recorded; the banner brackets the log. A second run
+    with the early-stopping seam made to refuse the weight-1000 arm (the breakage guard's
+    RuntimeError, injected deterministically) records that arm as unfitted and scores the rest.
+
+    Forty unmatched rows per month is 5x the real share and is where the smoke's 60-round trees
+    learn both strata (measured 2026-09-09: at 120 rows per month the NaN-proxy rows distort the
+    histogram splits and the matched fit degrades; a fixture question, not a harness one).
+
+    Fails when a subset is cut wrongly, when the weight is not forwarded, when the unmatched
+    prediction subtracts a proxy (NaN), when the record is not the unmatched baseline, or when a
+    guard failure aborts the run instead of being recorded. Rehearsed 2026-09-09, each RED:
+    `weight=None` in the U arm's fit_arm call (U_w10 == U_w1); `taxi_time(proxy_te, pred)` (the
+    delta form) for the U arm (NaN on unmatched rows); the ex-monster mask as `y > MONSTER_S`; the
+    pipeline's unmatched column set to the U arm's; the `except RuntimeError` branch removed.
+    """
+    stand, queue = _fold_env(monkeypatch, tmp_path, queue_signal=0.0, day_signal=0.0)
+    monkeypatch.setattr(lf, "UCACHE", tmp_path / "data" / "cache_unmatched")
+    rec_path = _syn.synthetic_stratum_record(tmp_path / "data", (1, 2, 3))
+    out = tmp_path / "out"
+    assert lf.main(["--ytarget", "--all-rows", "--smoke", "--out-dir", str(out), "--refit-baseline", "--baseline", "A2",
+                    "--unmatched-weight", "1,10", "--stratum-preds", str(rec_path)]) == 0
+    j = json.loads((out / "lgbm_fold_allrows.json").read_text())
+    preds = pd.read_parquet(out / "fold_preds_allrows.parquet")
+    log = (out / "lgbm_fold_allrows.log").read_text()
+    assert j["mode"] == "allrows" and j["amendment"] == "19-unified" and j["config"]["target"] == "y"
+    assert j["config"]["unmatched_weights"] == [1.0, 10.0] and j["config"]["n_features"] == 69
+    assert j["config"]["features"][-1] == "is_unmatched" and j["config"]["features"][:68] == list(lf.L.FEATS)
+    assert j["config"]["unmatched_nan_cols"] == lf.S.UNMATCHED_NAN_COLS and j["config"]["w_matched_2026"] == lf.W_MATCHED_2026
+    assert set(j["arms"]) == {"pipeline", "U_w1", "Ublend_w1", "U_w10", "Ublend_w10"}
+    pairs = ["U_w1_vs_pipeline", "Ublend_w1_vs_pipeline", "U_w10_vs_pipeline", "Ublend_w10_vs_pipeline"]
+    um = preds.is_unmatched.to_numpy() == 1.0
+    n_u = int(um.sum())
+    assert len(preds) == 600 + n_u and n_u == _syn.N_UNMATCHED and preds.MVT_ID_mvt[um].notna().all() and preds.MVT_ID_mvt[~um].isna().all()
+    sub = j["subsets"]
+    assert list(sub) == ["matched", "unmatched", "unmatched_exmonster"]
+    assert sub["matched"]["n_rows"] == 600 and sub["unmatched"]["n_rows"] == n_u
+    exm = um & (preds.y.to_numpy() <= lf.MONSTER_S)
+    assert sub["unmatched_exmonster"]["n_rows"] == int(exm.sum()) < n_u, "the fixture must plant at least one monster"
+    assert sub["matched"]["n_rows"] + sub["unmatched"]["n_rows"] == len(preds)
+    for name, mask in (("matched", ~um), ("unmatched", um), ("unmatched_exmonster", exm)):
+        s = sub[name]
+        assert set(s["pairs"]) == set(pairs) and set(s["rmse"]) == set(j["arms"])
+        for arm in j["arms"]:
+            assert s["rmse"][arm] == pytest.approx(_yhat_rmse(preds, arm, mask), abs=1e-9), (name, arm)
+        assert set(s["per_airport"]) == set(j["arms"]) and set(s["airports"]) == set(preds.ap[mask].unique())
+        assert all(set(v) == set(preds.ap[mask].unique()) for v in s["per_airport"].values())
+        for pr in s["pairs"].values():
+            assert pr["ci95"][0] <= pr["gain_s"] <= pr["ci95"][1]
+    tot = j["total_2026"]
+    assert set(tot["rmse"]) == set(j["arms"]) and set(tot["pairs"]) == set(pairs)
+    for arm in j["arms"]:
+        want = lf.total_rmse_2026(_yhat_rmse(preds, arm, ~um) ** 2, _yhat_rmse(preds, arm, um) ** 2)
+        assert tot["rmse"][arm] == pytest.approx(want, abs=1e-9), arm
+    assert tot["pairs"]["U_w1_vs_pipeline"]["n_matched"] == 600 and tot["pairs"]["U_w1_vs_pipeline"]["n_unmatched"] == n_u
+    assert set(j["bands"]) == {"lt2", "2to10", "10to20", "gt20", "over10"} and set(j["bands"]["lt2"]["pairs"]) == set(pairs)
+    assert sum(j["bands"][k]["n_rows"] for k in ("lt2", "2to10", "10to20", "gt20")) == 600
+    cols = (["row", "month", "ap", "y", "proxy", "delta", "sp", "is_unmatched", "MVT_ID_mvt"] + [f"baseline_seed{s}" for s in range(3)]
+            + ["baseline", "pipeline"] + [f"U_w1_seed{s}" for s in range(3)] + ["U_w1", "Ublend_w1"]
+            + [f"U_w10_seed{s}" for s in range(3)] + ["U_w10", "Ublend_w10"])
+    assert list(preds.columns) == cols
+    for w in ("w1", "w10"):
+        ys = [preds[f"U_{w}_seed{i}"].to_numpy() for i in range(3)]
+        assert np.array_equal(preds[f"U_{w}"].to_numpy(), np.maximum((ys[0] + ys[1] + ys[2]) / 3, 1.0)), "y_hat = max(mean, 1), nothing else"
+        assert np.allclose(preds[f"Ublend_{w}"].to_numpy(), 0.5 * preds[f"U_{w}"].to_numpy() + 0.5 * preds.pipeline.to_numpy(), atol=1e-9, rtol=0)
+        assert np.isfinite(preds[f"U_{w}"].to_numpy()).all()
+    assert preds.baseline[um].isna().all() and np.allclose(preds.pipeline[~um].to_numpy(),
+                                                             np.maximum(preds.proxy[~um].to_numpy() - preds.baseline[~um].to_numpy(), 1.0), atol=1e-9, rtol=0)
+    rec = pd.read_parquet(rec_path)
+    s0 = rec[rec.fold == "A"].set_index("MVT_ID_mvt").S0.loc[preds.MVT_ID_mvt[um].to_numpy()].to_numpy()
+    assert np.array_equal(preds.pipeline[um].to_numpy(), s0), "the pipeline's unmatched values must be the record's S0"
+    assert j["unmatched_baseline"]["source"] == str(rec_path) and j["unmatched_baseline"]["n_joined"] == n_u
+    assert not np.array_equal(preds.U_w1.to_numpy(), preds.U_w10.to_numpy()), "the weight never reached LightGBM"
+    yu = preds.y.to_numpy()[exm]
+    assert sub["unmatched_exmonster"]["rmse"]["U_w1"] < 0.7 * float(yu.std()), "the unified arm learned nothing on the unmatched rows"
+    for w in ("w1", "w10"):
+        assert j["u_arms"][w]["target"] == "y" and j["u_arms"][w]["weight"] == float(w[1:]) and j["u_arms"][w]["best_iter"] >= 1
+        assert sorted(j["u_arms"][w]["single_seed_rmses_total"]) == ["0", "1", "2"] and j["u_arms"][w]["fitted"] is True
+    assert j["baseline"]["source"] == "in-process" and j["seed_sd"]["source"] == "baseline single seeds (in-process)"
+    lines = [line for line in log.splitlines() if line.strip()]
+    assert lf.L.SMOKE_BANNER in lines[0] and lf.L.SMOKE_BANNER in lines[-1]
+    assert "TOTAL" in log and "ex-monster" in log and "unmatched" in log and "NaN pattern" in log
+    with pytest.raises(FileNotFoundError, match="stratum"):
+        lf.main(["--ytarget", "--all-rows", "--smoke", "--out-dir", str(tmp_path / "o2"), "--refit-baseline",
+                 "--stratum-preds", str(tmp_path / "missing.parquet")])
+    # an arm the breakage guard refuses is RECORDED as unfitted and the run scores the arms that fitted:
+    # the guard's RuntimeError is injected at the early-stopping seam for the weight-1000 arm
+    real_es = lf.L.early_stop
+
+    def refusing(X, dlt, y, proxy, train, fit, es, params, nest, patience, target=lf.L.TARGET_DELTA, weight=None):
+        if weight is not None and float(np.max(weight)) >= 1_000.0:
+            raise RuntimeError("stopping-set RMSE 999.00 is not 85% of proxy-only 300.00: the feature path is broken")
+        return real_es(X, dlt, y, proxy, train, fit, es, params, nest, patience, target=target, weight=weight)
+    monkeypatch.setattr(lf.L, "early_stop", refusing)
+    out3 = tmp_path / "o3"
+    assert lf.main(["--ytarget", "--all-rows", "--smoke", "--out-dir", str(out3), "--refit-baseline", "--baseline", "A2",
+                    "--unmatched-weight", "1,1000", "--stratum-preds", str(rec_path)]) == 0
+    j3 = json.loads((out3 / "lgbm_fold_allrows.json").read_text())
+    assert j3["u_arms"]["w1000"]["fitted"] is False and "proxy-only" in j3["u_arms"]["w1000"]["error"]
+    assert set(j3["arms"]) == {"pipeline", "U_w1", "Ublend_w1"} and set(j3["total_2026"]["pairs"]) == {"U_w1_vs_pipeline", "Ublend_w1_vs_pipeline"}
+    assert "NOT FITTED" in (out3 / "lgbm_fold_allrows.log").read_text()

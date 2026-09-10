@@ -61,6 +61,36 @@ v5 (Amendment 16) adds the schedule-fill mixture head, also off by default:
                     fit.json (params, best_iter, n_ref, n_features, the fill share of the
                     training rows); --reuse-booster reuses it under the same provenance check.
 
+Amendment 19 adds two more OPTIONS, both off by default (the default command is byte-reproducible
+against a golden of the pristine file, tests/test_lgbm_submit.py):
+
+    --dayfeats      append stand_ab.DAY_FEATS (the nine airport-day regime features cached by
+                    `stand_ab.py day-cache` in data/cache_day/) to the design matrix, after the
+                    queue block when both are given: FEATS [+ QUEUE_FEATS] + DAY_FEATS. Joined
+                    exactly as the queue block is (months by position, ranking by id; the row
+                    contract is tests/test_day_features.py's). Boosters carry a `_day` tag
+                    (`_queue_day` with --queue).
+    --target y      arm Y: the regressor's label is y (TAXITIME) instead of delta, the stopping
+                    metric is therefore RMSE on y directly, and the matched prediction is
+                    y_hat = max(prediction, 1) with NO proxy subtraction (Amendment 19.2). The
+                    splice is unchanged. Boosters carry a `_ytarget` tag and their fit.json
+                    records the target, so a y booster is never reused by a delta run or the
+                    reverse. Not combinable with --fillhead (not pre-registered; RESULT 8).
+
+The UNIFIED all-rows arm (the Amendment 19 addition) adds two more OPTIONS:
+
+    --all-rows      with --target y only: ONE regressor on EVERY admissible training row, matched
+                    AND unmatched - the unmatched rows from data/cache_unmatched (stand_ab.py
+                    unmatched-cache) with every AOBT_3-anchored column NaN exactly as LightGBM
+                    handles missing values (the pattern is asserted on every cache file, never
+                    filled) and an explicit is_unmatched 0/1 column appended LAST to the design;
+                    the delta encodings fitted on the matched training rows only; y_hat =
+                    max(prediction, 1) on every scored row, matched and unmatched alike, and the
+                    splice replaces ALL 344,841 rows. No mixture, no proxy anywhere. Boosters carry
+                    `_allrows` (and `_w{W}` below). Not combinable with --fillhead / --per-airport.
+    --unmatched-weight W  the sample weight of the unmatched training rows (default 1.0; they are
+                    ~22k of 2.08M rows); the stopping set is unweighted (the competition's metric).
+
 Deliberately NOT here: the stand block (not measured on LightGBM). A smoke run proves the code
 path and nothing else - it prints a banner saying so, because this project has twice quoted a
 smoke magnitude as a result.
@@ -111,6 +141,21 @@ FEATS = S.BASELINE_FEATS
 #: v6 (Amendment 14): the queue block's cache directory and column contract, one place.
 QCACHE = S.QCACHE
 QUEUE_FEATS = list(S.QUEUE_FEATS)
+#: Amendment 19 arm D: the day block's cache directory and column contract, one place.
+DCACHE = S.DCACHE
+DAY_FEATS = list(S.DAY_FEATS)
+#: Amendment 19 arm Y: the regressor's label. `delta` (the default, v3 onwards) anchors the
+#: prediction on proxy, y_hat = max(proxy - delta_hat, 1); `y` predicts the taxi time itself,
+#: y_hat = max(prediction, 1), no proxy anchor, the stopping metric on y directly.
+TARGET_DELTA, TARGET_Y = "delta", "y"
+TARGETS = (TARGET_DELTA, TARGET_Y)
+#: the unified all-rows arm: the unmatched cache's directory and contract, the flag column
+UCACHE = S.UCACHE
+UNMATCHED_COLS = list(S.UNMATCHED_COLS)
+IS_UNMATCHED = "is_unmatched"
+UNMATCHED_HINT = "stand_ab.py unmatched-cache [--ranking]"
+#: a fit.json before the unified arm is a matched-only, weight-1 booster
+LEGACY_PROVENANCE = {"all_rows": False, "unmatched_weight": 1.0}
 #: the parameters lgbm_ab.py measured (lgb_refit 226.24). Do not tune here.
 P = dict(objective="regression", metric="rmse", learning_rate=0.01, num_leaves=255,
          min_data_in_leaf=40, feature_fraction=0.8, bagging_fraction=0.8, bagging_freq=1,
@@ -230,28 +275,69 @@ def parse_args(argv=None) -> argparse.Namespace:
                     help=f"v5 (Amendment 16): fit the schedule-fill head p = P(|y - sp| <= {FILL_TOL_S:.0f} s | x) "
                          f"on the design + {NMDELAY} and ship p * sp + (1 - p) * max(proxy - delta_hat, 1); "
                          "the head booster is lgbm_vN[_queue]_fillhead.txt")
-    return ap.parse_args(argv)
+    ap.add_argument("--dayfeats", action="store_true",
+                    help="append stand_ab.DAY_FEATS from data/cache_day/ to the design matrix, after the "
+                         "queue block (Amendment 19 arm D); boosters are tagged _day / _queue_day")
+    ap.add_argument("--target", choices=TARGETS, default=TARGET_DELTA,
+                    help="the regressor's label: delta (default; y_hat = max(proxy - delta_hat, 1)) or y "
+                         "(Amendment 19 arm Y; y_hat = max(prediction, 1), no proxy anchor); boosters are "
+                         "tagged _ytarget")
+    ap.add_argument("--all-rows", action="store_true",
+                    help="with --target y: ONE regressor on matched AND unmatched training rows (data/cache_unmatched), "
+                         "is_unmatched appended to the design, every scored row re-predicted; boosters tagged _allrows")
+    ap.add_argument("--unmatched-weight", type=float, default=1.0,
+                    help="--all-rows: the sample weight of the unmatched training rows (default 1.0); boosters tagged _w{W}")
+    args = ap.parse_args(argv)
+    if args.fillhead and args.target == TARGET_Y:
+        ap.error("--fillhead with --target y is not pre-registered (the head was NOT WORKING in RESULT 8 "
+                 "and Amendment 19.2 measures the formulation on the regressor alone)")
+    if args.all_rows:
+        if args.target != TARGET_Y:
+            ap.error("--all-rows needs --target y: the delta formulation has no proxy on the unmatched rows")
+        if args.fillhead or args.per_airport:
+            ap.error("--all-rows does not combine with --fillhead or --per-airport (not pre-registered for the unified arm)")
+        if not (np.isfinite(args.unmatched_weight) and args.unmatched_weight > 0):
+            ap.error(f"--unmatched-weight must be a positive finite number, got {args.unmatched_weight}")
+    return args
 
 
-def booster_files(directory: pathlib.Path, version: int, seeds, queue: bool = False) -> list:
+def booster_tag(queue: bool = False, day: bool = False, target: str = TARGET_DELTA, all_rows: bool = False,
+                unmatched_weight: float = 1.0) -> str:
+    """The configuration tag in a booster's file name: `_queue` / `_day` / `_queue_day` for the
+    block(s) in the design, `_ytarget` for the y formulation, `_allrows` for the unified arm and
+    `_w{W}` for a non-unit unmatched weight, in that order, empty for the v3/v4 design on delta -
+    so a booster can never be reused by another configuration."""
+    if target not in TARGETS:
+        raise ValueError(f"target must be one of {TARGETS}, got {target!r}")
+    tag = ("_queue" if queue else "") + ("_day" if day else "") + ("_ytarget" if target == TARGET_Y else "")
+    if all_rows:
+        tag += "_allrows"
+        if float(unmatched_weight) != 1.0:
+            tag += f"_w{float(unmatched_weight):g}"
+    return tag
+
+
+def booster_files(directory: pathlib.Path, version: int, seeds, queue: bool = False, day: bool = False,
+                  target: str = TARGET_DELTA, all_rows: bool = False, unmatched_weight: float = 1.0) -> list:
     """(model file, fit.json) per seed. The default seed set keeps v3's names so that
     --reuse-booster still finds lgbm_v3.txt; any other set names one file per seed. A --queue
     run carries a `_queue` tag so its 80-feature boosters can never be reused by a 68-feature
-    run (nor the reverse)."""
+    run (nor the reverse); --dayfeats, --target y and --all-rows add `_day`, `_ytarget`,
+    `_allrows[_w{W}]` (booster_tag)."""
     directory = pathlib.Path(directory)
-    tag = "_queue" if queue else ""
+    tag = booster_tag(queue, day, target, all_rows, unmatched_weight)
     if tuple(seeds) == (ES_SEED,):
         return [(directory / f"lgbm_v{version}{tag}.txt", directory / f"lgbm_v{version}{tag}.fit.json")]
     return [(directory / f"lgbm_v{version}{tag}_seed{s}.txt",
              directory / f"lgbm_v{version}{tag}_seed{s}.fit.json") for s in seeds]
 
 
-def head_booster_files(directory: pathlib.Path, version: int, queue: bool = False) -> tuple:
-    """(model file, fit.json) of the fill head: lgbm_v{N}[_queue]_fillhead.txt - its own name, so
-    it can never be mistaken for a regressor booster by --reuse-booster, and the `_queue` tag
-    for the same reason the regressors carry it."""
+def head_booster_files(directory: pathlib.Path, version: int, queue: bool = False, day: bool = False) -> tuple:
+    """(model file, fit.json) of the fill head: lgbm_v{N}[_queue][_day]_fillhead.txt - its own
+    name, so it can never be mistaken for a regressor booster by --reuse-booster, and the block
+    tags for the same reason the regressors carry them (the head is delta-only)."""
     directory = pathlib.Path(directory)
-    tag = "_queue" if queue else ""
+    tag = booster_tag(queue, day)
     return (directory / f"lgbm_v{version}{tag}_fillhead.txt", directory / f"lgbm_v{version}{tag}_fillhead.fit.json")
 
 
@@ -297,6 +383,28 @@ def recover_taxi_time(proxy, delta_hat) -> np.ndarray:
     """y_hat = max(proxy - delta_hat, 1), rounded like build_submission.main (np.rint, int32):
     finalise_taxi_time on the recovered taxi time."""
     return finalise_taxi_time(np.asarray(proxy, dtype="float64") - np.asarray(delta_hat, dtype="float64"))
+
+
+def regression_label(dlt, y, target: str = TARGET_DELTA) -> np.ndarray:
+    """The regressor's label under the formulation (Amendment 19.2): delta = BLOCK - AOBT_3 by
+    default - the anchor the prediction is subtracted from proxy - or y = TAXITIME itself under
+    `y`. Float64, the values untouched; an unknown target is refused."""
+    if target == TARGET_DELTA:
+        return np.asarray(dlt, dtype="float64")
+    if target == TARGET_Y:
+        return np.asarray(y, dtype="float64")
+    raise ValueError(f"target must be one of {TARGETS}, got {target!r}")
+
+
+def raw_taxi_time(pred, proxy, target: str = TARGET_DELTA) -> np.ndarray:
+    """The unfloored taxi time a prediction implies: proxy - pred under `delta`; pred ITSELF under
+    `y` - proxy is not read there (no anchor, 19.2). finalise_taxi_time / np.maximum(., 1) floor
+    it; under `delta` finalise_taxi_time(raw_taxi_time(d, p)) is recover_taxi_time(p, d) exactly."""
+    if target == TARGET_DELTA:
+        return np.asarray(proxy, dtype="float64") - np.asarray(pred, dtype="float64")
+    if target == TARGET_Y:
+        return np.asarray(pred, dtype="float64")
+    raise ValueError(f"target must be one of {TARGETS}, got {target!r}")
 
 
 def splice(base: pd.DataFrame, ids, values, expected_ids) -> pd.DataFrame:
@@ -375,69 +483,161 @@ def queue_cache_path(qcache: pathlib.Path, training_path: pathlib.Path) -> pathl
     return pathlib.Path(qcache) / pathlib.Path(training_path).name
 
 
-def _check_queue_columns(q: pd.DataFrame, name: str) -> None:
-    want = ["MVT_ID_mvt"] + QUEUE_FEATS
+def day_cache_path(dcache: pathlib.Path, training_path: pathlib.Path) -> pathlib.Path:
+    """The day twin of a stand cache file: the same file name under data/cache_day/."""
+    return pathlib.Path(dcache) / pathlib.Path(training_path).name
+
+
+# ---- feature-block caches. The queue block (v6) and the day block (Amendment 19) share one join
+# ---- discipline; each is an instance with its own column contract, directory and build hint. ----
+
+def _check_block_columns(q: pd.DataFrame, name: str, feats, what: str) -> None:
+    want = ["MVT_ID_mvt"] + list(feats)
     if list(q.columns) != want:
-        raise ValueError(f"{name}: queue cache columns {list(q.columns)} != the contract {want}")
+        raise ValueError(f"{name}: {what} cache columns {list(q.columns)} != the contract {want}")
 
 
-def read_queue_cache(path: pathlib.Path) -> pd.DataFrame:
-    """One queue cache file, its column contract asserted."""
+def read_block_cache(path: pathlib.Path, feats, what: str, hint: str) -> pd.DataFrame:
+    """One block cache file, its column contract asserted; a missing file names the build command."""
     path = pathlib.Path(path)
     if not path.exists():
-        raise FileNotFoundError(f"queue cache {path} missing (run stand_ab.py queue-cache [--ranking])")
+        raise FileNotFoundError(f"{what} cache {path} missing (run {hint})")
     q = pd.read_parquet(path)
-    _check_queue_columns(q, path.name)
+    _check_block_columns(q, path.name, feats, what)
     return q
 
 
-def attach_queue_positional(n_rows: int, q: pd.DataFrame, name: str) -> pd.DataFrame:
-    """The queue block of a training month, joined by POSITION: the training caches predate
-    MVT_ID_mvt, and the v6 builder measured every month's queue cache to have the same rows in
-    the same order (same filter, same mergesort; tests/test_queue_features.py proves it on
-    March both ways). The only guard a positional join can carry is the row count, so it is
-    asserted per month; a mismatch is a refusal, never a truncation."""
-    _check_queue_columns(q, name)
+def attach_block_positional(n_rows: int, q: pd.DataFrame, name: str, feats, what: str) -> pd.DataFrame:
+    """A block of a training month, joined by POSITION: the training caches predate MVT_ID_mvt,
+    and each block's builder emits the stand cache's rows in the stand cache's order (same
+    filter, same mergesort; proven on March both ways by tests/test_queue_features.py and
+    tests/test_day_features.py). The only guard a positional join can carry is the row count,
+    so it is asserted per month; a mismatch is a refusal, never a truncation."""
+    _check_block_columns(q, name, feats, what)
     if len(q) != n_rows:
-        raise ValueError(f"{name}: queue cache has {len(q):,} rows, training cache {n_rows:,}: not the "
+        raise ValueError(f"{name}: {what} cache has {len(q):,} rows, training cache {n_rows:,}: not the "
                          "same build, refusing a positional join")
-    return q[QUEUE_FEATS].reset_index(drop=True)
+    return q[list(feats)].reset_index(drop=True)
 
 
-def attach_queue_by_id(ids, q: pd.DataFrame, subset_ok: bool = False) -> pd.DataFrame:
-    """The queue block for ranking rows, joined by MVT_ID_mvt and returned in the order of
-    `ids`. The full join (subset_ok=False) requires the SAME id set in the SAME order - both
-    ranking caches are built per calendar month from the raw file in take-off order, so a
-    difference means one was rebuilt differently and is refused; a sampled join (the smoke)
-    aligns the subset by id. Duplicates and missing ids are refusals."""
-    _check_queue_columns(q, "ranking queue cache")
+def attach_block_by_id(ids, q: pd.DataFrame, feats, what: str, subset_ok: bool = False) -> pd.DataFrame:
+    """A block for ranking rows, joined by MVT_ID_mvt and returned in the order of `ids`. The
+    full join (subset_ok=False) requires the SAME id set in the SAME order - every ranking cache
+    is built per calendar month from the raw file in take-off order, so a difference means one
+    was rebuilt differently and is refused; a sampled join (the smoke) aligns the subset by id.
+    Duplicates and missing ids are refusals."""
+    _check_block_columns(q, f"ranking {what} cache", feats, what)
     ids = np.asarray(ids, dtype="float64")
     if not pd.Index(ids).is_unique:
         raise ValueError(f"duplicate ids among the rows to join: {len(ids) - pd.Index(ids).nunique()}")
     qi = q.MVT_ID_mvt.to_numpy(dtype="float64")
     if not pd.Index(qi).is_unique:
-        raise ValueError(f"duplicate MVT_ID in the queue cache: {len(qi) - pd.Index(qi).nunique()}")
+        raise ValueError(f"duplicate MVT_ID in the {what} cache: {len(qi) - pd.Index(qi).nunique()}")
     missing = set(ids) - set(qi)
     if missing:
-        raise ValueError(f"{len(missing):,} rows are missing from the queue cache (no queue features)")
+        raise ValueError(f"{len(missing):,} rows are missing from the {what} cache (no {what} features)")
     if not subset_ok:
         extra = set(qi) - set(ids)
         if extra:
-            raise ValueError(f"{len(extra):,} extra rows in the queue cache: the id sets differ")
+            raise ValueError(f"{len(extra):,} extra rows in the {what} cache: the id sets differ")
         if not np.array_equal(qi, ids):
-            raise ValueError("the queue cache's rows are in a different order from the stand cache's: "
+            raise ValueError(f"the {what} cache's rows are in a different order from the stand cache's: "
                              "not the same build")
-    return q.set_index("MVT_ID_mvt").loc[ids, QUEUE_FEATS].reset_index(drop=True)
+    return q.set_index("MVT_ID_mvt").loc[ids, list(feats)].reset_index(drop=True)
 
 
-def load_frames(cache_dir: pathlib.Path, months=None, n_rank=None, seed=0, queue=False, qcache=None):
+QUEUE_HINT, DAY_HINT = "stand_ab.py queue-cache [--ranking]", "stand_ab.py day-cache [--ranking]"
+
+
+def _check_queue_columns(q: pd.DataFrame, name: str) -> None:
+    _check_block_columns(q, name, QUEUE_FEATS, "queue")
+
+
+def read_queue_cache(path: pathlib.Path) -> pd.DataFrame:
+    """One queue cache file, its column contract asserted."""
+    return read_block_cache(path, QUEUE_FEATS, "queue", QUEUE_HINT)
+
+
+def attach_queue_positional(n_rows: int, q: pd.DataFrame, name: str) -> pd.DataFrame:
+    """The queue block of a training month, joined by position (attach_block_positional)."""
+    return attach_block_positional(n_rows, q, name, QUEUE_FEATS, "queue")
+
+
+def attach_queue_by_id(ids, q: pd.DataFrame, subset_ok: bool = False) -> pd.DataFrame:
+    """The queue block for ranking rows, joined by id (attach_block_by_id)."""
+    return attach_block_by_id(ids, q, QUEUE_FEATS, "queue", subset_ok)
+
+
+def read_day_cache(path: pathlib.Path) -> pd.DataFrame:
+    """One day cache file, its column contract asserted."""
+    return read_block_cache(path, DAY_FEATS, "day", DAY_HINT)
+
+
+def attach_day_positional(n_rows: int, q: pd.DataFrame, name: str) -> pd.DataFrame:
+    """The day block of a training month, joined by position (attach_block_positional)."""
+    return attach_block_positional(n_rows, q, name, DAY_FEATS, "day")
+
+
+def attach_day_by_id(ids, q: pd.DataFrame, subset_ok: bool = False) -> pd.DataFrame:
+    """The day block for ranking rows, joined by id (attach_block_by_id)."""
+    return attach_block_by_id(ids, q, DAY_FEATS, "day", subset_ok)
+
+
+# ---- the unified all-rows arm: the unmatched cache ----------------------------------------------
+
+def unmatched_cache_path(ucache: pathlib.Path, training_path: pathlib.Path) -> pathlib.Path:
+    """The unmatched twin of a stand cache file: the same file name under data/cache_unmatched/."""
+    return pathlib.Path(ucache) / pathlib.Path(training_path).name
+
+
+def read_unmatched_cache(path: pathlib.Path) -> pd.DataFrame:
+    """One unmatched cache file, its contract (stand_ab.UNMATCHED_COLS, in order) asserted."""
+    return read_block_cache(path, UNMATCHED_COLS[1:], "unmatched", UNMATCHED_HINT)
+
+
+def check_unmatched_nan_pattern(frame: pd.DataFrame, name: str = "unmatched cache") -> None:
+    """Refuse an unmatched frame in which an AOBT_3-anchored column (stand_ab.UNMATCHED_NAN_COLS)
+    or a *_flt-derived one (UNMATCHED_FLT_COLS) carries a value: the unified model must see the
+    same missingness on the scored unmatched rows as in training, and a cache with those columns
+    filled - 0, a mean, anything - would train silently on a pattern that never serves."""
+    bad = []
+    for c in S.UNMATCHED_NAN_COLS + S.UNMATCHED_FLT_COLS:
+        if c in frame.columns:
+            n = int(frame[c].notna().sum())
+            if n:
+                bad.append(f"{c} ({n:,} of {len(frame):,} rows)")
+    if bad:
+        raise ValueError(f"{name}: unmatched rows must carry NaN on the AOBT_3-anchored and *_flt-derived columns, "
+                         "but these carry values: " + ", ".join(bad))
+
+
+def row_weights(is_unmatched, unmatched_weight) -> np.ndarray:
+    """LightGBM sample weights: 1.0 on matched rows, `unmatched_weight` on unmatched rows, float64;
+    a non-positive or non-finite weight is refused."""
+    w = float(unmatched_weight)
+    if not np.isfinite(w) or w <= 0.0:
+        raise ValueError(f"the unmatched weight must be a positive finite number, got {unmatched_weight!r}")
+    return np.where(np.asarray(is_unmatched).astype(bool), w, 1.0).astype("float64")
+
+
+def load_frames(cache_dir: pathlib.Path, months=None, n_rank=None, seed=0, queue=False, qcache=None,
+                day=False, dcache=None, all_rows=False, ucache=None):
     """Concatenate the training caches and the ranking cache.
 
     Returns (frame, is_rank, rank_ids). The training caches on disk predate MVT_ID_mvt and
     the ranking cache carries it; the id column is lifted out before the concat so every
     frame has the same schema and the ranking cache's schema is asserted against training.
     With queue=True the twelve QUEUE_FEATS are appended to every training month by position
-    and to the ranking rows by id (attach_queue_positional / attach_queue_by_id).
+    and to the ranking rows by id (attach_queue_positional / attach_queue_by_id); with day=True
+    the nine DAY_FEATS follow them the same way (attach_day_positional / attach_day_by_id), so
+    the column order is always FEATS [+ QUEUE_FEATS] [+ DAY_FEATS].
+
+    With all_rows=True (the unified arm) the unmatched months from `ucache` follow the matched
+    months and the unmatched scored rows follow the matched ranking rows, aligned by name (the
+    matched caches' STAND_BLOCK columns are NaN on unmatched rows; blocks not asked for are
+    dropped; the unmatched cache carries its own queue and day columns), their NaN pattern
+    checked file by file, and the frame carries IS_UNMATCHED (1.0 on them, 0.0 elsewhere) as
+    its LAST column; a sampled ranking then samples matched and unmatched rows together.
     """
     rank_path = cache_dir / "ranking.parquet"
     if not rank_path.exists():
@@ -449,16 +649,37 @@ def load_frames(cache_dir: pathlib.Path, months=None, n_rank=None, seed=0, queue
             qf = attach_queue_positional(len(f), read_queue_cache(queue_cache_path(qcache, p)), p.name)
             for c in QUEUE_FEATS:
                 f[c] = qf[c].to_numpy()
+    if day:
+        dcache = DCACHE if dcache is None else pathlib.Path(dcache)
+        for f, p in zip(frames, paths):
+            df_ = attach_day_positional(len(f), read_day_cache(day_cache_path(dcache, p)), p.name)
+            for c in DAY_FEATS:
+                f[c] = df_[c].to_numpy()
+    u_frames, u_rank = [], None
+    if all_rows:
+        ucache = UCACHE if ucache is None else pathlib.Path(ucache)
+        for p in paths:
+            uf = read_unmatched_cache(unmatched_cache_path(ucache, p))
+            check_unmatched_nan_pattern(uf, p.name)
+            u_frames.append(uf)
+        u_rank = read_unmatched_cache(unmatched_cache_path(ucache, rank_path))
+        check_unmatched_nan_pattern(u_rank, "ranking.parquet (unmatched)")
     rank = pd.read_parquet(rank_path)
-    if n_rank is not None:
+    sample_matched = n_rank is not None and not all_rows
+    if sample_matched:
         rank = rank.sample(n=n_rank, random_state=seed)
     rank_ids = rank.MVT_ID_mvt.to_numpy(dtype="float64")
     rank = rank.drop(columns=["MVT_ID_mvt"])
     if queue:
         qr = attach_queue_by_id(rank_ids, read_queue_cache(queue_cache_path(qcache, rank_path)),
-                                subset_ok=n_rank is not None)
+                                subset_ok=sample_matched)
         for c in QUEUE_FEATS:
             rank[c] = qr[c].to_numpy()
+    if day:
+        dr = attach_day_by_id(rank_ids, read_day_cache(day_cache_path(dcache, rank_path)),
+                              subset_ok=sample_matched)
+        for c in DAY_FEATS:
+            rank[c] = dr[c].to_numpy()
     cols = list(frames[0].columns)
     if set(rank.columns) != set(cols):
         raise ValueError(f"ranking cache schema differs: {set(rank.columns) ^ set(cols)}")
@@ -468,11 +689,43 @@ def load_frames(cache_dir: pathlib.Path, months=None, n_rank=None, seed=0, queue
         raise ValueError(f"ranking cache months {sorted(rank.month.unique())}, expected 1 and 7")
     if not pd.Index(rank_ids).is_unique:
         raise ValueError("duplicate MVT_ID in the ranking cache")
-    d = pd.concat(frames + [rank[cols]], ignore_index=True)
+    if not all_rows:
+        d = pd.concat(frames + [rank[cols]], ignore_index=True)
+        is_rank = np.zeros(len(d), dtype=bool)
+        is_rank[len(d) - len(rank):] = True
+        log(f"loaded {len(paths)} training months ({(~is_rank).sum():,} rows) + ranking "
+            f"({is_rank.sum():,} rows); peak RSS {peak_rss_gb():.2f} GB")
+        return d, is_rank, rank_ids
+
+    # ---- the unified frame: matched months, unmatched months, matched + unmatched scored rows ----
+    if not (u_rank.y.isna().all() and u_rank.delta.isna().all()):
+        raise ValueError("the unmatched ranking cache carries labels - not a serve-mode build")
+    if not set(u_rank.month.unique()) <= {1, 7}:
+        raise ValueError(f"unmatched ranking cache months {sorted(u_rank.month.unique())}, expected 1 and 7")
+    u_ids = u_rank.MVT_ID_mvt.to_numpy(dtype="float64")
+    if not pd.Index(u_ids).is_unique or set(u_ids) & set(rank_ids):
+        raise ValueError("the unmatched ranking cache repeats an id, or shares one with the matched ranking cache")
+    n_m_train = sum(len(f) for f in frames)
+    n_u_train = sum(len(f) for f in u_frames)
+    rank_all = pd.concat([rank[cols].assign(**{IS_UNMATCHED: 0.0, "MVT_ID_mvt": rank_ids}),
+                          u_rank.reindex(columns=cols).assign(**{IS_UNMATCHED: 1.0, "MVT_ID_mvt": u_ids})],
+                         ignore_index=True)
+    if n_rank is not None:
+        rank_all = rank_all.sample(n=n_rank, random_state=seed)
+    rank_ids = rank_all.MVT_ID_mvt.to_numpy(dtype="float64")
+    rank_all = rank_all.drop(columns=["MVT_ID_mvt"])
+    cols_u = cols + [IS_UNMATCHED]
+    parts = [f.assign(**{IS_UNMATCHED: 0.0})[cols_u] for f in frames]
+    parts += [uf.reindex(columns=cols).assign(**{IS_UNMATCHED: 1.0})[cols_u] for uf in u_frames]
+    parts.append(rank_all[cols_u])
+    d = pd.concat(parts, ignore_index=True)
+    del parts, frames, u_frames
+    gc.collect()
     is_rank = np.zeros(len(d), dtype=bool)
-    is_rank[len(d) - len(rank):] = True
-    log(f"loaded {len(paths)} training months ({(~is_rank).sum():,} rows) + ranking "
-        f"({is_rank.sum():,} rows); peak RSS {peak_rss_gb():.2f} GB")
+    is_rank[len(d) - len(rank_all):] = True
+    log(f"loaded {len(paths)} training months ({n_m_train:,} matched + {n_u_train:,} unmatched rows) + ranking "
+        f"({is_rank.sum():,} rows, {int(d[IS_UNMATCHED].to_numpy()[is_rank].sum()):,} unmatched); the NaN pattern "
+        f"checked on {len(paths) + 1} unmatched cache files; peak RSS {peak_rss_gb():.2f} GB")
     return d, is_rank, rank_ids
 
 
@@ -506,30 +759,48 @@ def predict_delta(booster, X, params, num_iteration=None):
     return booster.predict(X, num_iteration=num_iteration, num_threads=params["num_threads"])
 
 
-def early_stop(X, dlt, y, proxy, train, fit, es, params, nest, patience) -> dict:
+def early_stop(X, dlt, y, proxy, train, fit, es, params, nest, patience, target: str = TARGET_DELTA,
+               weight=None) -> dict:
     """lgbm_ab's early-stopping run on `es` -> best_iter, and n_ref for the refit on `train`.
 
-    Returns the fit info (best_iter, n_ref, row counts, the stopping-set guard numbers); the
-    booster itself is discarded - the refit is what ships.
+    `dlt` is always the true delta (the proxy-only reference of the breakage guard reads it);
+    the label LightGBM sees is regression_label(dlt, y, target): delta by default, y under
+    Amendment 19.2's `--target y` - the stopping metric (rmse on the label) is then rmse on y
+    directly, and the stopping-set taxi time is max(prediction, 1) with no proxy anchor.
+    `weight` (the unified arm) is a per-row sample weight for the FIT rows; the stopping set is
+    never weighted - its metric is the competition's plain RMSE. On an all-rows design the
+    proxy-only breakage guard reads the stopping rows that HAVE a proxy (the matched ones).
+    Returns the fit info (best_iter, n_ref, row counts, the target, the stopping-set guard
+    numbers); the booster itself is discarded - the refit is what ships.
     """
-    log(f"early-stopping run (seed {params['seed']}): fit {fit.sum():,} rows, stop on "
+    label = regression_label(dlt, y, target)
+    w = None if weight is None else np.asarray(weight, dtype="float64")
+    if w is not None and w.shape != label.shape:
+        raise ValueError(f"weight shape {w.shape} != label shape {label.shape}")
+    log(f"early-stopping run (seed {params['seed']}, target {target}): fit {fit.sum():,} rows, stop on "
         f"{es.sum():,} rows (months {ES_MONTHS}), lr {params['learning_rate']}, max {nest:,} "
-        f"rounds, patience {patience}")
-    ds = lgb.Dataset(X[fit], dlt[fit])
-    b = lgb.train(params, ds, num_boost_round=nest, valid_sets=[lgb.Dataset(X[es], dlt[es])],
+        f"rounds, patience {patience}" + ("" if w is None else f", row weights (unmatched x{w.max():g})"))
+    ds = lgb.Dataset(X[fit], label[fit], weight=None if w is None else w[fit])
+    b = lgb.train(params, ds, num_boost_round=nest, valid_sets=[lgb.Dataset(X[es], label[es])],
                   callbacks=[lgb.early_stopping(patience, verbose=False),
-                             lgb.log_evaluation(0), _progress(PROGRESS_EVERY)])
+                             lgb.log_evaluation(0), _progress(PROGRESS_EVERY, target)])
     best_iter = int(b.best_iteration)
     assert best_iter >= 1, f"best_iteration {best_iter}"
-    pred_es = np.maximum(proxy[es] - predict_delta(b, X[es], params, num_iteration=best_iter), 1.0)
+    pred_es = np.maximum(raw_taxi_time(predict_delta(b, X[es], params, num_iteration=best_iter), proxy[es], target), 1.0)
     es_rmse = _rmse(y[es], pred_es)
-    proxy_only = _rmse(y[es], np.maximum(proxy[es] - dlt[fit].mean(), 1.0))
+    fin_es, fin_fit = np.isfinite(proxy[es]), np.isfinite(dlt[fit])
+    if fin_es.all() and fin_fit.all():
+        proxy_only = _rmse(y[es], np.maximum(proxy[es] - dlt[fit].mean(), 1.0))
+        es_guard, n_guard = es_rmse, int(es.sum())
+    else:                                   # the unified arm: the rows with a proxy are the matched ones
+        proxy_only = _rmse(y[es][fin_es], np.maximum(proxy[es][fin_es] - dlt[fit][fin_fit].mean(), 1.0))
+        es_guard, n_guard = _rmse(y[es][fin_es], pred_es[fin_es]), int(fin_es.sum())
     log(f"best_iter {best_iter:,}   stopping-set RMSE (taxi-time) {es_rmse:.2f}   "
-        f"proxy-only on the same rows {proxy_only:.2f}   ratio {es_rmse / proxy_only:.3f}   "
+        f"proxy-only on the {n_guard:,} rows with a proxy {proxy_only:.2f}   ratio {es_guard / proxy_only:.3f}   "
         f"[stopping set, optimistic by construction; NOT a fold result]   "
         f"peak RSS {peak_rss_gb():.2f} GB")
-    if es_rmse > ES_MAX_RATIO_TO_PROXY_ONLY * proxy_only:
-        raise RuntimeError(f"stopping-set RMSE {es_rmse:.2f} is not {ES_MAX_RATIO_TO_PROXY_ONLY:.0%} "
+    if es_guard > ES_MAX_RATIO_TO_PROXY_ONLY * proxy_only:
+        raise RuntimeError(f"stopping-set RMSE {es_guard:.2f} is not {ES_MAX_RATIO_TO_PROXY_ONLY:.0%} "
                            f"of proxy-only {proxy_only:.2f}: the feature path is broken, "
                            "refusing to refit")
     del ds, b
@@ -538,34 +809,39 @@ def early_stop(X, dlt, y, proxy, train, fit, es, params, nest, patience) -> dict
     log(f"n_ref {n_ref:,}: refit on all {train.sum():,} training rows "
         f"(best_iter {best_iter:,} x {train.sum() / fit.sum():.3f}), no early stopping")
     return dict(best_iter=best_iter, n_ref=n_ref, n_fit=int(fit.sum()), n_es=int(es.sum()),
-                n_all=int(train.sum()), es_months=list(ES_MONTHS),
-                es_rmse_taxi_time_NOT_A_RESULT=es_rmse, es_proxy_only_rmse=proxy_only)
+                n_all=int(train.sum()), es_months=list(ES_MONTHS), target=target,
+                es_rmse_taxi_time_NOT_A_RESULT=es_rmse, es_proxy_only_rmse=proxy_only, es_guard_rows=n_guard)
 
 
-def refit(X, dlt, mask, params, n_trees):
+def refit(X, dlt, mask, params, n_trees, weight=None):
     """A fixed-count fit on the rows in `mask`, no early stopping: the pooled refit at n_ref,
-    and the per-airport models at their share count, are both this call."""
-    ds = lgb.Dataset(X[mask], dlt[mask])
+    and the per-airport models at their share count, are both this call. `weight` (the unified
+    arm) is the per-row sample weight, masked like the rows."""
+    ds = lgb.Dataset(X[mask], dlt[mask], weight=None if weight is None else np.asarray(weight, dtype="float64")[mask])
     b = lgb.train(params, ds, num_boost_round=n_trees, callbacks=[lgb.log_evaluation(0)])
     del ds
     gc.collect()
     return b
 
 
-def fit_seeds(X, dlt, train, X_pred, params, n_ref, seeds, files=None, info=None, smoke=None,
-              n_features=None):
-    """Refit on `train` at n_ref once per seed and predict X_pred with each -> {seed: delta_hat}.
+def fit_seeds(X, label, train, X_pred, params, n_ref, seeds, files=None, info=None, smoke=None,
+              n_features=None, target: str = TARGET_DELTA, weight=None, provenance=None):
+    """Refit on `train` at n_ref once per seed and predict X_pred with each -> {seed: prediction}.
 
-    When `files` is given each booster is saved with its own fit.json (the ES info plus this
-    seed's params and the feature count) before being freed; only one booster is alive at a
-    time. `n_features` is the width the caller built (default len(FEATS); FEATS + QUEUE_FEATS
-    under --queue) and the booster must agree with it.
+    `label` is the regressor's label (regression_label: delta by default, y under --target y;
+    the prediction is on the same scale). When `files` is given each booster is saved with its
+    own fit.json (the ES info plus this seed's params, the feature count and the target) before
+    being freed; only one booster is alive at a time. `n_features` is the width the caller
+    built (default len(FEATS); FEATS + QUEUE_FEATS under --queue, + DAY_FEATS under --dayfeats,
+    + is_unmatched under --all-rows) and the booster must agree with it. `weight` is the
+    per-row sample weight (the unified arm); `provenance` extra fit.json fields (all_rows,
+    unmatched_weight) checked on reuse.
     """
     n_features = len(FEATS) if n_features is None else int(n_features)
     out = {}
     for i, s in enumerate(seeds):
         t = time.time()
-        b = refit(X, dlt, train, dict(params, seed=s), n_ref)
+        b = refit(X, label, train, dict(params, seed=s), n_ref, weight=weight)
         wall = time.time() - t
         if b.num_feature() != n_features:
             raise ValueError(f"booster has {b.num_feature()} features, expected {n_features}")
@@ -576,7 +852,7 @@ def fit_seeds(X, dlt, train, X_pred, params, n_ref, seeds, files=None, info=None
             b.save_model(str(path))
             fjson.write_text(json.dumps({**info, "fit_wall_s": round(wall, 1), "smoke": smoke,
                                          "params": dict(params, seed=s), "es_seed": ES_SEED,
-                                         "n_features": n_features},
+                                         "n_features": n_features, "target": target, **(provenance or {})},
                                         indent=2))
             log(f"saved booster -> {path}")
         out[s] = predict_delta(b, X_pred, params)
@@ -599,10 +875,12 @@ def reusable(files) -> bool:
     return False
 
 
-def reuse_seeds(files, seeds, X_pred, params, smoke, n_all, n_features=None):
-    """Load each seed's saved booster, check its provenance against ITS seed's params, predict.
+def reuse_seeds(files, seeds, X_pred, params, smoke, n_all, n_features=None, target: str = TARGET_DELTA,
+                provenance=None):
+    """Load each seed's saved booster, check its provenance against ITS seed's params (and the
+    run's feature count and target), predict.
 
-    Returns ({seed: delta_hat}, the shared fit info from the first fit.json). Every fit.json
+    Returns ({seed: prediction}, the shared fit info from the first fit.json). Every fit.json
     must agree on best_iter and n_ref - they came from one early-stopping run.
     """
     n_features = len(FEATS) if n_features is None else int(n_features)
@@ -610,7 +888,8 @@ def reuse_seeds(files, seeds, X_pred, params, smoke, n_all, n_features=None):
     for s, (path, fjson) in zip(seeds, files):
         b = lgb.Booster(model_file=str(path))
         i = json.loads(fjson.read_text())
-        check_provenance(i, b.num_trees(), smoke, n_all, dict(params, seed=s), n_features=n_features)
+        check_provenance(i, b.num_trees(), smoke, n_all, dict(params, seed=s), n_features=n_features, target=target,
+                         extra=provenance)
         if b.num_feature() != n_features:
             raise ValueError(f"{path.name} has {b.num_feature()} features, expected {n_features}")
         log(f"reused booster {path} ({b.num_trees():,} trees), best_iter {i['best_iter']:,}, "
@@ -669,26 +948,32 @@ def airport_codes(series: pd.Series):
     return codes, airports
 
 
-def fit_per_airport(X, dlt, train, pred, ap_code, airports, params, n_ref, seeds,
-                    min_rows=PA_MIN_ROWS, floor=PA_TREE_FLOOR, trees="share", es=None):
-    """One LightGBM per airport with >= min_rows training rows, refit per seed, predicting that
-    airport's `pred` rows. Airports under the floor (or with no prediction rows) are left NaN
-    with fitted=False - blend() keeps the pooled value there.
+def fit_per_airport(X, label, train, pred, ap_code, airports, params, n_ref, seeds,
+                    min_rows=PA_MIN_ROWS, floor=PA_TREE_FLOOR, trees="share", es=None, target: str = TARGET_DELTA):
+    """One LightGBM per airport with >= min_rows training rows, refit per seed on `label` (the
+    regressor's label: delta by default, y under --target y), predicting that airport's `pred`
+    rows. Airports under the floor (or with no prediction rows) are left NaN with fitted=False -
+    blend() keeps the pooled value there.
 
     Tree count per airport: trees="share" -> per_airport_trees(n_ref, n_airport, n_all, floor);
     trees="es" -> the airport's own early-stopping run (early_stop on the pooled fit/es masks
-    intersected with the airport, seed ES_SEED) and its own n_ref; `es` then supplies
-    dict(y=, proxy=, fit=, es=, nest=, patience=).
+    intersected with the airport, seed ES_SEED, the same target) and its own n_ref; `es` then
+    supplies dict(y=, proxy=, fit=, es=, nest=, patience=) and, under a non-delta target, dlt=
+    (the true delta, which early_stop's proxy-only guard reads; under delta the label is it).
 
-    Returns ({seed: per-airport delta_hat over the pred rows, NaN where not fitted},
+    Returns ({seed: per-airport prediction over the pred rows, NaN where not fitted},
              fitted mask over the pred rows, {airport: info incl. the rule it was sized by}).
     """
     if trees not in ("share", "es"):
         raise ValueError(f"trees must be 'share' or 'es', got {trees!r}")
+    if target not in TARGETS:
+        raise ValueError(f"target must be one of {TARGETS}, got {target!r}")
     if trees == "es":
         need = ("y", "proxy", "fit", "es", "nest", "patience")
         if es is None or any(k not in es for k in need):
             raise ValueError(f"trees='es' needs es={{{', '.join(k + '=' for k in need)}}}")
+        if target != TARGET_DELTA and "dlt" not in es:
+            raise ValueError(f"trees='es' under target {target!r} needs es['dlt'] (the true delta) as well")
     train, pred = np.asarray(train, dtype=bool), np.asarray(pred, dtype=bool)
     ap_code = np.asarray(ap_code)
     if (train & pred).any():
@@ -718,15 +1003,15 @@ def fit_per_airport(X, dlt, train, pred, ap_code, airports, params, n_ref, seeds
             if not fit_a.any() or not es_a.any():
                 raise ValueError(f"{name}: no fit or no early-stopping rows for a per-airport ES run")
             log(f"  per-airport {name}: early stopping on its own rows")
-            i = early_stop(X, dlt, es["y"], es["proxy"], tr_mask, fit_a, es_a,
-                           dict(params, seed=ES_SEED), es["nest"], es["patience"])
+            i = early_stop(X, es["dlt"] if "dlt" in es else label, es["y"], es["proxy"], tr_mask, fit_a, es_a,
+                           dict(params, seed=ES_SEED), es["nest"], es["patience"], target=target)
             n_trees = int(i["n_ref"])
             es_info = dict(best_iter=int(i["best_iter"]), n_ref=n_trees, n_fit=int(i["n_fit"]),
                            n_es=int(i["n_es"]))
         Xp = X[pred_idx[rows]]
         t = time.time()
         for s in seeds:
-            b = refit(X, dlt, tr_mask, dict(params, seed=s), n_trees)
+            b = refit(X, label, tr_mask, dict(params, seed=s), n_trees)
             pa_by_seed[s][rows] = predict_delta(b, Xp, params)
             del b
             gc.collect()
@@ -756,17 +1041,25 @@ def blend(pooled, pa, fitted, weight=BLEND) -> np.ndarray:
 
 
 def check_provenance(info: dict, n_trees: int, smoke: bool, n_all: int, params: dict,
-                     n_features=None) -> None:
+                     n_features=None, target=None, extra=None) -> None:
     """A saved booster may be reused only by the configuration that produced it.
 
     A smoke booster at the real path, a booster fitted on a different row set, different
-    parameters, a different feature count (a fit.json that records one), or a truncated model
-    file would otherwise be spliced into a submission silently. Refuse on any mismatch. A
-    legacy fit.json without n_features falls through to the booster's own num_feature check.
+    parameters, a different feature count (a fit.json that records one), another target, or a
+    truncated model file would otherwise be spliced into a submission silently. Refuse on any
+    mismatch. A legacy fit.json without n_features falls through to the booster's own
+    num_feature check; one without `target` is a delta booster (every booster before Amendment
+    19), reusable by a delta run only.
     """
     problems = []
     if n_features is not None and "n_features" in info and info["n_features"] != n_features:
         problems.append(f"n_features={info['n_features']} (run has {n_features})")
+    if target is not None and info.get("target", TARGET_DELTA) != target:
+        problems.append(f"target={info.get('target', TARGET_DELTA)!r} (run has {target!r})")
+    for k, v in (extra or {}).items():
+        have = info.get(k, LEGACY_PROVENANCE.get(k))
+        if have != v:
+            problems.append(f"{k}={have!r} (run has {v!r})")
     if info.get("smoke") != smoke:
         problems.append(f"smoke={info.get('smoke')} (run is smoke={smoke})")
     if info.get("n_all") != n_all:
@@ -1004,26 +1297,38 @@ def main(argv=None) -> int:
     dest = out_dir / output_name(args.version)
     if dest.resolve() == base_path.resolve():
         raise SystemExit("refusing to overwrite the base submission")
-    feats = list(FEATS) + QUEUE_FEATS if args.queue else list(FEATS)
+    feats = (list(FEATS) + (QUEUE_FEATS if args.queue else []) + (DAY_FEATS if args.dayfeats else [])
+             + ([IS_UNMATCHED] if args.all_rows else []))
     feats_all = head_features(feats) if args.fillhead else feats   # the matrix; the regressors read [:nb]
     nb = len(feats)
+    target = args.target
+    provenance = {"all_rows": bool(args.all_rows), "unmatched_weight": float(args.unmatched_weight) if args.all_rows else 1.0}
     booster_dir = out_dir if smoke else CACHE
-    files = booster_files(booster_dir, args.version, seeds, queue=args.queue)
-    head_files = head_booster_files(booster_dir, args.version, queue=args.queue) if args.fillhead else None
+    files = booster_files(booster_dir, args.version, seeds, queue=args.queue, day=args.dayfeats, target=target,
+                          all_rows=args.all_rows, unmatched_weight=args.unmatched_weight)
+    head_files = (head_booster_files(booster_dir, args.version, queue=args.queue, day=args.dayfeats)
+                  if args.fillhead else None)
     log(f"version {args.version}  smoke={smoke}  seeds={list(seeds)}  per-airport={args.per_airport}"
-        f"  queue={args.queue} ({len(feats)} features)  fillhead={args.fillhead}"
+        f"  queue={args.queue} ({len(feats)} features)  dayfeats={args.dayfeats}  target={target}"
+        f"  all-rows={args.all_rows}" + (f" (unmatched weight {args.unmatched_weight:g})" if args.all_rows else "")
+        + f"  fillhead={args.fillhead}"
         + (f" ({len(feats_all)} columns, the regressors read the first {nb}; head booster {head_files[0].name})"
            if args.fillhead else "")
         + f"  out={dest}  boosters={[p.name for p, _ in files]} in {files[0][0].parent}")
 
     # ---- 1. rows ----
-    d, is_rank, rank_ids = load_frames(CACHE, months=months, n_rank=n_rank, queue=args.queue)
+    d, is_rank, rank_ids = load_frames(CACHE, months=months, n_rank=n_rank, queue=args.queue, day=args.dayfeats,
+                                       all_rows=args.all_rows)
     train, fit, es = split_masks(d.month.to_numpy(), is_rank)
     y, dlt, proxy, sp = d.y.to_numpy(), d.delta.to_numpy(), d.proxy.to_numpy(), d.sp.to_numpy()
+    label = regression_label(dlt, y, target)         # delta (the default) or y (Amendment 19.2)
+    is_um = (d[IS_UNMATCHED].to_numpy() == 1.0) if args.all_rows else np.zeros(len(d), dtype=bool)
+    weight = row_weights(is_um, args.unmatched_weight) if args.all_rows else None
     ap_code, airports = airport_codes(d.ap)          # before the string columns go
 
-    # ---- 2. encodings: fitted on every training row, applied to the ranking rows ----
-    for col, vals in S.infold_encodings(d, y, dlt, train).items():
+    # ---- 2. encodings: fitted on every training row, applied to the ranking rows; the delta
+    # ---- encodings on the matched training rows only under --all-rows (delta is NaN elsewhere) ----
+    for col, vals in S.infold_encodings(d, y, dlt, train, delta_mask=(~is_um if args.all_rows else None)).items():
         d[col] = vals
     nan_enc = [c for c in S.ENC if np.isnan(d[c].to_numpy()[is_rank]).any()]
     assert not nan_enc, f"NaN encodings on ranking rows: {nan_enc}"
@@ -1043,12 +1348,15 @@ def main(argv=None) -> int:
 
     # ---- 4. fit once per seed, or reuse every seed's saved booster ----
     if args.reuse_booster and reusable(files):
-        preds, info = reuse_seeds(files, seeds, Xb_rank, params, smoke, int(train.sum()), n_features=len(feats))
+        preds, info = reuse_seeds(files, seeds, Xb_rank, params, smoke, int(train.sum()), n_features=len(feats),
+                                  target=target, provenance=provenance)
     else:
         t_fit = time.time()
-        info = early_stop(Xb, dlt, y, proxy, train, fit, es, dict(params, seed=ES_SEED), nest, patience)
-        preds = fit_seeds(Xb, dlt, train, Xb_rank, params, info["n_ref"], seeds,
-                          files=files, info=info, smoke=smoke, n_features=len(feats))
+        info = early_stop(Xb, dlt, y, proxy, train, fit, es, dict(params, seed=ES_SEED), nest, patience, target=target,
+                          weight=weight)
+        preds = fit_seeds(Xb, label, train, Xb_rank, params, info["n_ref"], seeds,
+                          files=files, info=info, smoke=smoke, n_features=len(feats), target=target, weight=weight,
+                          provenance=provenance)
         info["fit_wall_s"] = round(time.time() - t_fit, 1)
         log(f"fit wall {info['fit_wall_s']:.0f}s for the early-stopping run + {len(seeds)} refit(s)")
     pooled = mean_delta([preds[s] for s in seeds])
@@ -1065,9 +1373,9 @@ def main(argv=None) -> int:
             f"tree rule [{args.pa_trees}] {pa_rule} (share floor {pa_floor}), seeds {list(seeds)}")
         t_pa = time.time()
         pa_by_seed, fitted, pa_info = fit_per_airport(
-            Xb, dlt, train, is_rank, ap_code, airports, params, info["n_ref"], seeds,
+            Xb, label, train, is_rank, ap_code, airports, params, info["n_ref"], seeds,
             min_rows=PA_MIN_ROWS, floor=pa_floor, trees=args.pa_trees,
-            es=dict(y=y, proxy=proxy, fit=fit, es=es, nest=nest, patience=patience))
+            es=dict(y=y, proxy=proxy, dlt=dlt, fit=fit, es=es, nest=nest, patience=patience), target=target)
         delta_hat = blend(pooled, mean_delta([pa_by_seed[s] for s in seeds]), fitted, BLEND)
         n_fitted = sum(1 for r in pa_info.values() if r["fitted"])
         log(f"per-airport done: {n_fitted}/{len(airports)} airports fitted, {int(fitted.sum()):,} "
@@ -1092,7 +1400,7 @@ def main(argv=None) -> int:
                                          files=head_files, smoke=smoke, n_features=len(feats_all))
         sp_rank = sp[is_rank]
         assert np.isfinite(sp_rank).all(), "sp is not finite on every ranking row: the head cannot mix"
-        base_yhat = np.maximum(proxy[is_rank] - delta_hat, 1.0)   # the regressor arm's own prediction
+        base_yhat = np.maximum(raw_taxi_time(delta_hat, proxy[is_rank], target), 1.0)   # the regressor arm's own prediction
         y_mix = mix_fill(p, sp_rank, base_yhat)
         pred = finalise_taxi_time(y_mix)
         bind = float((y_mix < 1.0).mean())
@@ -1114,8 +1422,9 @@ def main(argv=None) -> int:
             "mean p " + (f"{head_meta['mean_p_on_sp_nonpositive']:.4f}" if nonpos.any() else "n/a")
             + f"; {time.time() - t_head:.0f}s")
     else:
-        pred = recover_taxi_time(proxy[is_rank], delta_hat)
-        bind = float(((proxy[is_rank] - delta_hat) < 1.0).mean())
+        raw = raw_taxi_time(delta_hat, proxy[is_rank], target)    # proxy - delta_hat, or the y prediction itself
+        pred = finalise_taxi_time(raw)
+        bind = float((raw < 1.0).mean())
 
     # ---- 6. the matched ranking rows ----
     log(f"predicted {len(pred):,} matched rows: median {np.median(pred):.0f}s  mean {pred.mean():.0f}s  "
@@ -1127,9 +1436,15 @@ def main(argv=None) -> int:
     template = pq.read_table(RAW / "submitting.parquet").to_pandas()
     base = pq.read_table(base_path).to_pandas()
     B.check_submission(base, template)
-    expected = matched_ids(RAW / "ranking.parquet", template)
+    if args.all_rows:
+        expected = set(template.MVT_ID_mvt)          # EVERY scored row: the unified model predicts them all
+    else:
+        expected = matched_ids(RAW / "ranking.parquet", template)
     if smoke:
         expected &= set(rank_ids)
+    elif args.all_rows:
+        assert len(expected) == len(template) == N_MATCHED + N_UNMATCHED, f"scored ids {len(expected):,} != {N_MATCHED + N_UNMATCHED:,}"
+        assert len(rank_ids) == len(expected), f"{len(rank_ids):,} predictions for {len(expected):,} scored rows"
     else:
         assert len(expected) == N_MATCHED, f"matched ids {len(expected):,} != {N_MATCHED:,}"
         assert len(base) - len(expected) == N_UNMATCHED, "unmatched count != 5,290"
@@ -1172,6 +1487,13 @@ def main(argv=None) -> int:
             "max_rounds": nest, "patience": patience,
             "features": feats, "n_features": len(feats),
             "queue": args.queue, "queue_feats": QUEUE_FEATS if args.queue else None,
+            "dayfeats": args.dayfeats, "day_feats": DAY_FEATS if args.dayfeats else None,
+            "target": target,
+            "all_rows": bool(args.all_rows), "unmatched_weight": float(args.unmatched_weight) if args.all_rows else None,
+            "n_unmatched_train": int(is_um[train].sum()), "n_unmatched_rank": int(is_um[is_rank].sum()),
+            "unmatched_nan_cols": list(S.UNMATCHED_NAN_COLS) if args.all_rows else None,
+            "unmatched_flt_cols": list(S.UNMATCHED_FLT_COLS) if args.all_rows else None,
+            "unmatched_nan_pattern_checked": bool(args.all_rows),
             "fillhead": args.fillhead, "fill_head": head_meta,
             "features_head": feats_all if args.fillhead else None,
             "n_features_head": len(feats_all) if args.fillhead else None,
