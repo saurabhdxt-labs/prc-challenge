@@ -66,6 +66,11 @@ DAY_FEATS = ["d_prx_p50", "d_prx_p90", "d_prx_le0", "d_arr_p50", "d_arr_p90", "d
              "d_n_dep", "d_n_arr", "d_prx_minus_p50"]
 #: the three day columns that are NaN together when a day has no arrival with a taxi-in
 DAY_ARR_FEATS = ["d_arr_p50", "d_arr_p90", "d_arr_long"]
+#: Amendment 22's order block, drawn from its OWN RNG stream (seed * 100 + month + ORDER_RNG_OFFSET)
+#: so every draw the generator already made is unchanged; o_dev_flt NaN on ~1% of rows (a null
+#: FLIGHT_ID), o_n_line 501 on 95% of rows and 50..500 on the rest (window edges)
+ORDER_FEATS = ["o_dev_mvt", "o_dev_flt", "o_n_line"]
+ORDER_RNG_OFFSET = 8_887
 N_DAYS = 30                       # synthetic airport-days per month for the day block
 DAY_RNG_OFFSET = 7_919            # the day block's own RNG stream: seed * 100 + month + this
 
@@ -173,9 +178,23 @@ def day_block(rng_day, n) -> tuple:
     return blk, eff
 
 
-def _month(rng, rng_day, m, n, cols, queue_signal, fill_feature, day_signal, proxy_levels, serve) -> tuple:
-    """One synthetic month: (stand frame dict, queue block, day block). The order of every draw
-    from `rng` is the original generator's; the day block comes from `rng_day`."""
+def order_block(rng_order, n) -> dict:
+    """The order block from its OWN RNG stream: two N(0, 0.4) deviations (o_dev_flt NaN on ~1% of
+    rows) and the window count."""
+    dev_m = rng_order.normal(0.0, 0.4, n)
+    dev_f = rng_order.normal(0.0, 0.4, n)
+    dev_f[rng_order.random(n) < 0.01] = np.nan
+    n_line = np.where(rng_order.random(n) < 0.95, 501.0, np.round(rng_order.uniform(50, 500, n)))
+    return {"o_dev_mvt": dev_m, "o_dev_flt": dev_f, "o_n_line": n_line}
+
+
+def _month(rng, rng_day, m, n, cols, queue_signal, fill_feature, day_signal, proxy_levels, serve,
+           rng_order=None, order_signal=0.0) -> tuple:
+    """One synthetic month: (stand frame dict, queue block, day block, order block). The order of
+    every draw from `rng` is the original generator's; the day block comes from `rng_day`, the
+    order block from `rng_order` (None: no order block, the pre-Amendment-22 callers). With
+    `order_signal` the target carries order_signal x o_dev_flt (0 where NaN) - a per-row effect
+    visible only through the order block (the Amendment 22 arm's test)."""
     d = {}
     for c in cols:
         if c in INT_COLS:
@@ -198,6 +217,11 @@ def _month(rng, rng_day, m, n, cols, queue_signal, fill_feature, day_signal, pro
     blk, eff = day_block(rng_day, n)
     if day_signal:
         delta = delta + day_signal * eff              # a day-level shift, visible only through the day block
+    ordblk = order_block(rng_order, n) if rng_order is not None else None
+    if order_signal:
+        if ordblk is None:
+            raise ValueError("order_signal needs an order block (rng_order)")
+        delta = delta + order_signal * np.nan_to_num(ordblk["o_dev_flt"])   # per row, visible only through the order block
     tail = rng.random(n) < 0.02
     delta[tail] = rng.choice([-1.0, 1.0], tail.sum()) * rng.uniform(1_300, 1_400, tail.sum())
     u = rng.random(n)
@@ -219,10 +243,10 @@ def _month(rng, rng_day, m, n, cols, queue_signal, fill_feature, day_signal, pro
     if serve:
         y, delta = np.full(n, np.nan), np.full(n, np.nan)   # the scored file carries no label
     d.update(delta=delta, y=y, proxy=proxy, sp=sp, month=np.full(n, m, "int32"), ap=ap)
-    return d, q, blk
+    return d, q, blk, ordblk
 
 
-def _write_twins(qdir, ddir, name, ids, q, blk) -> None:
+def _write_twins(qdir, ddir, name, ids, q, blk, odir=None, ordblk=None) -> None:
     qf = pd.DataFrame({"MVT_ID_mvt": ids})
     for c in QUEUE_FEATS:
         qf[c] = q[c].astype("float32")
@@ -231,12 +255,18 @@ def _write_twins(qdir, ddir, name, ids, q, blk) -> None:
     for c in DAY_FEATS:
         df[c] = blk[c].astype("float32")
     df.to_parquet(ddir / name, index=False)
+    if odir is not None:
+        of = pd.DataFrame({"MVT_ID_mvt": ids})
+        for c in ORDER_FEATS:
+            of[c] = ordblk[c].astype("float32")
+        of.to_parquet(odir / name, index=False)
 
 
 def synthetic_caches(root, months, n=600, seed=0, queue_signal=60.0, fill_feature=None, day_signal=0.0,
-                     proxy_levels=None):
-    """data/cache_stand + data/cache_queue + data/cache_day twins under `root`, one file per
-    calendar month in `months`. Returns (stand dir, queue dir); the day dir is root/cache_day.
+                     proxy_levels=None, order_signal=0.0):
+    """data/cache_stand + data/cache_queue + data/cache_day (+ data/cache_order, Amendment 22) twins
+    under `root`, one file per calendar month in `months`. Returns (stand dir, queue dir); the day
+    dir is root/cache_day, the order dir root/cache_order.
 
     With `fill_feature` (the Amendment 16 arm's test) the fills are PLANTED instead of drawn:
     fill iff that feature > 1.2816 (the top 10% of its N(0, 1) draw), and every other row's sp is
@@ -247,8 +277,9 @@ def synthetic_caches(root, months, n=600, seed=0, queue_signal=60.0, fill_featur
     still happens, in the original order).
     """
     stand, queue, day = root / "cache_stand", root / "cache_queue", root / "cache_day"
-    unmatched = root / "cache_unmatched"
+    unmatched, order = root / "cache_unmatched", root / "cache_order"
     stand.mkdir(parents=True), queue.mkdir(parents=True), day.mkdir(parents=True), unmatched.mkdir(parents=True)
+    order.mkdir(parents=True)
     assert set(KEYS) == set(S.ENC_KEYS)
     cols = stand_columns()
     ucols = unmatched_columns()
@@ -256,11 +287,12 @@ def synthetic_caches(root, months, n=600, seed=0, queue_signal=60.0, fill_featur
     for m in months:
         rng = np.random.default_rng(seed * 100 + m)
         rng_day = np.random.default_rng(seed * 100 + m + DAY_RNG_OFFSET)
-        d, q, blk = _month(rng, rng_day, m, n, cols, queue_signal, fill_feature, day_signal, proxy_levels,
-                           serve=False)
+        rng_order = np.random.default_rng(seed * 100 + m + ORDER_RNG_OFFSET)
+        d, q, blk, ordblk = _month(rng, rng_day, m, n, cols, queue_signal, fill_feature, day_signal, proxy_levels,
+                                   serve=False, rng_order=rng_order, order_signal=order_signal)
         name = MONTH_NAME.format(m, m + 1)
         pd.DataFrame(d)[cols].to_parquet(stand / name, index=False)
-        _write_twins(queue, day, name, next_id + np.arange(n, dtype="float64"), q, blk)
+        _write_twins(queue, day, name, next_id + np.arange(n, dtype="float64"), q, blk, order, ordblk)
         next_id += n
         # the unmatched rows of the month: their own RNG stream, ids from 500,000 up
         rng_u = np.random.default_rng(seed * 100 + m + UNMATCHED_RNG_OFFSET)
@@ -315,12 +347,15 @@ def synthetic_submission(root, months=(1, 2, 3), n=600, seed=0, n_rank=6_000, n_
     cols = stand_columns()
     first_id = 1_000_000.0
     parts, ids_all, q_all, blk_all = [], [], {c: [] for c in QUEUE_FEATS}, {c: [] for c in DAY_FEATS}
+    ord_all = {c: [] for c in ORDER_FEATS}
     per_month = n_rank // 2
     for i, m in enumerate((1, 7)):
         rng = np.random.default_rng(seed * 100 + 50 + m)
         rng_day = np.random.default_rng(seed * 100 + 50 + m + DAY_RNG_OFFSET)
-        d, q, blk = _month(rng, rng_day, m, per_month, cols, kw.get("queue_signal", 60.0), kw.get("fill_feature"),
-                           kw.get("day_signal", 0.0), kw.get("proxy_levels"), serve=True)
+        rng_order = np.random.default_rng(seed * 100 + 50 + m + ORDER_RNG_OFFSET)
+        d, q, blk, ordblk = _month(rng, rng_day, m, per_month, cols, kw.get("queue_signal", 60.0), kw.get("fill_feature"),
+                                   kw.get("day_signal", 0.0), kw.get("proxy_levels"), serve=True,
+                                   rng_order=rng_order, order_signal=kw.get("order_signal", 0.0))
         ids = first_id + i * per_month + np.arange(per_month, dtype="float64")
         frame = pd.DataFrame(d)[cols]
         frame.insert(0, "MVT_ID_mvt", ids)
@@ -330,11 +365,14 @@ def synthetic_submission(root, months=(1, 2, 3), n=600, seed=0, n_rank=6_000, n_
             q_all[c].append(q[c])
         for c in DAY_FEATS:
             blk_all[c].append(blk[c])
+        for c in ORDER_FEATS:
+            ord_all[c].append(ordblk[c])
     rank = pd.concat(parts, ignore_index=True)
     rank.to_parquet(stand / "ranking.parquet", index=False)
     rank_ids = np.concatenate(ids_all)
     _write_twins(queue, day, "ranking.parquet", rank_ids,
-                 {c: np.concatenate(v) for c, v in q_all.items()}, {c: np.concatenate(v) for c, v in blk_all.items()})
+                 {c: np.concatenate(v) for c, v in q_all.items()}, {c: np.concatenate(v) for c, v in blk_all.items()},
+                 root / "cache_order", {c: np.concatenate(v) for c, v in ord_all.items()})
 
     rng = np.random.default_rng(seed * 100 + 99)
     unmatched = first_id + n_rank + np.arange(n_unmatched, dtype="float64")
@@ -368,6 +406,6 @@ def synthetic_submission(root, months=(1, 2, 3), n=600, seed=0, n_rank=6_000, n_
                          "TAXITIME_SEC_mvt": rng.integers(300, 2_000, len(dep_ids)).astype("int32")})
     base_path = subs / f"{TEAM}_v1.parquet"
     base.to_parquet(base_path, index=False)
-    return SimpleNamespace(stand=stand, queue=queue, day=day, unmatched=root / "cache_unmatched", raw=raw, subs=subs,
+    return SimpleNamespace(stand=stand, queue=queue, day=day, order=root / "cache_order", unmatched=root / "cache_unmatched", raw=raw, subs=subs,
                            base=base_path, rank_ids=rank_ids, matched_ids=set(rank_ids.tolist()),
                            unmatched_ids=set(unmatched.tolist()))

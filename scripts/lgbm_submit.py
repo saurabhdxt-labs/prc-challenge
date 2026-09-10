@@ -70,6 +70,11 @@ against a golden of the pristine file, tests/test_lgbm_submit.py):
                     exactly as the queue block is (months by position, ranking by id; the row
                     contract is tests/test_day_features.py's). Boosters carry a `_day` tag
                     (`_queue_day` with --queue).
+    --orderfeats    append stand_ab.ORDER_FEATS (the three record-ordering features cached by
+                    `stand_ab.py order-cache` in data/cache_order/, Amendment 22) after the day
+                    block: FEATS [+ QUEUE_FEATS] [+ DAY_FEATS] + ORDER_FEATS, joined like the
+                    other blocks. Boosters carry an `_order` tag after `_day`. Not built for
+                    --all-rows (the unmatched cache carries no order columns).
     --target y      arm Y: the regressor's label is y (TAXITIME) instead of delta, the stopping
                     metric is therefore RMSE on y directly, and the matched prediction is
                     y_hat = max(prediction, 1) with NO proxy subtraction (Amendment 19.2). The
@@ -144,6 +149,9 @@ QUEUE_FEATS = list(S.QUEUE_FEATS)
 #: Amendment 19 arm D: the day block's cache directory and column contract, one place.
 DCACHE = S.DCACHE
 DAY_FEATS = list(S.DAY_FEATS)
+#: Amendment 22 arm F: the order block's cache directory and column contract, one place.
+OCACHE = S.OCACHE
+ORDER_FEATS = list(S.ORDER_FEATS)
 #: Amendment 19 arm Y: the regressor's label. `delta` (the default, v3 onwards) anchors the
 #: prediction on proxy, y_hat = max(proxy - delta_hat, 1); `y` predicts the taxi time itself,
 #: y_hat = max(prediction, 1), no proxy anchor, the stopping metric on y directly.
@@ -278,6 +286,9 @@ def parse_args(argv=None) -> argparse.Namespace:
     ap.add_argument("--dayfeats", action="store_true",
                     help="append stand_ab.DAY_FEATS from data/cache_day/ to the design matrix, after the "
                          "queue block (Amendment 19 arm D); boosters are tagged _day / _queue_day")
+    ap.add_argument("--orderfeats", action="store_true",
+                    help="append stand_ab.ORDER_FEATS from data/cache_order/ after the day block (Amendment 22 "
+                         "arm F); boosters carry an _order tag; not available with --all-rows")
     ap.add_argument("--target", choices=TARGETS, default=TARGET_DELTA,
                     help="the regressor's label: delta (default; y_hat = max(proxy - delta_hat, 1)) or y "
                          "(Amendment 19 arm Y; y_hat = max(prediction, 1), no proxy anchor); boosters are "
@@ -296,20 +307,24 @@ def parse_args(argv=None) -> argparse.Namespace:
             ap.error("--all-rows needs --target y: the delta formulation has no proxy on the unmatched rows")
         if args.fillhead or args.per_airport:
             ap.error("--all-rows does not combine with --fillhead or --per-airport (not pre-registered for the unified arm)")
+        if args.orderfeats:
+            ap.error("--all-rows does not combine with --orderfeats: the unmatched cache carries no order columns")
         if not (np.isfinite(args.unmatched_weight) and args.unmatched_weight > 0):
             ap.error(f"--unmatched-weight must be a positive finite number, got {args.unmatched_weight}")
     return args
 
 
 def booster_tag(queue: bool = False, day: bool = False, target: str = TARGET_DELTA, all_rows: bool = False,
-                unmatched_weight: float = 1.0) -> str:
-    """The configuration tag in a booster's file name: `_queue` / `_day` / `_queue_day` for the
-    block(s) in the design, `_ytarget` for the y formulation, `_allrows` for the unified arm and
-    `_w{W}` for a non-unit unmatched weight, in that order, empty for the v3/v4 design on delta -
-    so a booster can never be reused by another configuration."""
+                unmatched_weight: float = 1.0, order: bool = False) -> str:
+    """The configuration tag in a booster's file name: `_queue` / `_day` / `_order` (any
+    combination, in that order) for the block(s) in the design, `_ytarget` for the y
+    formulation, `_allrows` for the unified arm and `_w{W}` for a non-unit unmatched weight, in
+    that order, empty for the v3/v4 design on delta - so a booster can never be reused by another
+    configuration."""
     if target not in TARGETS:
         raise ValueError(f"target must be one of {TARGETS}, got {target!r}")
-    tag = ("_queue" if queue else "") + ("_day" if day else "") + ("_ytarget" if target == TARGET_Y else "")
+    tag = (("_queue" if queue else "") + ("_day" if day else "") + ("_order" if order else "")
+           + ("_ytarget" if target == TARGET_Y else ""))
     if all_rows:
         tag += "_allrows"
         if float(unmatched_weight) != 1.0:
@@ -318,26 +333,28 @@ def booster_tag(queue: bool = False, day: bool = False, target: str = TARGET_DEL
 
 
 def booster_files(directory: pathlib.Path, version: int, seeds, queue: bool = False, day: bool = False,
-                  target: str = TARGET_DELTA, all_rows: bool = False, unmatched_weight: float = 1.0) -> list:
+                  target: str = TARGET_DELTA, all_rows: bool = False, unmatched_weight: float = 1.0,
+                  order: bool = False) -> list:
     """(model file, fit.json) per seed. The default seed set keeps v3's names so that
     --reuse-booster still finds lgbm_v3.txt; any other set names one file per seed. A --queue
     run carries a `_queue` tag so its 80-feature boosters can never be reused by a 68-feature
     run (nor the reverse); --dayfeats, --target y and --all-rows add `_day`, `_ytarget`,
     `_allrows[_w{W}]` (booster_tag)."""
     directory = pathlib.Path(directory)
-    tag = booster_tag(queue, day, target, all_rows, unmatched_weight)
+    tag = booster_tag(queue, day, target, all_rows, unmatched_weight, order=order)
     if tuple(seeds) == (ES_SEED,):
         return [(directory / f"lgbm_v{version}{tag}.txt", directory / f"lgbm_v{version}{tag}.fit.json")]
     return [(directory / f"lgbm_v{version}{tag}_seed{s}.txt",
              directory / f"lgbm_v{version}{tag}_seed{s}.fit.json") for s in seeds]
 
 
-def head_booster_files(directory: pathlib.Path, version: int, queue: bool = False, day: bool = False) -> tuple:
-    """(model file, fit.json) of the fill head: lgbm_v{N}[_queue][_day]_fillhead.txt - its own
-    name, so it can never be mistaken for a regressor booster by --reuse-booster, and the block
-    tags for the same reason the regressors carry them (the head is delta-only)."""
+def head_booster_files(directory: pathlib.Path, version: int, queue: bool = False, day: bool = False,
+                       order: bool = False) -> tuple:
+    """(model file, fit.json) of the fill head: lgbm_v{N}[_queue][_day][_order]_fillhead.txt - its
+    own name, so it can never be mistaken for a regressor booster by --reuse-booster, and the
+    block tags for the same reason the regressors carry them (the head is delta-only)."""
     directory = pathlib.Path(directory)
-    tag = booster_tag(queue, day)
+    tag = booster_tag(queue, day, order=order)
     return (directory / f"lgbm_v{version}{tag}_fillhead.txt", directory / f"lgbm_v{version}{tag}_fillhead.fit.json")
 
 
@@ -488,6 +505,11 @@ def day_cache_path(dcache: pathlib.Path, training_path: pathlib.Path) -> pathlib
     return pathlib.Path(dcache) / pathlib.Path(training_path).name
 
 
+def order_cache_path(ocache: pathlib.Path, training_path: pathlib.Path) -> pathlib.Path:
+    """The order twin of a stand cache file: the same file name under data/cache_order/."""
+    return pathlib.Path(ocache) / pathlib.Path(training_path).name
+
+
 # ---- feature-block caches. The queue block (v6) and the day block (Amendment 19) share one join
 # ---- discipline; each is an instance with its own column contract, directory and build hint. ----
 
@@ -547,6 +569,7 @@ def attach_block_by_id(ids, q: pd.DataFrame, feats, what: str, subset_ok: bool =
 
 
 QUEUE_HINT, DAY_HINT = "stand_ab.py queue-cache [--ranking]", "stand_ab.py day-cache [--ranking]"
+ORDER_HINT = "stand_ab.py order-cache [--ranking]"
 
 
 def _check_queue_columns(q: pd.DataFrame, name: str) -> None:
@@ -581,6 +604,21 @@ def attach_day_positional(n_rows: int, q: pd.DataFrame, name: str) -> pd.DataFra
 def attach_day_by_id(ids, q: pd.DataFrame, subset_ok: bool = False) -> pd.DataFrame:
     """The day block for ranking rows, joined by id (attach_block_by_id)."""
     return attach_block_by_id(ids, q, DAY_FEATS, "day", subset_ok)
+
+
+def read_order_cache(path: pathlib.Path) -> pd.DataFrame:
+    """One order cache file (Amendment 22), its column contract asserted."""
+    return read_block_cache(path, ORDER_FEATS, "order", ORDER_HINT)
+
+
+def attach_order_positional(n_rows: int, q: pd.DataFrame, name: str) -> pd.DataFrame:
+    """The order block of a training month, joined by position (attach_block_positional)."""
+    return attach_block_positional(n_rows, q, name, ORDER_FEATS, "order")
+
+
+def attach_order_by_id(ids, q: pd.DataFrame, subset_ok: bool = False) -> pd.DataFrame:
+    """The order block for ranking rows, joined by id (attach_block_by_id)."""
+    return attach_block_by_id(ids, q, ORDER_FEATS, "order", subset_ok)
 
 
 # ---- the unified all-rows arm: the unmatched cache ----------------------------------------------
@@ -621,7 +659,7 @@ def row_weights(is_unmatched, unmatched_weight) -> np.ndarray:
 
 
 def load_frames(cache_dir: pathlib.Path, months=None, n_rank=None, seed=0, queue=False, qcache=None,
-                day=False, dcache=None, all_rows=False, ucache=None):
+                day=False, dcache=None, all_rows=False, ucache=None, order=False, ocache=None):
     """Concatenate the training caches and the ranking cache.
 
     Returns (frame, is_rank, rank_ids). The training caches on disk predate MVT_ID_mvt and
@@ -629,8 +667,10 @@ def load_frames(cache_dir: pathlib.Path, months=None, n_rank=None, seed=0, queue
     frame has the same schema and the ranking cache's schema is asserted against training.
     With queue=True the twelve QUEUE_FEATS are appended to every training month by position
     and to the ranking rows by id (attach_queue_positional / attach_queue_by_id); with day=True
-    the nine DAY_FEATS follow them the same way (attach_day_positional / attach_day_by_id), so
-    the column order is always FEATS [+ QUEUE_FEATS] [+ DAY_FEATS].
+    the nine DAY_FEATS follow them the same way (attach_day_positional / attach_day_by_id), and
+    with order=True the three ORDER_FEATS follow those (Amendment 22), so the column order is
+    always FEATS [+ QUEUE_FEATS] [+ DAY_FEATS] [+ ORDER_FEATS]; order with all_rows is refused
+    (the unmatched cache carries no order columns).
 
     With all_rows=True (the unified arm) the unmatched months from `ucache` follow the matched
     months and the unmatched scored rows follow the matched ranking rows, aligned by name (the
@@ -642,6 +682,8 @@ def load_frames(cache_dir: pathlib.Path, months=None, n_rank=None, seed=0, queue
     rank_path = cache_dir / "ranking.parquet"
     if not rank_path.exists():
         raise FileNotFoundError(f"{rank_path} missing (run stand_ab.py cache --ranking)")
+    if order and all_rows:
+        raise ValueError("the order block is not built for the unmatched cache: order=True with all_rows=True")
     frames, paths = training_frames(cache_dir, months)
     if queue:
         qcache = QCACHE if qcache is None else pathlib.Path(qcache)
@@ -655,6 +697,12 @@ def load_frames(cache_dir: pathlib.Path, months=None, n_rank=None, seed=0, queue
             df_ = attach_day_positional(len(f), read_day_cache(day_cache_path(dcache, p)), p.name)
             for c in DAY_FEATS:
                 f[c] = df_[c].to_numpy()
+    if order:
+        ocache = OCACHE if ocache is None else pathlib.Path(ocache)
+        for f, p in zip(frames, paths):
+            of = attach_order_positional(len(f), read_order_cache(order_cache_path(ocache, p)), p.name)
+            for c in ORDER_FEATS:
+                f[c] = of[c].to_numpy()
     u_frames, u_rank = [], None
     if all_rows:
         ucache = UCACHE if ucache is None else pathlib.Path(ucache)
@@ -680,6 +728,11 @@ def load_frames(cache_dir: pathlib.Path, months=None, n_rank=None, seed=0, queue
                               subset_ok=sample_matched)
         for c in DAY_FEATS:
             rank[c] = dr[c].to_numpy()
+    if order:
+        orr = attach_order_by_id(rank_ids, read_order_cache(order_cache_path(ocache, rank_path)),
+                                 subset_ok=sample_matched)
+        for c in ORDER_FEATS:
+            rank[c] = orr[c].to_numpy()
     cols = list(frames[0].columns)
     if set(rank.columns) != set(cols):
         raise ValueError(f"ranking cache schema differs: {set(rank.columns) ^ set(cols)}")
@@ -854,7 +907,7 @@ def fit_seeds(X, label, train, X_pred, params, n_ref, seeds, files=None, info=No
     own fit.json (the ES info plus this seed's params, the feature count and the target) before
     being freed; only one booster is alive at a time. `n_features` is the width the caller
     built (default len(FEATS); FEATS + QUEUE_FEATS under --queue, + DAY_FEATS under --dayfeats,
-    + is_unmatched under --all-rows) and the booster must agree with it. `weight` is the
+    + ORDER_FEATS under --orderfeats, + is_unmatched under --all-rows) and the booster must agree with it. `weight` is the
     per-row sample weight (the unified arm); `provenance` extra fit.json fields (all_rows,
     unmatched_weight) checked on reuse.
     """
@@ -1319,18 +1372,18 @@ def main(argv=None) -> int:
     if dest.resolve() == base_path.resolve():
         raise SystemExit("refusing to overwrite the base submission")
     feats = (list(FEATS) + (QUEUE_FEATS if args.queue else []) + (DAY_FEATS if args.dayfeats else [])
-             + ([IS_UNMATCHED] if args.all_rows else []))
+             + (ORDER_FEATS if args.orderfeats else []) + ([IS_UNMATCHED] if args.all_rows else []))
     feats_all = head_features(feats) if args.fillhead else feats   # the matrix; the regressors read [:nb]
     nb = len(feats)
     target = args.target
     provenance = {"all_rows": bool(args.all_rows), "unmatched_weight": float(args.unmatched_weight) if args.all_rows else 1.0}
     booster_dir = out_dir if smoke else CACHE
     files = booster_files(booster_dir, args.version, seeds, queue=args.queue, day=args.dayfeats, target=target,
-                          all_rows=args.all_rows, unmatched_weight=args.unmatched_weight)
-    head_files = (head_booster_files(booster_dir, args.version, queue=args.queue, day=args.dayfeats)
+                          all_rows=args.all_rows, unmatched_weight=args.unmatched_weight, order=args.orderfeats)
+    head_files = (head_booster_files(booster_dir, args.version, queue=args.queue, day=args.dayfeats, order=args.orderfeats)
                   if args.fillhead else None)
     log(f"version {args.version}  smoke={smoke}  seeds={list(seeds)}  per-airport={args.per_airport}"
-        f"  queue={args.queue} ({len(feats)} features)  dayfeats={args.dayfeats}  target={target}"
+        f"  queue={args.queue} ({len(feats)} features)  dayfeats={args.dayfeats}  orderfeats={args.orderfeats}  target={target}"
         f"  all-rows={args.all_rows}" + (f" (unmatched weight {args.unmatched_weight:g})" if args.all_rows else "")
         + f"  fillhead={args.fillhead}"
         + (f" ({len(feats_all)} columns, the regressors read the first {nb}; head booster {head_files[0].name})"
@@ -1339,7 +1392,7 @@ def main(argv=None) -> int:
 
     # ---- 1. rows ----
     d, is_rank, rank_ids = load_frames(CACHE, months=months, n_rank=n_rank, queue=args.queue, day=args.dayfeats,
-                                       all_rows=args.all_rows)
+                                       all_rows=args.all_rows, order=args.orderfeats)
     train, fit, es = split_masks(d.month.to_numpy(), is_rank)
     y, dlt, proxy, sp = d.y.to_numpy(), d.delta.to_numpy(), d.proxy.to_numpy(), d.sp.to_numpy()
     label = regression_label(dlt, y, target)         # delta (the default) or y (Amendment 19.2)
@@ -1509,6 +1562,7 @@ def main(argv=None) -> int:
             "features": feats, "n_features": len(feats),
             "queue": args.queue, "queue_feats": QUEUE_FEATS if args.queue else None,
             "dayfeats": args.dayfeats, "day_feats": DAY_FEATS if args.dayfeats else None,
+            "orderfeats": args.orderfeats, "order_feats": ORDER_FEATS if args.orderfeats else None,
             "target": target,
             "all_rows": bool(args.all_rows), "unmatched_weight": float(args.unmatched_weight) if args.all_rows else None,
             "n_unmatched_train": int(is_um[train].sum()), "n_unmatched_rank": int(is_um[is_rank].sum()),
