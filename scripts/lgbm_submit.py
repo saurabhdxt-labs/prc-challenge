@@ -760,7 +760,7 @@ def predict_delta(booster, X, params, num_iteration=None):
 
 
 def early_stop(X, dlt, y, proxy, train, fit, es, params, nest, patience, target: str = TARGET_DELTA,
-               weight=None) -> dict:
+               weight=None, es_eval=None) -> dict:
     """lgbm_ab's early-stopping run on `es` -> best_iter, and n_ref for the refit on `train`.
 
     `dlt` is always the true delta (the proxy-only reference of the breakage guard reads it);
@@ -770,31 +770,52 @@ def early_stop(X, dlt, y, proxy, train, fit, es, params, nest, patience, target:
     `weight` (the unified arm) is a per-row sample weight for the FIT rows; the stopping set is
     never weighted - its metric is the competition's plain RMSE. On an all-rows design the
     proxy-only breakage guard reads the stopping rows that HAVE a proxy (the matched ones).
-    Returns the fit info (best_iter, n_ref, row counts, the target, the stopping-set guard
-    numbers); the booster itself is discarded - the refit is what ships.
+    `es_eval` (Amendment 20.5, the all-rows arm) restricts the rows the stopping METRIC is
+    evaluated on to a subset of `es` - the matched stopping rows - because the unmatched
+    stopping rows' squared errors (monsters, bet variance) are of the order of the matched
+    rows' whole MSE and decide the stop by noise (best_iter 1,354 against the delta arm's
+    24,517 on the real months); the fit rows and their weights are untouched. None evaluates
+    on every stopping row, which is every matched-only design, byte for byte as before.
+    Returns the fit info (best_iter, n_ref, row counts - n_es evaluated, n_es_months all stopping
+    rows - the target, the stopping-set guard numbers); the booster itself is discarded - the
+    refit is what ships.
     """
     label = regression_label(dlt, y, target)
     w = None if weight is None else np.asarray(weight, dtype="float64")
     if w is not None and w.shape != label.shape:
         raise ValueError(f"weight shape {w.shape} != label shape {label.shape}")
+    restricted = es_eval is not None
+    if restricted:
+        es_eval = np.asarray(es_eval, dtype=bool)
+        if es_eval.shape != es.shape:
+            raise ValueError(f"es_eval shape {es_eval.shape} != stopping mask shape {es.shape}")
+        if (es_eval & ~es).any():
+            raise ValueError(f"es_eval must be a subset of the stopping rows: {int((es_eval & ~es).sum()):,} rows outside them")
+        if not es_eval.any():
+            raise ValueError("es_eval selects no stopping rows")
+    else:
+        es_eval = es
     log(f"early-stopping run (seed {params['seed']}, target {target}): fit {fit.sum():,} rows, stop on "
-        f"{es.sum():,} rows (months {ES_MONTHS}), lr {params['learning_rate']}, max {nest:,} "
-        f"rounds, patience {patience}" + ("" if w is None else f", row weights (unmatched x{w.max():g})"))
+        f"{es_eval.sum():,} rows (months {ES_MONTHS}"
+        + (f"; the MATCHED stopping rows only, {es.sum() - es_eval.sum():,} unmatched stopping rows excluded "
+           f"from the metric, Amendment 20.5" if restricted else "")
+        + f"), lr {params['learning_rate']}, max {nest:,} rounds, patience {patience}"
+        + ("" if w is None else f", row weights (unmatched x{w.max():g})"))
     ds = lgb.Dataset(X[fit], label[fit], weight=None if w is None else w[fit])
-    b = lgb.train(params, ds, num_boost_round=nest, valid_sets=[lgb.Dataset(X[es], label[es])],
+    b = lgb.train(params, ds, num_boost_round=nest, valid_sets=[lgb.Dataset(X[es_eval], label[es_eval])],
                   callbacks=[lgb.early_stopping(patience, verbose=False),
                              lgb.log_evaluation(0), _progress(PROGRESS_EVERY, target)])
     best_iter = int(b.best_iteration)
     assert best_iter >= 1, f"best_iteration {best_iter}"
-    pred_es = np.maximum(raw_taxi_time(predict_delta(b, X[es], params, num_iteration=best_iter), proxy[es], target), 1.0)
-    es_rmse = _rmse(y[es], pred_es)
-    fin_es, fin_fit = np.isfinite(proxy[es]), np.isfinite(dlt[fit])
+    pred_es = np.maximum(raw_taxi_time(predict_delta(b, X[es_eval], params, num_iteration=best_iter), proxy[es_eval], target), 1.0)
+    es_rmse = _rmse(y[es_eval], pred_es)
+    fin_es, fin_fit = np.isfinite(proxy[es_eval]), np.isfinite(dlt[fit])
     if fin_es.all() and fin_fit.all():
-        proxy_only = _rmse(y[es], np.maximum(proxy[es] - dlt[fit].mean(), 1.0))
-        es_guard, n_guard = es_rmse, int(es.sum())
+        proxy_only = _rmse(y[es_eval], np.maximum(proxy[es_eval] - dlt[fit].mean(), 1.0))
+        es_guard, n_guard = es_rmse, int(es_eval.sum())
     else:                                   # the unified arm: the rows with a proxy are the matched ones
-        proxy_only = _rmse(y[es][fin_es], np.maximum(proxy[es][fin_es] - dlt[fit][fin_fit].mean(), 1.0))
-        es_guard, n_guard = _rmse(y[es][fin_es], pred_es[fin_es]), int(fin_es.sum())
+        proxy_only = _rmse(y[es_eval][fin_es], np.maximum(proxy[es_eval][fin_es] - dlt[fit][fin_fit].mean(), 1.0))
+        es_guard, n_guard = _rmse(y[es_eval][fin_es], pred_es[fin_es]), int(fin_es.sum())
     log(f"best_iter {best_iter:,}   stopping-set RMSE (taxi-time) {es_rmse:.2f}   "
         f"proxy-only on the {n_guard:,} rows with a proxy {proxy_only:.2f}   ratio {es_guard / proxy_only:.3f}   "
         f"[stopping set, optimistic by construction; NOT a fold result]   "
@@ -808,8 +829,8 @@ def early_stop(X, dlt, y, proxy, train, fit, es, params, nest, patience, target:
     n_ref = n_refit(best_iter, int(train.sum()), int(fit.sum()))
     log(f"n_ref {n_ref:,}: refit on all {train.sum():,} training rows "
         f"(best_iter {best_iter:,} x {train.sum() / fit.sum():.3f}), no early stopping")
-    return dict(best_iter=best_iter, n_ref=n_ref, n_fit=int(fit.sum()), n_es=int(es.sum()),
-                n_all=int(train.sum()), es_months=list(ES_MONTHS), target=target,
+    return dict(best_iter=best_iter, n_ref=n_ref, n_fit=int(fit.sum()), n_es=int(es_eval.sum()),
+                n_es_months=int(es.sum()), n_all=int(train.sum()), es_months=list(ES_MONTHS), target=target,
                 es_rmse_taxi_time_NOT_A_RESULT=es_rmse, es_proxy_only_rmse=proxy_only, es_guard_rows=n_guard)
 
 
@@ -1353,7 +1374,7 @@ def main(argv=None) -> int:
     else:
         t_fit = time.time()
         info = early_stop(Xb, dlt, y, proxy, train, fit, es, dict(params, seed=ES_SEED), nest, patience, target=target,
-                          weight=weight)
+                          weight=weight, es_eval=(es & ~is_um) if args.all_rows else None)   # Amendment 20.5
         preds = fit_seeds(Xb, label, train, Xb_rank, params, info["n_ref"], seeds,
                           files=files, info=info, smoke=smoke, n_features=len(feats), target=target, weight=weight,
                           provenance=provenance)

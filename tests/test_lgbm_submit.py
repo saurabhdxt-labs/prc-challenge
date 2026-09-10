@@ -1986,3 +1986,81 @@ def test_all_rows_end_to_end_on_the_synthetic_submission(tmp_path, monkeypatch):
     assert fj3["unmatched_weight"] == 3.0 and fj3["all_rows"] is True
     assert np.array_equal(ids10, ids)
     assert not np.array_equal(pred10, pred), "the unmatched weight changed nothing: it never reached LightGBM"
+
+
+def test_early_stop_evaluates_the_stopping_metric_on_es_eval_rows_only(monkeypatch):
+    """Amendment 20.5: with `es_eval` given, early_stop's stopping Dataset holds exactly the
+    es_eval rows and their labels (in the all-rows arm: the matched rows of the stopping months,
+    whose plain RMSE on y is the competition's metric to within the 1.5% unmatched share) while
+    the training Dataset still holds every fit row; the stopping-set RMSE and the breakage guard
+    read those rows; the info records n_es (evaluated) and n_es_months (all stopping rows).
+    Without es_eval the stopping Dataset is the whole `es` and n_es == n_es_months (the default
+    path is untouched). An es_eval outside `es`, empty, or of the wrong shape is refused.
+
+    Fails when the stopping set ignores es_eval or the subset check is dropped. Rehearsed
+    2026-09-09, each RED: `es_eval = es` hard-wired after the argument check; the `(es_eval &
+    ~es).any()` refusal removed.
+    """
+    rng = np.random.default_rng(0)
+    n = 300
+    X = rng.normal(size=(n, 4)).astype("float32")
+    y = 1_000.0 + rng.normal(0, 10, n)
+    dlt = 500.0 + rng.normal(0, 200, n)
+    proxy = y + dlt
+    month = np.r_[np.full(200, 2), np.full(100, 3)]
+    train, fit, es = ls.split_masks(month, np.zeros(n, bool))
+    um = rng.random(n) < 0.3
+    proxy[um] = np.nan                                  # unmatched rows carry no proxy, as in the caches
+    es_eval = es & ~um
+    assert 0 < es_eval.sum() < es.sum()
+    seen = []
+
+    def fake_train(params, train_set, num_boost_round, valid_sets=None, callbacks=None):
+        v = valid_sets[0]
+        seen.append((int(np.asarray(train_set.data).shape[0]), int(np.asarray(v.data).shape[0]),
+                     np.asarray(v.label, dtype="float64").copy()))
+        return _FakeTrained(1_000.0, n_features=4)
+    monkeypatch.setattr(ls.lgb, "train", fake_train)
+    monkeypatch.setattr(ls, "ES_MAX_RATIO_TO_PROXY_ONLY", float("inf"))
+    params = dict(ls.P, num_threads=1)
+    info = ls.early_stop(X, dlt, y, proxy, train, fit, es, params, 20, 5, target=ls.TARGET_Y,
+                         weight=ls.row_weights(um, 10.0), es_eval=es_eval)
+    n_fit, n_valid, valid_label = seen[-1]
+    assert (n_fit, n_valid) == (int(fit.sum()), int(es_eval.sum())), "the stopping Dataset must hold the es_eval rows only"
+    assert np.array_equal(valid_label, y[es_eval]), "the stopping labels must be y on the es_eval rows"
+    assert info["n_es"] == int(es_eval.sum()) and info["n_es_months"] == int(es.sum()) and info["n_fit"] == int(fit.sum())
+    assert info["es_guard_rows"] == int(es_eval.sum()), "every evaluated row has a proxy, so the guard reads them all"
+    info_d = ls.early_stop(X, dlt, y, np.where(um, y + dlt, proxy), train, fit, es, params, 20, 5)
+    assert seen[-1][1] == int(es.sum()) and info_d["n_es"] == info_d["n_es_months"] == int(es.sum())
+    with pytest.raises(ValueError, match="stopping"):
+        ls.early_stop(X, dlt, y, proxy, train, fit, es, params, 20, 5, target=ls.TARGET_Y, es_eval=es_eval | ~es)
+    with pytest.raises(ValueError, match="stopping"):
+        ls.early_stop(X, dlt, y, proxy, train, fit, es, params, 20, 5, target=ls.TARGET_Y, es_eval=np.zeros(n, bool))
+    with pytest.raises(ValueError, match="shape"):
+        ls.early_stop(X, dlt, y, proxy, train, fit, es, params, 20, 5, target=ls.TARGET_Y, es_eval=es_eval[:-1])
+
+
+def test_all_rows_submit_path_early_stops_on_the_matched_stopping_rows_only(tmp_path, monkeypatch):
+    """Amendment 20.5 on the submit path: under `--all-rows` main hands early_stop an es_eval equal
+    to the stopping-month rows whose is_unmatched column (the design's last) is 0, and passes none
+    without --all-rows. Pinned with a recorder around the real early_stop on the synthetic
+    submission fixture.
+
+    Fails when the all-rows fit stops on every stopping row again. Rehearsed 2026-09-09, RED:
+    `es_eval=None` hard-wired in main's early_stop call.
+    """
+    fx = _submission_env(ls, monkeypatch, tmp_path / "data", proxy_levels=3)
+    monkeypatch.setattr(ls, "UCACHE", fx.unmatched)
+    real_es, seen = ls.early_stop, []
+
+    def recording(X, dlt, y, proxy, train, fit, es, params, nest, patience, target=ls.TARGET_DELTA, weight=None, es_eval=None):
+        seen.append((X.shape[1], es.copy(), None if es_eval is None else np.asarray(es_eval, bool).copy(),
+                     np.asarray(X[:, -1] == 1.0)))
+        return real_es(X, dlt, y, proxy, train, fit, es, params, nest, patience, target=target, weight=weight, es_eval=es_eval)
+    monkeypatch.setattr(ls, "early_stop", recording)
+    _run_submit(ls, fx, tmp_path / "out", ["--target", "y", "--all-rows"])
+    n_cols, es, es_eval, um = seen[-1]
+    assert n_cols == 69 and um.any() and es_eval is not None
+    assert np.array_equal(es_eval, es & ~um) and es_eval.sum() < es.sum(), "the stopping rows must be the matched rows of the stopping months"
+    _run_submit(ls, fx, tmp_path / "out_m", ["--target", "y"])
+    assert seen[-1][0] == 68 and seen[-1][2] is None, "a matched-only design passes no es_eval"
