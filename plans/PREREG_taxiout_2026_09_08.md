@@ -1801,3 +1801,129 @@ best_iter 24,517 → n_ref 29,439 per seed, 80 features; log `reports/lgbm_submi
 Standing after v5: **288.14 − 276.51 = 11.6 s = ~6,400 MSE to the current 10th place**, more by the
 freeze. Amendments 19 (D, Y) and 20 (U) are the open arms; the sweep (15.2) and CatBoost (15.1) run
 regardless. Next free version: v6.
+
+
+### 20.5 · 2026-09-09 21:05 local · BEFORE any Arm U fold result exists · the all-rows arm early-stops on MATCHED rows
+
+Observed from the running fold's log at 20:55 (no result had been produced): `U_w1`'s early-stopping
+run stopped at best_iter **1,354** (n_ref 1,692) where the delta arm on the same months stops at
+24,517; its stopping-set RMSE was 287.36 over **348,353 rows of which 3,513 are unmatched**. The
+stopping metric is plain RMSE on y over all stopping rows (20.2: "same ES procedure"), and the
+unmatched rows' squared errors — monsters of up to 24 h, bet variance by RESULTS 3–10 — are of the
+order of the matched rows' entire MSE. The stop is therefore decided by noise on ~1% of the rows,
+and the unified model is left with ~1/15 of the delta model's capacity on the 99% that carry the
+board. As registered, Arm U measures the stopping rule's failure, not the formulation.
+
+**Amendment.** In the all-rows arm the early-stopping metric is evaluated on the **matched rows of
+the stopping months only** (`es & ~is_unmatched`); the fit rows, the unmatched sample weight W, the
+refit rule `n_ref = best_iter × n_train / n_fit`, lr, leaves, patience and seeds are unchanged. This
+is the competition's own weighting to within 1.5% and is exactly what a competitor doing the
+standard approach obtains by holding out matched rows for validation. Everything in 20.3 (clauses,
+subsets, bootstrap, no point-gain bars) is unchanged.
+
+**Reporting.** The run already in flight (ES on all rows, the 20.2 reading) is allowed to finish
+and is reported as "U-20.2" for the record; the decisional run is the re-run under this amendment,
+"U-20.5". If U-20.2 nevertheless beats the pipeline on matched rows, that stands on its own
+interval. The harness change ships with tests that (i) the stopping Dataset in the all-rows arm has
+exactly the matched stopping rows and (ii) the default (matched-only designs) path is unchanged.
+
+
+---
+
+# AMENDMENT 21 — the mode rows' identifier: is AOBT_3's derivation fingerprinted in the row?
+
+**2026-09-09 21:10 local, written BEFORE the screen runs.** Owner: "anywhere near top 10" — not with
+the measured lanes (~281–283 at the freeze against a cut heading for ~270). The one mechanism that
+squares with a 245 on this data is a per-row identifier of the mode rows (19.0: |BLOCK − AOBT_3| >
+10 min, 7.6% of matched rows, 47.8% of matched error; perfect knowledge → matched 163 → total ≈ 244.6).
+
+## 21.1 Hypothesis H-21
+
+`AOBT_3_flt` is the Network Manager's actual off-block time. When no airport message carries an
+actual, NM derives one arithmetically (the take-off time minus a standard taxi time, or a flight-plan
+off-block time carried forward). Such a derived `AOBT_3` disagrees with the airport's `BLOCK_TIME`
+by construction, and it leaves an exact fingerprint in the row it came from: `MVT_TIME − AOBT_3` a
+whole number of minutes (or one of a few standard values per airport/runway), or `AOBT_3` equal to
+`EOBT_1`, `LOBT`, `IOBT` or `SCHED` to the second. H-21: **a fingerprint computable at serve time from
+the scored row alone (MVT_TIME, AOBT_3, EOBT_1, LOBT, IOBT, SCHED are all present on matched scored
+rows) identifies the mode rows.**
+
+## 21.2 Screen (ranking only; no bankable number comes from it)
+
+Raw training months 1 and 7 (the fold's holdout months), departures at the ten airports with
+`AOBT_3` and `TAXITIME` present; `delta = BLOCK − AOBT_3`; mode := |delta| > 600 s. Indicators:
+(a) `(MVT − AOBT_3) mod 60 == 0`; (b) `MVT − AOBT_3` equal to one of the five most frequent exact
+values at the airport; (c) `AOBT_3 == EOBT_1`; (d) `AOBT_3 == LOBT`; (e) `AOBT_3 == IOBT`;
+(f) `AOBT_3 == SCHED`; (g) `AOBT_3.second == 0` (already `aobt_sec` in the design; the control);
+(h) `MVT.second == 0`. For each: prevalence, mode rate inside vs outside, share of mode rows
+covered, and the AUC of the best single indicator and of a 2-fold logistic on all of them, per
+airport and pooled.
+
+## 21.3 TRUE / FALSE shapes, locked
+
+- **TRUE:** some indicator, or the logistic, reaches mode-row AUC **>= 0.75 pooled** with the
+  indicator's mode rate >= 3× the base rate and covering >= 40% of mode rows. Then the fingerprint
+  block enters the design as Arm F (fold A, paired interval, same harness as Amendment 14, with the
+  permutation control) — the first mode-row lane with a mechanism.
+- **FALSE:** AUC < 0.65 (the day-regime level of 19.0) or coverage < 20%. Then H-21 is NOT WORKING
+  and the fingerprints are not the identifier; the search moves to the arrivals' same-day clock
+  disagreement (the second candidate named to the owner at 21:08).
+- Between 0.65 and 0.75: INCONCLUSIVE, reported, and Arm F still runs on the fold because the cost is
+  one fold run.
+
+
+---
+
+# RESULT 11 · 2026-09-09 21:12 local · Amendment 21 (AOBT_3 derivation fingerprints) — NOT WORKING
+
+Raw months 1 + 7, 339,046 matched departures, 25,898 mode rows (7.64%). Every fingerprint is at
+chance: (a) whole-minute proxy AUC 0.507 (prevalence 5.2%, lift 1.3×, covers 6.4% of mode rows);
+(b) top-5 proxy value at the airport 0.494; (c) AOBT_3 == EOBT_1 0.483 (lift 0.3×: rows with a
+carried-forward off-block are LESS often mode rows); (d)(e) == LOBT / IOBT 0.486; (f) == SCHED
+0.488; (g) AOBT_3 second == 0 — 97.6% of ALL rows, so AOBT_3 is a minute-precision stamp
+everywhere, not on the mode rows; (h) MVT second == 0 0.507; (j) whole-5-minute proxy 0.507
+(lift 1.9×, covers 3.0%). Two-fold logistic on all indicators: **0.532**; with |proxy| bins 0.619 —
+the day-regime level of 19.0 again. Per airport 0.50–0.59 (EDDM highest). 21.3 FALSE shape met.
+
+**Verdict: NOT WORKING.** The mode rows are not an arithmetically derived AOBT_3; the row's own
+timestamps carry no per-row identifier of which clock BLOCK_TIME follows. Mode rates by airport
+(EDDF 1.9%, LEMD 2.9%, LSZH 3.1%, LEBL 5.2%, EHAM 6.1%, LFPG 7.7%, EGLL 7.9%, EDDM 8.4%, LTFM
+15.5%, LIRF 15.7%) say the disagreement is an airport-integration property, not a row property.
+Screen log: scratchpad `amend21_fingerprints.log`; script `amend21_fingerprints.py`.
+
+### 21.4 · second candidate, written BEFORE its screen · the arrival side and the same stand
+
+Arrivals in the scored file carry BLOCK_TIME (on-block) and MVT_TIME (landing) from the airport and
+ARVT_3 from NM — two sources for one event, both visible at serve time. Two readings:
+- **21.4a day regime:** per airport-day, the arrivals' disagreement rate |ARVT_3 − MVT| > 600 s vs
+  the departures' mode rate. Reported as the day-level correlation and the within-day AUC of the
+  day rate. TRUE: day corr >= 0.85 AND within-day AUC >= 0.70 (better than 19.0's proxy p90).
+  FALSE: within-day AUC <= 0.63 — regime again.
+- **21.4b per row:** the previous arrival on the SAME STAND within 6 h before the departure's
+  AOBT_3 — its |ARVT_3 − MVT| disagreement, its |BLOCK − ARVT_3| gap, and its fill flag (BLOCK ==
+  SCHED) — as per-row features of the departure. TRUE: AUC >= 0.70 pooled, or >= 0.75 at LIRF/LTFM.
+  FALSE: AUC < 0.63.
+Ranking screen on raw months 1 + 7 as in 21.2; nothing bankable comes from it.
+
+
+### RESULT 11.4 · 2026-09-09 21:15 local · the arrival side — NOT WORKING
+
+Raw months 1 + 7; 343,999 arrivals (99.2% with ARVT_3), 339,046 matched departures. **There is no
+clock disagreement to read on the arrival side:** |ARVT_3 − MVT| is 16 s at the median, 64 s at p90,
+> 600 s on 0.10% of arrivals; arrival fills (BLOCK == SCHED) 0.18%. (a) Day level: corr(arrival
+disagreement rate, departure mode rate) −0.18..+0.43 by airport (LIRF +0.43 highest) against the
+reference proxy-p90 correlation of +0.10..+0.79; within-day AUC of the day's arrival disagreement
+rate 0.560 pooled, of the day's arrival taxi-in p90 0.620 (≈ the reference 0.591 — regime again).
+(b) Per row, the previous arrival on the same stand within 6 h (81.1% of departures joined): its
+disagreement AUC 0.436, its taxi-in 0.573, its fill flag 0.501; a previous arrival disagreeing by
+> 600 s (n = 240) lifts the mode rate 1.66× and covers 0.1% of mode rows. Two-fold logistic on all
+of it plus the day rates: **0.613** vs 0.609 for the day rates alone. Both 21.4 FALSE shapes met.
+
+**Standing after Amendment 21:** the mode rows have no per-row identifier in the row's own
+timestamps, in the arrival side, or in the stand's previous occupant. Together with 19.0 (day regime,
+AUC ≤ 0.63 within day), RESULT 8 (fill head), RESULT 4 (arrival regime), the turnaround and
+flight-number screens and FLIGHT_ID (0.55): every observable in this data that could name the mode
+has been screened and none does. The mode rates by airport (1.9%–15.7%) are an airport-integration
+property. What remains is formulation (Arm U-20.5, in flight), capacity (sweep), a second learner
+(CatBoost), regime (D, Y) — worth ~2–4k MSE together on the measured record.
+Screen: scratchpad `amend21_4_arrivals.py` / `.log`.

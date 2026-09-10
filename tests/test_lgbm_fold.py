@@ -2087,10 +2087,10 @@ def test_allrows_arm_end_to_end_reports_matched_unmatched_and_the_total(monkeypa
     # the guard's RuntimeError is injected at the early-stopping seam for the weight-1000 arm
     real_es = lf.L.early_stop
 
-    def refusing(X, dlt, y, proxy, train, fit, es, params, nest, patience, target=lf.L.TARGET_DELTA, weight=None):
+    def refusing(X, dlt, y, proxy, train, fit, es, params, nest, patience, target=lf.L.TARGET_DELTA, weight=None, es_eval=None):
         if weight is not None and float(np.max(weight)) >= 1_000.0:
             raise RuntimeError("stopping-set RMSE 999.00 is not 85% of proxy-only 300.00: the feature path is broken")
-        return real_es(X, dlt, y, proxy, train, fit, es, params, nest, patience, target=target, weight=weight)
+        return real_es(X, dlt, y, proxy, train, fit, es, params, nest, patience, target=target, weight=weight, es_eval=es_eval)
     monkeypatch.setattr(lf.L, "early_stop", refusing)
     out3 = tmp_path / "o3"
     assert lf.main(["--ytarget", "--all-rows", "--smoke", "--out-dir", str(out3), "--refit-baseline", "--baseline", "A2",
@@ -2099,3 +2099,40 @@ def test_allrows_arm_end_to_end_reports_matched_unmatched_and_the_total(monkeypa
     assert j3["u_arms"]["w1000"]["fitted"] is False and "proxy-only" in j3["u_arms"]["w1000"]["error"]
     assert set(j3["arms"]) == {"pipeline", "U_w1", "Ublend_w1"} and set(j3["total_2026"]["pairs"]) == {"U_w1_vs_pipeline", "Ublend_w1_vs_pipeline"}
     assert "NOT FITTED" in (out3 / "lgbm_fold_allrows.log").read_text()
+
+
+def test_allrows_arm_early_stops_on_the_matched_stopping_rows_only(monkeypatch, tmp_path):
+    """Amendment 20.5: run_allrows hands early_stop an `es_eval` equal to the stopping-month rows
+    that are NOT unmatched (the rows with a proxy) for every unified arm, while the in-process
+    matched baseline, whose rows are all matched, passes none; the JSON records each U arm's
+    evaluated and total stopping-row counts. Pinned with a recorder around the real early_stop on
+    the synthetic caches.
+
+    Fails when the unified arm stops on every stopping row again (the monster-noise stop seen on
+    the real months 2026-09-09: best_iter 1,354 against the delta arm's 24,517). Rehearsed
+    2026-09-09, RED: `es_eval=` dropped from run_allrows' fit_arm call.
+    """
+    stand, queue = _fold_env(monkeypatch, tmp_path, queue_signal=0.0, day_signal=0.0)
+    monkeypatch.setattr(lf, "UCACHE", tmp_path / "data" / "cache_unmatched")
+    rec_path = _syn.synthetic_stratum_record(tmp_path / "data", (1, 2, 3))
+    real_es, seen = lf.L.early_stop, []
+
+    def recording(X, dlt, y, proxy, train, fit, es, params, nest, patience, target=lf.L.TARGET_DELTA, weight=None, es_eval=None):
+        seen.append((target, None if weight is None else float(np.max(weight)),
+                     None if es_eval is None else np.asarray(es_eval, bool).copy(), es.copy(), np.isnan(proxy)))
+        return real_es(X, dlt, y, proxy, train, fit, es, params, nest, patience, target=target, weight=weight, es_eval=es_eval)
+    monkeypatch.setattr(lf.L, "early_stop", recording)
+    out = tmp_path / "out"
+    assert lf.main(["--ytarget", "--all-rows", "--smoke", "--out-dir", str(out), "--refit-baseline", "--baseline", "A2",
+                    "--unmatched-weight", "1,10", "--stratum-preds", str(rec_path)]) == 0
+    u_calls = [s for s in seen if s[0] == "y"]
+    assert [c[1] for c in u_calls] == [1.0, 10.0]
+    for _, _, es_eval, es, no_proxy in u_calls:
+        assert es_eval is not None and 0 < es_eval.sum() < es.sum()
+        assert np.array_equal(es_eval, es & ~no_proxy), "the stopping rows must be the matched rows of the stopping months"
+    base_calls = [s for s in seen if s[0] == "delta"]
+    assert base_calls and all(c[2] is None for c in base_calls), "the matched baseline passes no es_eval"
+    j = json.loads((out / "lgbm_fold_allrows.json").read_text())
+    for w in ("w1", "w10"):
+        assert j["u_arms"][w]["n_es"] == int(u_calls[0][2].sum()) and j["u_arms"][w]["n_es_months"] == int(u_calls[0][3].sum())
+    assert "MATCHED stopping rows" in (out / "lgbm_fold_allrows.log").read_text()

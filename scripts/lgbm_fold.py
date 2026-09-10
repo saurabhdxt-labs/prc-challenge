@@ -1229,20 +1229,22 @@ def _v4_record(args, cfg, arm: str, seeds, pa_trees: str) -> dict:
 
 
 def fit_arm(fold: dict, X, params, nest, patience, pa_floor, seeds, per_airport: bool, pa_trees, name: str,
-            on_seed=None, target=L.TARGET_DELTA, weight=None) -> dict:
+            on_seed=None, target=L.TARGET_DELTA, weight=None, es_eval=None) -> dict:
     """One fold-A arm on the design matrix X: early stopping (seed ES_SEED) -> n_ref; a refit per
     seed predicting the holdout rows; the mean over seeds; optionally the per-airport blend.
     `on_seed(seed, prediction)` runs after every seed (the callers write the parquet there).
     `target` is lgbm_submit's formulation: delta (the label is delta, the prediction a delta_hat)
     or y (Amendment 19.2: the label is y, the prediction a y_hat before the 1 s floor); the
-    returned "delta" is the pooled prediction on that scale."""
+    returned "delta" is the pooled prediction on that scale. `es_eval` (Amendment 20.5) is the
+    subset of the stopping rows the early-stopping metric is evaluated on - the all-rows arm
+    passes its matched stopping rows; None (every other arm) evaluates on all of them."""
     te, tr, fit, es = fold["te"], fold["tr"], fold["fit"], fold["es"]
     y, dlt, proxy = fold["y"], fold["dlt"], fold["proxy"]
     label = L.regression_label(dlt, y, target)
     X_te = X[te]
     log(f"[{name}] early stopping on {X.shape[1]} features, target {target}")
     info = L.early_stop(X, dlt, y, proxy, tr, fit, es, dict(params, seed=L.ES_SEED), nest, patience, target=target,
-                        weight=weight)
+                        weight=weight, es_eval=es_eval)
     n_ref = int(info["n_ref"])
     single, single_rmse, timing = {}, {}, {}
     for s in seeds:
@@ -2578,7 +2580,8 @@ def run_allrows(args, cfg, paths, started) -> int:
         f"unmatched weights {list(weights)} (one arm each, seeds {list(seeds)}); y_hat = max(prediction, 1), no proxy; "
         f"pipeline = matched {design} ({'the queue record' if queue else 'the v4 record'}) + unmatched S0 of the "
         f"stratum record; blend {YBLEND}; bootstrap {cfg.n_boot:,} draws seed {BOOT_SEED}; 2026 weights "
-        f"{W_MATCHED_2026:.6f} / {W_UNMATCHED_2026:.6f}; monsters y > {MONSTER_S:.0f} s")
+        f"{W_MATCHED_2026:.6f} / {W_UNMATCHED_2026:.6f}; monsters y > {MONSTER_S:.0f} s; early stopping evaluated on the "
+        f"MATCHED stopping rows only (Amendment 20.5: the unmatched stopping rows' monster errors decide the stop by noise)")
     rec = _baseline_record(args, cfg, arm, seeds, queue)
     strat_path = pathlib.Path(args.stratum_preds) if args.stratum_preds else STRATUM_PREDS
     if not strat_path.exists():
@@ -2626,6 +2629,7 @@ def run_allrows(args, cfg, paths, started) -> int:
     # ---- the unified arms, one per weight ----
     arms, u_arms, definitions = {"pipeline": yhat_pipe}, {}, {}
     definitions["pipeline"] = f"matched: {design} ({b_record['source']}); unmatched: the stratum record's S0"
+    es_eval = fold["es"] & ~is_um                     # 20.5: the stopping metric reads the matched stopping rows
     for W in weights:
         key = f"w{W:g}"
         t = time.time()
@@ -2636,7 +2640,7 @@ def run_allrows(args, cfg, paths, started) -> int:
             write()
         try:
             ua = fit_arm(fold, X, cfg.params, cfg.nest, cfg.patience, cfg.pa_floor, seeds, per_airport=False, pa_trees=None,
-                         name=f"U_{key}", on_seed=on_seed, target=L.TARGET_Y, weight=w)
+                         name=f"U_{key}", on_seed=on_seed, target=L.TARGET_Y, weight=w, es_eval=es_eval)
         except RuntimeError as e:                     # the stopping-set breakage guard: recorded, the run goes on
             log(f"[U_{key}] NOT FITTED: {e}")
             u_arms[key] = dict(target=L.TARGET_Y, weight=float(W), error=str(e), fitted=False,
@@ -2657,6 +2661,7 @@ def run_allrows(args, cfg, paths, started) -> int:
             e = (y_te - yh) ** 2
             per_seed_total[str(s)] = total_rmse_2026(e[~um_te].mean(), e[um_te].mean())
         u_arms[key] = dict(target=L.TARGET_Y, weight=float(W), fitted=True, best_iter=ua["best_iter"], n_ref=ua["n_ref"],
+                           n_es=ua["info"]["n_es"], n_es_months=ua["info"]["n_es_months"],   # 20.5: matched stopping rows / all
                            n_features=ua["n_features"], single_seed_rmses=str_keys(ua["single_rmse"]),
                            single_seed_rmses_total=per_seed_total,
                            seed_sd_total=(seed_sd(per_seed_total.values()) if len(seeds) == 3 else None),
