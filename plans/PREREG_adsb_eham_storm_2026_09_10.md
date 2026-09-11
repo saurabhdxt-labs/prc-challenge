@@ -58,3 +58,21 @@ gate (radius 100 m, stand centroids learned leave-one-flight-out from 2026 match
 
 EHAM only; eight days; one labelled 2025 day for C3. Receiver coverage in snow is untested. A final evaluation
 set, if added by the organisers, would contain other days — this arm is regime-specific by construction.
+
+## PRE-INGEST FINDING · 2026-09-10 18:05 — E4 as registered cannot return WORKING (design flaw in this prereg)
+
+Found while finishing the harness, BEFORE any 2026 archive beyond a 60 MB format probe was read, and before `gate`
+ran. **C3 was computed on the 2025-01-09 census (the only labelled ADS-B day): gated RMSE 173.44 s vs model 173.2 s —
+C3 fails.** No 2026 number can change C3. Cause, owned by this prereg's author: the bias correction was referenced
+to `AOBT_3`, which runs a median 109 s ahead of `BLOCK` (the label), leaving a +123 s offset in a sensor whose own
+scatter is 122 s (matching ADSB_GATE's 127 s). C1's 250 s bar is also unreachable by construction: `AOBT_3` is itself
+≈ 269 s RMSE from the true off-block, so even a perfect sensor sits ≈ 247 s from it on a calm day. C3's comparison
+was also the wrong one for this lever: it pits the sensor against the MATCHED model (which has `AOBT_3`) on a calm
+day, while the rows E4 targets are storm-day UNMATCHED rows the model misses by ≈ 1,000+ s.
+
+**Consequence:** the best verdict E4 can reach is INCONCLUSIVE. The clauses are NOT amended (C3's data has now been
+seen; changing it would tune on it). The 8-day 2026 ingest is not run under this registration. Any successor arm
+must be registered fresh, reference the bias to `BLOCK`, and be validated on labelled data it has never seen.
+Harness finished and verified: `scripts/adsb_storm.py` / `tests/test_adsb_storm.py` (62 passed across four suites; 67
+mutations, all RED after two survivors were strengthened); the 2026 format probe parsed (5,584 EHAM samples in
+60 MiB on 2026-01-05, 99.5% with callsign).

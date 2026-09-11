@@ -1,0 +1,120 @@
+{
+ "arm": "E4b EHAM ADS-B off-block, label-referenced bias, validated on unseen congested 2025 days (plans/PREREG_adsb_eham_v2_2026_09_10.md)",
+ "prereg": "plans/PREREG_adsb_eham_v2_2026_09_10.md",
+ "airport": "EHAM",
+ "days": [
+  "2025-12-27",
+  "2025-12-28"
+ ],
+ "calibration_day": "2025-01-09",
+ "verdict": "NOT WORKING",
+ "clauses": {
+  "V1": {
+   "clause": "V1",
+   "n_matched": 1193,
+   "n_gated": 914,
+   "coverage": 0.7661357921207042,
+   "rmse_s": 487.56899404886144,
+   "rmse_threshold_s": 200.0,
+   "coverage_threshold": 0.5,
+   "pass": false
+  },
+  "V2": {
+   "clause": "V2",
+   "n_rows": 30,
+   "min_rows": 15,
+   "rmse_taxi_hat_s": 119.36209532365835,
+   "rmse_s1c_s": 397.23132076699983,
+   "status": "PASS",
+   "pass": true
+  },
+  "V3": {
+   "clause": "V3",
+   "n_unmatched_rows": 46,
+   "n_with_candidate": 38,
+   "n_no_candidate": 8,
+   "n_ambiguous_or_unmatched": 1,
+   "no_candidate_share_of_rows": 0.17391304347826086,
+   "share": 0.02631578947368421,
+   "threshold": 0.05,
+   "pass": true
+  }
+ },
+ "per_day": {
+  "2025-12-27": {
+   "n_matched": 593,
+   "n_gated": 437,
+   "coverage": 0.7369308600337268,
+   "rmse_vs_block_s": 404.22919450974047,
+   "median_sensor_minus_block_s": 229.14000010490417,
+   "n_unmatched": 19,
+   "n_unmatched_gated": 11,
+   "n_unmatched_ambiguous": 0,
+   "n_v2_rows": 11,
+   "v2_rmse_taxi_hat_s": 131.35478775798347,
+   "v2_rmse_s1c_s": 347.3278715533232
+  },
+  "2025-12-28": {
+   "n_matched": 600,
+   "n_gated": 477,
+   "coverage": 0.795,
+   "rmse_vs_block_s": 553.0039147434063,
+   "median_sensor_minus_block_s": 234.77999997138977,
+   "n_unmatched": 27,
+   "n_unmatched_gated": 19,
+   "n_unmatched_ambiguous": 1,
+   "n_v2_rows": 19,
+   "v2_rmse_taxi_hat_s": 111.83267836728918,
+   "v2_rmse_s1c_s": 423.4431865212091
+  }
+ },
+ "bias": {
+  "bias_s": 244.53999996185303,
+  "source_file": "adsb_e4b_bias.json",
+  "calibration_day": "2025-01-09",
+  "n": 371,
+  "iqr_s": 126.54000008106232
+ },
+ "diagnostics": {
+  "note": "reported only, never decisional",
+  "rmse_v1_rows_vs_aobt3_s": 542.7736035122211,
+  "median_sensor_minus_block_s_validation_minus_census_constant_s": -12.179999947547913,
+  "v2_rows_hprox_med_ge_1500": {
+   "n": 16,
+   "rmse_taxi_hat_s": 111.77914275092395,
+   "rmse_s1c_s": 481.5302415291694
+  }
+ },
+ "join": {
+  "n_matched_joined_by_callsign": 1177,
+  "n_fixes": 1058,
+  "n_rows_with_centroid": 1185,
+  "runways_learned": {
+   "36L": 764,
+   "36C": 122,
+   "09": 249,
+   "04": 27
+  },
+  "takeoff_offset_s": -24.789999961853027,
+  "n_takeoff_events": 1222
+ },
+ "n_rows": 1239,
+ "judgement_calls": [
+  "the two validation days run through ONE measure() call, as the eight 2026 days do: centroids are the AOBT_3 fixes of both days' matched rows (the prereg's 'same day(s)'; 'identical on the validation days and on 2026'), leave-one-flight-out; the runway geometry and the take-off offset of the unmatched join are learned from the same days' matched rows",
+  "a matched row = AOBT_3_flt present (E4's rule; on 2025-12-27/28 it coincides with CALLSIGN_flt present, 1,193 rows)",
+  "the bias constant = median over the census day's matched rows where the gate fires of (last in-gate sample - BLOCK_TIME); IQR = q75 - q25 by numpy's linear interpolation; the census truth is data/adsb/pilot_truth.parquet (E4's census loader; equal to the raw training file on all 602 EHAM rows of the day, every column checked 2026-09-10)",
+  "V1: coverage = gated matched rows / ALL matched rows of the two days (rows with no callsign track count as not gated); pooled over both days; per day reported, not decisional",
+  "V2: rows = unmatched rows of the two days where the gate fires and the join is unambiguous (a gated unmatched row is unambiguous by construction); taxi_hat = MVT - (sensor - bias) floored at 1 s, NOT rounded (ship rounds); S1C = the 3-seed mean column `S1C` of unm_congestion_lomo.parquet, whose metadata must be stamped convention=taxi_time and whose `y` must equal TAXITIME_SEC_mvt on every scored row (BC-2 tripwire); the 15-row minimum counts exactly V2's scored rows",
+  "V2 status: fewer than 15 rows -> INCONCLUSIVE (pass False); >= 15 rows and not strictly lower RMSE -> FAIL (pass False); either way the arm's verdict is INCONCLUSIVE when V1 passes, by the prereg's mapping",
+  "V3 = E4's C0 rule: 'ambiguous or failed' = rows with >= 2 candidates plus rows whose single candidate is another row's too; denominator = unmatched rows with >= 1 candidate; no-candidate rows reported separately; zero rows with a candidate fails V3",
+  "a day is the UTC date of MVT_TIME_UTC_mvt; tracks come from the two validation-day archives only, so a 2025-12-27 flight whose off-block fell on 2025-12-26 has no stand sample and counts as not gated (a few after-midnight rows at most)",
+  "calibrate refuses to replace a different constant; validate writes once and refuses to overwrite ('never revised')",
+  "a full 2026 extract refuses unless the E4b validation verdict on disk is WORKING; probes are allowed (they write nothing)",
+  "gate --e4b: the 2026 in-file diagnostic (sensor vs AOBT_3) and the 2026 join ambiguity are reported only; the report's verdict is the validation verdict, which ship --e4b re-reads from the validation file"
+ ],
+ "eligibility": "ELIGIBILITY (PREREG_adsb_eham_storm_2026_09_10.md, binding, from reports/ADSB_GATE.md): adsb.lol publishes under ODbL-1.0 and the challenge permits documented open datasets, but the licence question with the organisers is NOT closed. Measurement may proceed; NO SUBMISSION MAY DEPEND ON THIS ARM until the owner has the organisers' answer in writing. The derived table's licence (ODbL share-alike) is documented in the repo before any ship.",
+ "written": {
+  "report": "adsb_e4b_validate.json",
+  "rows": "adsb_e4b_validation_rows.parquet"
+ }
+}

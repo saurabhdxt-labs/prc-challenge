@@ -1,0 +1,55 @@
+[2025-12-27] fetching ...
+[2025-12-27] 2866 MiB on disk in 59 s; extracting
+    first trace member ./traces/61/trace_full_a69061.json: keys=['icao', 'r', 't', 'dbFlags', 'desc', 'ownOp', 'year', 'version'] points=3419
+    20,000 traces, 548,979 in-box samples
+    40,000 traces, 1,146,817 in-box samples
+    parsed 57,073 trace files -> 1,662,879 in-box samples
+[2025-12-27] 1,662,879 in-box samples, 424,911 EHAM; parse 172 s; 0.997 with callsign, 0.660 on ground
+[2025-12-27] EHAM span: 2025-12-27 00:00:00 .. 2025-12-27 23:59:59 UTC (24.0 h, 698 aircraft)
+[2025-12-27] wrote adsb_2025-12-27_EHAM.parquet: 424,911 rows, 231 s total
+      231.77 real       173.37 user         6.59 sys
+          1337901056  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              264593  page reclaims
+                  96  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                 638  messages sent
+              496567  messages received
+                   0  signals received
+              133120  voluntary context switches
+              186733  involuntary context switches
+       2756036035952  instructions retired
+        569218283047  cycles elapsed
+          1317144136  peak memory footprint
+[2025-12-28] fetching ...
+[2025-12-28] 2853 MiB on disk in 61 s; extracting
+    first trace member ./traces/16/trace_full_3d3316.json: keys=['icao', 'r', 't', 'dbFlags', 'desc', 'version', 'timestamp', 'trace'] points=140
+    20,000 traces, 610,214 in-box samples
+    40,000 traces, 1,286,222 in-box samples
+    parsed 53,510 trace files -> 1,739,700 in-box samples
+[2025-12-28] 1,739,700 in-box samples, 411,253 EHAM; parse 199 s; 0.996 with callsign, 0.637 on ground
+[2025-12-28] EHAM span: 2025-12-28 00:00:05 .. 2025-12-28 23:59:48 UTC (24.0 h, 703 aircraft)
+[2025-12-28] wrote adsb_2025-12-28_EHAM.parquet: 411,253 rows, 260 s total
+      261.50 real       196.20 user         7.76 sys
+          1395965952  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              176349  page reclaims
+                 151  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                 636  messages sent
+              496364  messages received
+                   0  signals received
+              134711  voluntary context switches
+              385116  involuntary context switches
+       2752713950079  instructions retired
+        600744926583  cycles elapsed
+          1399981664  peak memory footprint
+exit 0

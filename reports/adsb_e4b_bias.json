@@ -1,0 +1,18 @@
+{
+ "arm": "E4b EHAM ADS-B off-block, label-referenced bias, validated on unseen congested 2025 days (plans/PREREG_adsb_eham_v2_2026_09_10.md)",
+ "prereg": "plans/PREREG_adsb_eham_v2_2026_09_10.md",
+ "airport": "EHAM",
+ "calibration_day": "2025-01-09",
+ "bias_s": 244.53999996185303,
+ "n": 371,
+ "iqr_s": 126.54000008106232,
+ "q25_s": 196.27999997138977,
+ "q75_s": 322.8200000524521,
+ "n_matched": 592,
+ "coverage": 0.6266891891891891,
+ "rmse_after_bias_in_sample_s": 122.06062394816074,
+ "median_aobt3_minus_block_s": -109.0,
+ "procedure": "median over matched gated census rows of (last ADS-B sample within 100 m of the row's leave-one-flight-out AOBT_3 stand centroid before take-off - BLOCK_TIME_UTC_mvt)",
+ "cross_check_census_c3_block_calibrated_bias_s": 244.53999996185303,
+ "written_utc": "2026-09-10T22:15:15.551054+00:00"
+}

@@ -1,7 +1,7 @@
 """Fetch one adsb.lol daily archive and extract ground tracks for the ten scored airports.
 
     python3.11 scripts/adsb_extract.py --day 2025-01-09            # fetch, extract, delete raw
-    python3.11 scripts/adsb_extract.py --day 2025-01-09 --probe    # first 60 MB only, no delete
+    python3.11 scripts/adsb_extract.py --day 2025-01-09 --probe    # 60 MiB of trace members, deleted after
 
 Data source: ADSB.lol globe_history, ODbL 1.0 (see plans/PREREG §Amendment 4.9 and 6.7).
 Attribution and the extraction procedure are part of the repository; the archives themselves
@@ -83,25 +83,67 @@ def parse_member(raw: bytes):
     return out
 
 
+PROBE_BYTES = 62_914_560        # the probe reads 60 MiB of trace members
+PROBE_WINDOW = 65_536           # header-walk range reads: one 64 KiB window per jump (a 12 MB heatmap costs one window)
+PROBE_MAX_HEADERS = 20_000
+
+
+def curl_range(url: str, start: int, n: int) -> bytes:
+    """Bytes [start, start + n) of `url` (fewer at the end of the file). Raises SystemExit on a failed request."""
+    r = subprocess.run(["curl", "-sfL", "--retry", "3", "-r", f"{start}-{start + n - 1}", url], capture_output=True)
+    if r.returncode != 0:
+        raise SystemExit(f"range request failed (curl {r.returncode}): {url} bytes {start}-{start + n - 1}")
+    return r.stdout
+
+
+def first_trace_offset(read_range, window: int = PROBE_WINDOW, max_headers: int = PROBE_MAX_HEADERS) -> tuple:
+    """(byte offset of the first trace member's tar header, headers walked, bytes read). The 2026 archives open with
+    the ./heatmap/ members (~12 MB each, ~0.5 GB in all), so the first 60 MB hold no trace: walk the tar headers by
+    range reads, skipping each non-trace member's data, and stop at the first regular file named like a trace.
+    `read_range(start, n)` returns the archive's bytes [start, start + n)."""
+    off, win_off, win, nbytes = 0, -1, b"", 0
+    for k in range(max_headers):
+        if not (win_off >= 0 and win_off <= off and off + 512 <= win_off + len(win)):
+            win_off, win = off, read_range(off, window)
+            nbytes += len(win)
+        buf = win[off - win_off: off - win_off + 512]
+        if len(buf) < 512 or buf.count(0) == 512:
+            raise SystemExit(f"end of archive at byte {off:,} before any trace member ({k} headers walked)")
+        try:
+            ti = tarfile.TarInfo.frombuf(buf, "utf-8", "surrogateescape")
+        except tarfile.HeaderError as e:
+            raise SystemExit(f"no valid tar header at byte {off:,} ({e}): not a tar archive, or the walk lost alignment")
+        if ti.isfile() and "trace" in ti.name:
+            return off, k + 1, nbytes
+        off += 512 + -(-ti.size // 512) * 512
+    raise SystemExit(f"no trace member within the first {max_headers} tar headers")
+
+
 def fetch(day: str, probe: bool) -> list[pathlib.Path]:
     yr = day[:4]
     tag = f"v{day.replace('-', '.')}-planes-readsb-prod-0"
     RAWDIR.mkdir(parents=True, exist_ok=True)
+    if probe:
+        # PROBE_BYTES of trace members from the first one on (part aa); the non-trace head is walked, not downloaded
+        url = BASE.format(yr=yr, tag=tag, part="aa")
+        off, n_hdr, n_walk = first_trace_offset(lambda s, n: curl_range(url, s, n))
+        dst = RAWDIR / f"{tag}.tar.aa.probe"
+        print(f"    probe: first trace member at byte {off:,} ({n_hdr} tar headers walked, {n_walk:,} bytes read); "
+              f"fetching {PROBE_BYTES / 2**20:.0f} MiB from there", flush=True)
+        cmd = ["curl", "-sfL", "--retry", "3", "-o", str(dst), "-r", f"{off}-{off + PROBE_BYTES - 1}", url]
+        if subprocess.run(cmd).returncode != 0:
+            raise SystemExit(f"download failed: {url}")
+        return [dst]
     paths = []
     for part in ("aa", "ab"):
         url = BASE.format(yr=yr, tag=tag, part=part)
         dst = RAWDIR / f"{tag}.tar.{part}"
-        cmd = ["curl", "-sfL", "--retry", "3", "-o", str(dst)]
-        if probe:
-            cmd += ["-r", "0-62914560"]
-        cmd.append(url)
+        cmd = ["curl", "-sfL", "--retry", "3", "-o", str(dst), url]
         if subprocess.run(cmd).returncode != 0:
             if part == "ab":
                 break                      # some days are a single part
             raise SystemExit(f"download failed: {url}")
         paths.append(dst)
-        if probe:
-            break
     return paths
 
 
@@ -151,7 +193,8 @@ def extract(paths, probe: bool) -> pd.DataFrame:
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--day", required=True, help="YYYY-MM-DD")
-    ap.add_argument("--probe", action="store_true", help="first 60 MB only; keeps the part file")
+    ap.add_argument("--probe", action="store_true",
+                    help="60 MiB of trace members from the first one on (the head is walked by range reads); deleted after")
     a = ap.parse_args()
 
     print(f"[{a.day}] fetching{' (probe)' if a.probe else ''} ...", flush=True)

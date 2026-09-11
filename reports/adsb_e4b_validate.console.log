@@ -1,0 +1,8 @@
+bias constant 244.540 s (from adsb_e4b_bias.json, calibrated on 2025-01-09)
+V1 RMSE 487.56899404886144 s, coverage 0.7661357921207042 -> False
+V2 n 30: taxi_hat 119.36209532365835 vs S1C 397.23132076699983 -> PASS
+V3 share 0.02631578947368421 (n with candidate 38) -> True
+  2025-12-27: {'n_matched': 593, 'n_gated': 437, 'coverage': np.float64(0.7369308600337268), 'rmse_vs_block_s': 404.22919450974047, 'median_sensor_minus_block_s': 229.14000010490417, 'n_unmatched': 19, 'n_unmatched_gated': 11, 'n_unmatched_ambiguous': 0, 'n_v2_rows': 11, 'v2_rmse_taxi_hat_s': 131.35478775798347, 'v2_rmse_s1c_s': 347.3278715533232}
+  2025-12-28: {'n_matched': 600, 'n_gated': 477, 'coverage': np.float64(0.795), 'rmse_vs_block_s': 553.0039147434063, 'median_sensor_minus_block_s': 234.77999997138977, 'n_unmatched': 27, 'n_unmatched_gated': 19, 'n_unmatched_ambiguous': 1, 'n_v2_rows': 19, 'v2_rmse_taxi_hat_s': 111.83267836728918, 'v2_rmse_s1c_s': 423.4431865212091}
+VERDICT: NOT WORKING
+wrote /Users/saurabhdxt/Projects/prc-challenge/reports/adsb_e4b_validate.json and /Users/saurabhdxt/Projects/prc-challenge/data/adsb/adsb_e4b_validation_rows.parquet
