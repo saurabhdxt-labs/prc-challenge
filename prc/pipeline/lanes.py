@@ -79,10 +79,19 @@ def check_pins(cfg) -> dict:
     st = legacy.stratum()
     got = {"schedule_floor_lo_s": float(st.rb.LO), "schedule_floor_hi_s": float(st.rb.HI),
            "rules_airport": st.rb.AIRPORT}
-    rl = legacy.rome_local_day()
-    got.update(local_day_lo_s=float(rl.SP_LO), local_day_hi_s=float(rl.SP_HI))
-    also = {"unm_congestion.ROME": st.uc.ROME, "unm_congestion_ship.ROME": st.ucs.ROME, "rome_local_day.AIRPORT": rl.AIRPORT}
+    also = {"unm_congestion.ROME": st.uc.ROME, "unm_congestion_ship.ROME": st.ucs.ROME}
+    if any(a.rules.local_day is not None for a in cfg.airports.values()):      # only then does the rule's file matter
+        rl = legacy.rome_local_day()
+        got.update(local_day_lo_s=float(rl.SP_LO), local_day_hi_s=float(rl.SP_HI))
+        also["rome_local_day.AIRPORT"] = rl.AIRPORT
+        if rl.TZ != C.PINNED["local_day_tz"]:                                  # the constant that defines "local day"
+            bad_tz = {"local_day_tz": (rl.TZ, C.PINNED["local_day_tz"])}
+        else:
+            bad_tz = {}
+    else:
+        bad_tz = {}
     bad = {k: (v, C.PINNED[k]) for k, v in got.items() if v != C.PINNED[k]}
+    bad.update(bad_tz)
     bad.update({k: (v, C.PINNED["rules_airport"]) for k, v in also.items() if v != C.PINNED["rules_airport"]})
     if tuple(st.bs.SEEDS) != tuple(cfg.seeds) or tuple(st.sf.SEEDS) != tuple(cfg.seeds):
         bad["seeds"] = (tuple(cfg.seeds), tuple(st.bs.SEEDS))
@@ -454,8 +463,9 @@ def _adsb_stage(lane: C.Lane, cfg, ids, proxy, pred, vals, stage_predictor, log)
     gate, man = AS.read_gate(lane.adsb_stage.models_dir)
     rank = pd.read_parquet(cfg.paths.stand_cache / "ranking.parquet", columns=["MVT_ID_mvt", "ap", "hr"])
     rank = rank.set_index(rank.MVT_ID_mvt.to_numpy(dtype="float64")).reindex(ids)
-    if rank.ap.isna().any():
-        raise E.LaneError("ranking cache rows missing for the stage's ids")
+    if rank.ap.isna().any() or rank.hr.isna().any():
+        raise E.LaneError(f"ranking cache rows missing for the stage's ids: {int(rank.ap.isna().sum())} without an airport, "
+                          f"{int(rank.hr.isna().sum())} without an hour")
     frame = AS.stage_frame(ids, rank.ap.to_numpy(), rank.hr.to_numpy(), proxy, pred, table)
     if stage_predictor is not None:
         fn = stage_predictor

@@ -172,3 +172,20 @@ def test_check_stage_inputs_reports_a_complete_stage_and_names_what_is_missing(t
         S.check_stage_inputs(table, _models(tmp_path / "d", gate={}), IDS)
     with pytest.raises(E.SchemaError, match="missing"):
         S.check_stage_inputs(table, _models(tmp_path / "e"), IDS[:-1])
+
+
+def test_stage_frame_refuses_a_table_column_that_collides_with_its_own(tmp_path):
+    """The stage frame puts ap / hour / proxy / F beside every table feature. A table column of the same name would make
+    pandas return a 2-D block for `frame.proxy`, and apply_stage would broadcast it silently. read_table's label-column
+    check does not cover collisions. Rehearsed 2026-09-11 (c70): the collision check deleted -> RED (duplicate 'proxy')."""
+    table, _ = S.read_table(_table(tmp_path, extra={"proxy": np.arange(5.0)}), IDS)
+    with pytest.raises(E.SchemaError, match="collide"):
+        S.stage_frame(IDS, ["EHAM"] * 5, [8.0] * 5, [1.0] * 5, [1.0] * 5, table)
+
+
+def test_check_stage_inputs_refuses_a_gate_that_allows_nobody(tmp_path):
+    """An all-False gate is not an error in read_gate (entries are valid), but a build under it ships v10's numbers inside a
+    manifest that says ADS-B: a wrong models_dir would pass the dry run silently. Rehearsed 2026-09-11 (c70): the
+    all-False check deleted -> RED."""
+    with pytest.raises(E.SchemaError, match="allows no airport"):
+        S.check_stage_inputs(_table(tmp_path), _models(tmp_path / "none", gate={"EHAM": {"allowed": False, "rule": "r"}}), IDS)

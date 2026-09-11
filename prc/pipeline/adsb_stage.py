@@ -100,6 +100,10 @@ def stage_frame(ids, ap, hour, proxy, F, table: pd.DataFrame) -> pd.DataFrame:
     for k, v in parts.items():
         if len(v) != len(ids):
             raise E.LaneError(f"stage input {k!r} has {len(v)} values for {len(ids)} rows")
+    clash = sorted(set(parts) & set(table.columns))
+    if clash:
+        raise E.SchemaError(f"ADS-B table column(s) {clash} collide with the stage's own columns; the frame would carry "
+                            "duplicate labels and the lane would read a 2-D block")
     got = table.reindex(ids)
     if got.coverage.isna().any():
         raise E.SchemaError(f"{int(got.coverage.isna().sum()):,} rows have no ADS-B table row")
@@ -179,6 +183,9 @@ def check_stage_inputs(table_path, models_dir, expected_ids) -> dict:
     absent = [c for c in man["feats"] if c not in table.columns]
     if absent:
         raise E.MissingColumnError(f"{pathlib.Path(table_path).name}: the models' feature(s) {absent} are not in the table")
+    if not any(gate.values()):
+        raise E.SchemaError(f"{pathlib.Path(models_dir).name}/MANIFEST.json: the gate allows no airport; a build under it "
+                            "would ship the lane's own values inside a manifest that claims an ADS-B stage")
     return {"table": str(table_path), "table_meta": meta, "n_rows": int(len(table)),
             "movable_share": float((table.coverage.to_numpy() >= MIN_COVERAGE).mean()),
             "models_dir": str(models_dir), "n_model_files": len(want),

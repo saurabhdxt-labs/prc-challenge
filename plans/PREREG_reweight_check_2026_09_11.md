@@ -165,3 +165,24 @@ The projection uses SHIP-ADN's P formula with k = 1: P_LIRF = 189.
 - **Projection:** P_LIRF 189 at k = 1; about 146 if scaled by the reweighted ratio.
 - (The script's last print line referenced a key that exists only in the default mode. The crash came after the JSON was
   written, and the fix is to that print line only; tests 15 passed.)
+
+# Correction RWC.4 · 2026-09-11 18:41:08 EDT — two defects in RWC.3's own record, found by an end-of-session review
+
+1. **RWC.3 cited a harness that never covered LIRF.** `main` builds K+ from `sorted(set(D) | set(REPORT_ONLY))` regardless of
+   `--airports` (`scripts/reweight_check.py:220`), so the pooled K+ that RWC.3 leaned on demonstrated recovery at AUC
+   0.499–0.659 and never at LIRF's 0.758 / ESS 0.34 — the regime where a density ratio degrades. The claim "the already-PASSED
+   pooled K+" was therefore wider than the evidence.
+   **Closed empirically, same machinery, 18:41:** K+ restricted to LIRF — planted change 3,030 (25% of G), G_true
+   15,354, G_w 15,776, error 422 ≤ 0.5 × 3,030, AUC 0.747. **PASS.** The LIRF SHIP verdict stands, now on evidence from LIRF's
+   own regime rather than a pooled claim.
+2. **RWC.3 contradicted this prereg's own clause.** Section "After the verdict" says "No second RWC variant is run"; RWC.3 is a
+   second variant, opened at 17:49 after the 16:26 result, on the one airport that could reach 5th. It was labelled
+   owner-directed and post-hoc, but the contradiction with the earlier clause was NOT named at the time. Naming it now.
+   The verdict is not revised — its clauses were fixed before its numbers and it met them — but the reader should weigh it as a
+   post-hoc extension that broke a pre-registered scope limit, not as part of the original registration.
+
+Also recorded from the same review, not defects in the result: K0's third clause compares G_w with the interval of the
+UNWEIGHTED mean on the same rows, which is weak (the sharp null is an interval on G_w − G); K0's power comes mainly from its
+AUC and ESS clauses. C1's interval is Horvitz–Thompson-flavoured (fixed divisor n) while `weighted_gain` is Hájek; they
+coincide on the full sample because weights are normalised to mean 1, an invariant C1 silently depends on. The day-block
+interval does not inflate for weight degeneracy, so at LIRF's ESS 0.34 it is optimistic. V1's 0.20 n bar has no derivation.

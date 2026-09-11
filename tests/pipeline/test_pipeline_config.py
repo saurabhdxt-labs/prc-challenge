@@ -233,3 +233,21 @@ def test_the_local_day_schedule_rule_parses_last_with_its_pinned_band():
         C.parse_config(_raw_with_rules({**base, "local_day_schedule": {"lo_s": 20000, "hi_s": 86400}}), root=ROOT)
     with pytest.raises(E.PinnedValueError, match="shipped order"):
         C.parse_config(_raw_with_rules({"local_day_schedule": {"lo_s": 24000, "hi_s": 86400}, **base}), root=ROOT)
+
+
+@pytest.mark.skipif(not (ROOT / "configs" / "pipeline_adn.yaml").exists(), reason="the ADN config is another lane's file")
+def test_the_configs_that_built_v11_and_v12_load_and_carry_what_their_names_claim():
+    """The shipped submissions were built from configs/pipeline_adn.yaml (v11) and configs/pipeline_v12.yaml (v12); until
+    now every config test parsed only configs/pipeline.yaml, so the two that actually shipped were unparsed by any test.
+    Rehearsed 2026-09-11 (c70): the stage block dropped from pipeline_v12.yaml -> RED; local_day_schedule dropped -> RED."""
+    adn = C.load_config(ROOT / "configs" / "pipeline_adn.yaml")
+    v12 = C.load_config(ROOT / "configs" / "pipeline_v12.yaml")
+    base = C.load_config(ROOT / "configs" / "pipeline.yaml")
+    assert base.lanes["matched"].adsb_stage is None and base.airports["LIRF"].rules.local_day is None
+    for cfg in (adn, v12):
+        st = cfg.lanes["matched"].adsb_stage
+        assert st is not None and st.table.name.startswith("features_2026") and st.models_dir.name == "models"
+    assert adn.airports["LIRF"].rules.local_day is None                      # v11 shipped WITHOUT the Rome rule
+    ld = v12.airports["LIRF"].rules.local_day
+    assert ld is not None and (ld.lo_s, ld.hi_s) == (24_000.0, 86_400.0) and v12.airports["LIRF"].rules.order[-1] == "local_day_schedule"
+    assert adn.config_hash != base.config_hash and v12.config_hash != adn.config_hash

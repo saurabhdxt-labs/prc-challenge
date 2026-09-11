@@ -54,7 +54,8 @@ RULE_ORDER = ("fill_classifier", "dateslip", "schedule_floor", "local_day_schedu
 PINNED = types.MappingProxyType({"schedule_floor_lo_s": 24_000.0, "schedule_floor_hi_s": 86_400.0,
                                  "rules_airport": "LIRF",
                                  # rome_local_day.SP_LO / SP_HI (plans/PREREG_rome_local_day_rule_2026_09_11.md)
-                                 "local_day_lo_s": 24_000.0, "local_day_hi_s": 86_400.0})
+                                 "local_day_lo_s": 24_000.0, "local_day_hi_s": 86_400.0,
+                                 "local_day_tz": "Europe/Rome"})
 #: keys that would splice an earlier submission; refused with the landmine named
 SPLICE_KEYS = ("base", "base_submission", "base_file", "splice", "previous_submission")
 SUBMISSIONS_DIR = "submissions"

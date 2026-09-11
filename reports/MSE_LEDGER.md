@@ -744,3 +744,11 @@ Result: status Succeeded, used_pairs 344,841, **score 266.3738**.
 - Board 18:27 EDT: 1 youthful-giraffe 245.02 · 2 enthusiastic-daisy 260.93 · 3 quick-boat 262.55 · 4 jovial-uniform 264.25 · **5 merry-quicksand 266.37** · 6 upstanding-firefly 266.40.
 - To 4th −1,709 MSE, to 3rd −2,602, to 2nd −3,449, to 1st −10,920.
 - Uploads used today (UTC 2026-09-11): 2 of 5. Day's move: 281.5182 (15th) → 267.4518 (7th) → 266.3738 (5th).
+- **2026-09-11 18:32 EDT — RESULT BNU (zero compute; `plans/PREREG_bundle_uncovered_2026_09_11.md`, registered 18:30 before the number):**
+  the CAP + C_delta blend B0 vs arm F, split by ADS-B coverage: all rows +556.8 [320, 793]; **uncovered rows (61.8%) +403.5 [229, 580]**; covered rows +153.3 [2, 303] (not additive with ADN — same F corrected twice).
+  **TRUE by 3.5 units against the pre-written +400 bar.** Crude 2026 scaling ≈ 331 board MSE, and EGLL's +99 largely disappears (77% covered in 2026) while LTFM / LIRF stay.
+  It decides only that a ship step is worth REGISTERING: ≈ 2.5 h CAP refit + a CatBoost plug-in (BC-5), then its own bar, build and A1-style guard. Not a route to 260 alone (4th is −1,709 from v12).
+- **2026-09-11 18:5x EDT — RWC.4, two corrections to RWC.3's record (end-of-session review):**
+  (1) RWC.3 cited "the already-PASSED pooled K+", but `main` builds K+ from D ∪ REPORT_ONLY regardless of `--airports`, so LIRF was never in it. **Re-run restricted to LIRF: PASS** (planted 3,030, G_true 15,354, G_w 15,776, error 422 ≤ 1,515, AUC 0.747). The LIRF SHIP verdict stands on its own regime's evidence.
+  (2) RWC.3 broke this prereg's own "No second RWC variant is run" clause. It was labelled post-hoc and owner-directed, but the contradiction was not named at the time. Named now; the verdict is not revised.
+  Named limits of the instrument (not defects in the result): K0's interval clause is weak (the sharp null is on G_w − G); C1's interval is HT-flavoured while the point estimate is Hájek (they coincide only because weights are normalised to mean 1); the day-block interval is not inflated for weight degeneracy, so at ESS 0.34 it is optimistic; V1's 0.20 n bar is a choice, not a derivation.

@@ -5,3 +5,6 @@
 2026-09-11 16:26:24 EDT  RWC prereg sha256=76cbc8bf5163c577ed12e8226b1337c1e30fb3d389da8be393c158da8d104df1  event=RESULT RWC recorded (harness PASS; EDDM/EDDF/LEBL/LSZH SHIP)
 2026-09-11 17:49:46 EDT  RWC prereg sha256=5100e85b767e15718e8068c7c3f453466a21c7354d1989503f02b4ddeadf9959  event=RWC.3 LIRF extension (owner 'with v12'), before any LIRF number
 2026-09-11 17:51:21 EDT  RWC prereg sha256=21273fccbad98e1451f1965f308067b19b6ec94f7ae68779aaa18f53b07cba49  event=RESULT RWC.3 LIRF SHIP (0.77x, ESS 0.34)
+2026-09-11 18:30:44 EDT  BNU prereg sha256=bd36e2efe0211fe465008bf225f60cb3e4b411da6bdb8816b3f86c534bb9c70a  event=registered before the restricted number
+2026-09-11 18:31:45 EDT  BNU prereg sha256=fb5b149b4def5a93ef7495ff0d511e55d1fb62cda9eade116c8c2670c237c836  event=RESULT BNU TRUE at the bar (+403.5 uncovered)
+2026-09-11 18:41:09 EDT  RWC prereg sha256=56fe8bde281931f3365c2035094a78824e961949e55eaf175028af43bc2ad576  event=RWC.4 corrections: K+ at LIRF run (PASS); the no-second-variant clause was broken by RWC.3
