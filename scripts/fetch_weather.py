@@ -14,10 +14,18 @@ competition, so the archive is frozen on disk and every later build reads the fr
 Each file is written atomically (a .part rename) so an interrupted fetch cannot leave a truncated
 CSV that a later build would silently read as complete. A month already on disk is skipped, so the
 script is safe to re-run.
+
+Every fetched month is also checked for INFORMATION CONTENT (`information_report`, 2026-09-11,
+bug class BC-3): a field that is constant across the whole month is printed with the evidence
+against it. The archive fills p01i with the literal "0.00" at every European station while the
+weather group reports rain; `check` passed those months because the rows were well-formed. The
+report does not refuse a month -- the other fields are sound -- and `prc.weather` reads an
+uninformative p01i as unknown, so the defect cannot re-enter through a new fetch unseen.
 """
 from __future__ import annotations
 
 import argparse
+import io
 import pathlib
 import sys
 import time
@@ -25,7 +33,11 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+import pandas as pd
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from prc import weather as WX  # noqa: E402
 WEATHER = ROOT / "data" / "weather"
 BASE = "https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py"
 #: the ten scored airports; the archive keys on the ICAO identifier, as the movement table does
@@ -81,6 +93,18 @@ def check(text: str, station: str, year: int, month: int) -> int:
     return len(rows)
 
 
+def information_report(text: str) -> list[str]:
+    """One line per numeric field of a fetched month that takes a single value (or none), with how
+    many rows the weather group reports precipitation on -- the evidence a constant-zero p01i
+    contradicts. Empty when every field varies. Uses the parser's own check, so the fetch and the
+    loader can never disagree about what 'uninformative' means."""
+    raw = pd.read_csv(io.StringIO(text), dtype=str, keep_default_na=False, na_values=[""])
+    raw["valid"] = pd.to_datetime(raw.valid, utc=True)
+    info = WX.information_content(raw)
+    return [f"{r.field}: {r.n_distinct} distinct value(s) over {r.n_reported:,} reported; the weather group "
+            f"reports precipitation on {r.n_precip_codes:,} rows" for r in info[~info.informative].itertuples()]
+
+
 def name(station: str, year: int, month: int) -> str:
     return f"{station}_{year}-{month:02d}.csv"
 
@@ -108,6 +132,8 @@ def main(argv=None) -> int:
         part.rename(dest)                      # atomic: a truncated file never takes the real name
         got += 1
         print(f"{dest.name}  {n:6,} observations  {len(text)/1e6:5.2f} MB  [{time.time() - t0:5.0f}s]", flush=True)
+        for line in information_report(text):
+            print(f"    UNINFORMATIVE {line}", flush=True)
     print(f"done: {got} fetched, {skipped} already on disk, {len(jobs)} asked; -> {out}", flush=True)
     return 0
 
