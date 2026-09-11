@@ -20,6 +20,7 @@ import pathlib
 import numpy as np
 import pandas as pd
 import pytest
+from types import SimpleNamespace
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 _spec = importlib.util.spec_from_file_location("pipeline_world", pathlib.Path(__file__).with_name("pipeline_world.py"))
@@ -200,10 +201,24 @@ def test_the_local_day_rule_refuses_an_sp_that_is_not_mvt_minus_sched():
         lanes._local_day(te, np.ones(len(te)))
 
 
-def test_the_pins_cover_the_local_day_rule(monkeypatch):
-    """check_pins re-reads rome_local_day's band and airport. Rehearsed (c70): its RLD entries deleted -> RED."""
-    cfg = _cfg_with(extra_airport=False)
-    assert lanes.check_pins(cfg)["local_day_lo_s"] == 24_000.0
+def test_the_pins_cover_the_local_day_rule_only_when_an_airport_configures_it(monkeypatch):
+    """check_pins re-reads rome_local_day's band, airport AND timezone -- the constant that defines "local day" -- but only
+    when some airport enables the rule, so a run without it does not depend on that file at all.
+    Rehearsed 2026-09-11 (c70): the RLD entries deleted -> RED; the TZ comparison deleted -> RED; pinning unconditionally
+    -> RED (the plain config reports local_day_lo_s)."""
+    plain = _cfg_with(extra_airport=False)
+    assert "local_day_lo_s" not in lanes.check_pins(plain)                      # no rule configured: no dependency
+    ap = plain.airports["LIRF"]
+    with_rld = dataclasses.replace(ap, rules=C.AirportRules(order=(*ap.rules.order, "local_day_schedule"),
+                                                            schedule_floor=ap.rules.schedule_floor,
+                                                            local_day=C.LocalDay(lo_s=24_000.0, hi_s=86_400.0)))
+    cfg = dataclasses.replace(plain, airports={**plain.airports, "LIRF": with_rld})
+    got = lanes.check_pins(cfg)
+    assert (got["local_day_lo_s"], got["local_day_hi_s"], got["rome_local_day.AIRPORT"]) == (24_000.0, 86_400.0, "LIRF")
+    monkeypatch.setattr(legacy.rome_local_day(), "TZ", "UTC")
+    with pytest.raises(E.PinnedValueError, match="local_day_tz"):
+        lanes.check_pins(cfg)
+    monkeypatch.setattr(legacy.rome_local_day(), "TZ", "Europe/Rome")
     monkeypatch.setattr(legacy.rome_local_day(), "SP_LO", 20_000.0)
     with pytest.raises(E.PinnedValueError, match="local_day_lo_s"):
         lanes.check_pins(cfg)
@@ -456,3 +471,29 @@ def test_the_adsb_stage_calls_the_real_predictor_with_the_models_dir_and_the_ful
     new, info, moved = lanes._adsb_stage(lane, mw.cfg, ids, proxy, pred, vals, None, lambda m: None)
     assert calls == [(len(ids), tmp_path, False)]
     assert np.array_equal(new, vals) and not moved.any() and info["gate"] == {"EHAM": False}
+
+
+def test_the_adsb_stage_refuses_a_ranking_cache_row_without_an_hour(mw, tmp_path):
+    """The stage takes ap AND hr from the ranking cache; the models were trained on the take-off's UTC hour. A NaN hour
+    would reach the predictor as a NaN feature and be silently absorbed. Only `ap` was checked until this test.
+    Rehearsed 2026-09-11 (c70): the `or rank.hr.isna().any()` clause dropped -> RED (the stage runs on a NaN hour)."""
+    import json
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    ids = np.asarray(mw.rank_ids, dtype="float64")
+    cache = tmp_path / "stand"
+    cache.mkdir()
+    rank = pd.read_parquet(mw.cfg.paths.stand_cache / "ranking.parquet")
+    rank.loc[rank.index[0], "hr"] = np.nan
+    rank.to_parquet(cache / "ranking.parquet", index=False)
+    t = pa.Table.from_pandas(pd.DataFrame({"MVT_ID_mvt": ids, "coverage": 3}), preserve_index=False)
+    table = tmp_path / "features.parquet"
+    pq.write_table(t.replace_schema_metadata({**(t.schema.metadata or {}), b"git_sha": b"x", b"extractor": b"e",
+                                              b"features_version": b"v"}), table)
+    (tmp_path / "MANIFEST.json").write_text(json.dumps({"gate": {"EHAM": True}}))
+    lane = dataclasses.replace(mw.lane, adsb_stage=C.AdsbStage(table=table, models_dir=tmp_path))
+    cfg = SimpleNamespace(paths=SimpleNamespace(stand_cache=cache), seeds=mw.cfg.seeds)   # _adsb_stage reads only these
+    proxy = mw.labels.proxy[mw.is_rank]
+    with pytest.raises(E.LaneError, match="without an hour"):
+        lanes._adsb_stage(lane, cfg, ids, proxy, np.zeros(len(ids)), np.rint(np.maximum(proxy, 1.0)),
+                          lambda f: np.zeros(len(f)), lambda m: None)

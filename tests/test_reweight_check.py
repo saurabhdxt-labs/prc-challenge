@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import pathlib
 
 import numpy as np
@@ -104,3 +105,24 @@ def test_run_k0_and_the_verdict_cover_exactly_the_airports_asked_for():
     assert set(k0) == {"LIRF", "overall"}
     res = R.run_verdict(f25, f26, ["LIRF"])
     assert set(res) == {"LIRF"} and res["LIRF"]["decision"] in ("SHIP", "KEEP_F", "INCONCLUSIVE")
+
+
+def test_main_writes_its_report_and_refuses_to_overwrite(tmp_path, monkeypatch):
+    """The CLI body itself, end to end on synthetic frames: it must write the report AND survive its own final print.
+    Class BC-9 (untested CLI glue): the RWC.3 run crashed there with a KeyError on 'gate_final', a key that exists only in
+    the default scope, AFTER the JSON was written. Rehearsed 2026-09-11 (c70): restoring rec['gate_final'] in the print ->
+    RED (KeyError), and removing the exists() guard -> RED (the second call overwrites)."""
+    rng = np.random.default_rng(5)
+    days = pd.date_range("2025-01-01", periods=24, freq="D").strftime("%Y-%m-%d").to_numpy()
+    f25 = pd.concat([_X(rng, 2400).assign(ap=a, day=rng.choice(days, 2400), month=1, gain=rng.normal(100, 50, 2400))
+                     for a in ("LIRF", "EDDM")], ignore_index=True)
+    f26 = pd.concat([_X(rng, 2400).assign(ap=a) for a in ("LIRF", "EDDM")], ignore_index=True)
+    monkeypatch.setattr(R, "load_2025", lambda: f25)
+    monkeypatch.setattr(R, "load_2026", lambda: f26)
+    out = tmp_path / "rwc_test.json"
+    assert R.main(["--airports", "LIRF", "--out", str(out)]) == 0
+    rec = json.loads(out.read_text())
+    assert rec["decided_set"] == ["LIRF"] and set(rec["results"]) == {"LIRF"} and rec["harness"] in ("PASS", "FAIL")
+    assert "gate_final" not in rec                      # only the default scope writes the final gate
+    with pytest.raises(SystemExit, match="refusing to overwrite"):
+        R.main(["--airports", "LIRF", "--out", str(out)])
