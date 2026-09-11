@@ -38,7 +38,7 @@ def test_the_shipped_config_loads_with_the_ten_airports_and_routes_lirf_to_its_r
         assert cfg.lane_for(code, "matched") == "matched"
         assert cfg.lane_for(code, "unmatched") == ("lirf_rules" if code == "LIRF" else "unmatched")
     lirf = cfg.airports["LIRF"].rules
-    assert lirf.order == C.RULE_ORDER and (lirf.schedule_floor.lo_s, lirf.schedule_floor.hi_s) == (24_000.0, 86_400.0)
+    assert lirf.order == C.RULE_ORDER[:3] and lirf.local_day is None and (lirf.schedule_floor.lo_s, lirf.schedule_floor.hi_s) == (24_000.0, 86_400.0)
     assert cfg.seeds == (0, 1, 2) and cfg.fallback_airports() == ()
     m = cfg.lanes["matched"]
     assert (m.model, m.target, m.source) == ("lightgbm", "delta", "saved_boosters")
@@ -211,3 +211,25 @@ def test_the_matched_lane_accepts_an_optional_adsb_stage_and_refuses_it_elsewher
     bad["lanes"]["unmatched"]["adsb_stage"] = {"table": "x", "models_dir": "y"}
     with pytest.raises(E.UnknownKeyError, match="adsb_stage"):
         C.parse_config(bad, root=ROOT)
+
+
+def _raw_with_rules(rules):
+    import copy
+    raw = copy.deepcopy(pw.real_raw())
+    raw["airports"]["LIRF"]["rules"] = rules
+    return raw
+
+
+def test_the_local_day_schedule_rule_parses_last_with_its_pinned_band():
+    """RLD (plans/PREREG_rome_local_day_rule_2026_09_11.md) is the fourth Rome rule, applied after the floor, with the
+    prereg's band [24,000, 86,400). Rehearsed 2026-09-11 (c70): _parse_rules ignoring local_day_schedule -> RED (no
+    band); the band pin removed -> RED (the 20,000 band parses)."""
+    base = {"fill_classifier": {}, "dateslip": {}, "schedule_floor": {"lo_s": 24000, "hi_s": 86400}}
+    cfg = C.parse_config(_raw_with_rules({**base, "local_day_schedule": {"lo_s": 24000, "hi_s": 86400}}), root=ROOT)
+    r = cfg.airports["LIRF"].rules
+    assert r.order[-1] == "local_day_schedule" and (r.local_day.lo_s, r.local_day.hi_s) == (24_000.0, 86_400.0)
+    assert C.parse_config(_raw_with_rules(base), root=ROOT).airports["LIRF"].rules.local_day is None
+    with pytest.raises(E.PinnedValueError, match="local_day_schedule"):
+        C.parse_config(_raw_with_rules({**base, "local_day_schedule": {"lo_s": 20000, "hi_s": 86400}}), root=ROOT)
+    with pytest.raises(E.PinnedValueError, match="shipped order"):
+        C.parse_config(_raw_with_rules({"local_day_schedule": {"lo_s": 24000, "hi_s": 86400}, **base}), root=ROOT)

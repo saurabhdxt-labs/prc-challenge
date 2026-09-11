@@ -220,7 +220,7 @@ def test_the_manifest_has_every_required_field_and_a_digest_that_ignores_only_wa
     assert set(write.REQUIRED_KEYS) <= set(m1)
     pw.assert_same_run(m1, m2, since, ROOT)
     assert m1["config"]["hash"] == cfg.config_hash and m1["fallback_airports"] == ["EKCH"]
-    assert m1["airports"]["EKCH"]["fallback"] is True and m1["airports"]["LIRF"]["rules"] == list(C.RULE_ORDER)
+    assert m1["airports"]["EKCH"]["fallback"] is True and m1["airports"]["LIRF"]["rules"] == list(C.RULE_ORDER[:3])
     assert m1["routing"]["n_fallback_rows"] == 2 and set(m1["git"]) == {"sha", "dirty"}
     assert m1["inputs"]["x"]["sha256"] == __import__("hashlib").sha256(b"abc").hexdigest()
 

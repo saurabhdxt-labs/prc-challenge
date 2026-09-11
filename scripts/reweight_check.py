@@ -145,9 +145,9 @@ def interval_of_mean(values, day, month) -> tuple:
     return s / n, lo / n, hi / n
 
 
-def run_k0(f25: pd.DataFrame) -> dict:
+def run_k0(f25: pd.DataFrame, airports=D) -> dict:
     out = {}
-    for a in D:
+    for a in airports:
         g = f25[f25.ap == a]
         odd = pd.to_datetime(g.day).dt.day.to_numpy() % 2 == 1
         ev = g[~odd]
@@ -201,26 +201,36 @@ def run_verdict(f25: pd.DataFrame, f26: pd.DataFrame, airports) -> dict:
     return out
 
 
-def main() -> int:
-    if OUT.exists():
-        raise SystemExit(f"refusing to overwrite {OUT}")
+def main(argv=None) -> int:
+    """Default: RWC on D. `--airports LIRF --out reports/rwc_lirf.json` is RWC.3 (same machinery, same clauses)."""
+    import argparse
+    ap_ = argparse.ArgumentParser(description=main.__doc__)
+    ap_.add_argument("--airports", default=",".join(D))
+    ap_.add_argument("--out", default=str(OUT))
+    args = ap_.parse_args(argv)
+    decided = tuple(args.airports.split(","))
+    out_path = pathlib.Path(args.out)
+    if out_path.exists():
+        raise SystemExit(f"refusing to overwrite {out_path}")
     sys.path.insert(0, str(ROOT))
     f25, f26 = load_2025(), load_2026()
     print(f"2025 joined scored rows {len(f25):,}; 2026 joined rows {len(f26):,}", flush=True)
-    k0 = run_k0(f25)
+    k0 = run_k0(f25, decided)
     print("K0", json.dumps(k0, default=float), flush=True)
     kp = run_kplus(f25, sorted(set(D) | set(REPORT_ONLY)))
     print("K+", json.dumps({k: v for k, v in kp.items() if k != "per_airport"}), flush=True)
     harness = "PASS" if k0["overall"] == "PASS" and kp["rule"] == "PASS" else "FAIL"
-    res = run_verdict(f25, f26, list(D) + list(REPORT_ONLY))
+    report = list(D) + list(REPORT_ONLY) if decided == D else list(decided)
+    res = run_verdict(f25, f26, report)
     for a, r in res.items():
         print(a, json.dumps(r, default=float), flush=True)
-    ship = sorted(a for a in D if harness == "PASS" and res[a].get("decision") == "SHIP")
+    ship = sorted(a for a in decided if harness == "PASS" and res[a].get("decision") == "SHIP")
     rec = {"prereg": "plans/PREREG_reweight_check_2026_09_11.md", "written": dt.datetime.now().astimezone().isoformat(),
-           "k0": k0, "kplus": kp, "harness": harness, "results": res, "decided_set": list(D), "ship_from_D": ship,
-           "gate_final": sorted(["EHAM", "EGLL", "LEMD", "LFPG", "LTFM", *ship])}
-    OUT.write_text(json.dumps(rec, indent=1, default=float))
-    print(f"harness {harness}; ship from D: {ship}; final gate {rec['gate_final']}", flush=True)
+           "k0": k0, "kplus": kp, "harness": harness, "results": res, "decided_set": list(decided), "ship_from_D": ship}
+    if decided == D:
+        rec["gate_final"] = sorted(["EHAM", "EGLL", "LEMD", "LFPG", "LTFM", *ship])
+    out_path.write_text(json.dumps(rec, indent=1, default=float))
+    print(f"harness {harness}; ship from {list(decided)}: {ship}; final gate {rec.get('gate_final', 'n/a (RWC.3 scope)')}", flush=True)
     return 0
 
 

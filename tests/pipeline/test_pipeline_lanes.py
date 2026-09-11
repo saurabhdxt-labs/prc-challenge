@@ -170,6 +170,59 @@ def test_the_rules_lane_honours_an_ordered_subset_of_the_rules(sw):
     assert np.array_equal(r2.values, want)
 
 
+def _rld_frame():
+    """Five LIRF unmatched rows: same Rome local day in band (moves), next local day (does not), below band, a matched row,
+    and a same-day in-band row at another airport."""
+    sched = pd.to_datetime(["2026-01-10 06:00", "2026-01-10 20:00", "2026-01-10 06:00", "2026-01-10 06:00",
+                            "2026-01-10 06:00"], utc=True)
+    mvt = sched + pd.to_timedelta([50_000, 50_000, 20_000, 50_000, 50_000], unit="s")
+    return pd.DataFrame({"MVT_ID_mvt": [1.0, 2.0, 3.0, 4.0, 5.0], "ADEP_mvt": ["LIRF", "LIRF", "LIRF", "LIRF", "EDDF"],
+                         "unmatched": [True, True, True, False, True], "SCHED_TIME_UTC_mvt": sched,
+                         "MVT_TIME_UTC_mvt": mvt, "sp": (mvt - sched).total_seconds().to_numpy()})
+
+
+def test_the_local_day_rule_sets_rint_sp_only_on_same_local_day_in_band_rome_unmatched_rows():
+    """Row 1 (06:00 + 13.9 h, same Rome day) takes rint(sp) = 50,000; row 2 (20:00 + 13.9 h, next Rome day), row 3 (below
+    band), row 4 (matched) and row 5 (EDDF) keep their value. Rehearsed 2026-09-11 (c70): _local_day passing the lane's
+    value where RLD returned rint(sp) -> RED."""
+    te = _rld_frame()
+    v = np.array([1000.0, 1200.0, 900.0, 800.0, 700.0])
+    new, moved = lanes._local_day(te, v)
+    assert new.tolist() == [50_000.0, 1200.0, 900.0, 800.0, 700.0] and moved.tolist() == [True, False, False, False, False]
+
+
+def test_the_local_day_rule_refuses_an_sp_that_is_not_mvt_minus_sched():
+    """The rule recomputes sp from the two clocks; if the lane's sp column disagrees, something upstream changed its
+    meaning. Rehearsed (c70): the equality check deleted -> RED."""
+    te = _rld_frame()
+    te.loc[0, "sp"] = 49_000.0
+    with pytest.raises(E.LaneError, match="sp"):
+        lanes._local_day(te, np.ones(len(te)))
+
+
+def test_the_pins_cover_the_local_day_rule(monkeypatch):
+    """check_pins re-reads rome_local_day's band and airport. Rehearsed (c70): its RLD entries deleted -> RED."""
+    cfg = _cfg_with(extra_airport=False)
+    assert lanes.check_pins(cfg)["local_day_lo_s"] == 24_000.0
+    monkeypatch.setattr(legacy.rome_local_day(), "SP_LO", 20_000.0)
+    with pytest.raises(E.PinnedValueError, match="local_day_lo_s"):
+        lanes.check_pins(cfg)
+
+
+def test_the_rules_lane_applies_the_local_day_rule_last_and_marks_it(sw):
+    """With local_day_schedule enabled, the lane equals R2 -> DS -> E1 and then RLD on exactly the rows RLD selects;
+    provenance marks them +RLD. Rehearsed (c70): run_rules_lane skipping _local_day -> RED."""
+    ap = sw.cfg.airports["LIRF"]
+    with_rld = dataclasses.replace(ap, rules=C.AirportRules(order=(*ap.rules.order, "local_day_schedule"),
+                                                             schedule_floor=ap.rules.schedule_floor,
+                                                             local_day=C.LocalDay(lo_s=24_000.0, hi_s=86_400.0)))
+    r0 = lanes.run_rules_lane(sw.cfg.lanes["lirf_rules"], ap, sw.lirf, sw.scored, sw.parts, sw.inputs, SEEDS)
+    r1 = lanes.run_rules_lane(sw.cfg.lanes["lirf_rules"], with_rld, sw.lirf, sw.scored, sw.parts, sw.inputs, SEEDS)
+    want, moved = lanes._local_day(sw.scored[sw.lirf].reset_index(drop=True), r0.values)
+    assert moved.any() and np.array_equal(r1.values, want) and r1.info["n_local_day_changed"] == int(moved.sum())
+    assert np.array_equal(r1.provenance.stage.str.endswith("+RLD").to_numpy(), moved)
+
+
 def test_the_body_plugin_must_reproduce_fit_unmatcheds_fused_body_or_the_lane_refuses(sw):
     """Rehearsed: _body_nf's equality check deleted -> RED."""
     parts = dict(sw.parts, nf_fit=np.asarray(sw.parts["nf_fit"]) + 1e-9)
