@@ -114,7 +114,8 @@ Post-mortem and fix 2026-09-10/11.
 precipitation. For every European station the archive returns the literal `"0.00"` — not `"M"` —
 because European METARs carry no US hourly-precipitation group: 205,417 of 205,417 observations,
 0 of 140 station-months with any other value, while the present-weather group reported
-precipitation at the station on 18,947 of them. `w_precip_mm` was 0.0 on every row of every cache,
+precipitation at the station on 19,304 of them (first quoted as 18,947, a cruder substring count
+that dropped reports also carrying a vicinity group; corrected 2026-09-11). `w_precip_mm` was 0.0 on every row of every cache,
 and the registered freezing rule (temp <= 3 C AND (precipitation OR a frozen code)) silently lost
 its precipitation clause: cold rain and cold drizzle, the conditions under which aircraft are
 de-iced, never flagged. **Arm W (RESULT 22) was measured on that block.**
@@ -133,7 +134,7 @@ against; only a distributional check (the class guard below) can see it.
 **The class.** A value that means "not reported" or "unknown" arrives looking like a measurement:
 a literal zero, a cap, a default, or a comparison on NaN that casts to a definite 0.
 
-### Sibling list — every site with this shape (sweep 2026-09-11: `nan_to_num`, `fillna(`, `errors="coerce"`, comparisons cast to float on nullable columns, external fields; `scripts/adsb_*` owned by another session and excluded)
+### Sibling list — every site with this shape (sweep 2026-09-11: `nan_to_num`, `fillna(`, `errors="coerce"`, comparisons cast to float on nullable columns, external fields; `scripts/adsb_*` swept separately by the ADS-B session, rows 19–23)
 
 | # | site | class | status |
 |---|---|---|---|
@@ -159,9 +160,15 @@ a literal zero, a cap, a default, or a comparison on NaN that casts to a definit
 ### The guards
 
 * `tests/test_sentinel_values.py::test_no_cache_column_is_a_constant_sentinel` — every numeric
-  column of every cache must vary on a real month, or sit on `CONSTANT_OK` with its reason. It
-  would have caught this defect the day the block was built.
-* `prc/weather.py` — the one METAR parser (VERSION 2.0.0): information content per
+  column of every feature cache (cache_stand included) must vary across its 13 feature files, or sit
+  on `CONSTANT_OK` with its reason, or be one of the all-NaN-by-construction columns named from the
+  module's own lists. It would have caught this defect the day the block was built. (Widened
+  2026-09-11 after review: it had skipped cache_stand, read January only, and exempted all of
+  cache_unmatched from the NaN check.)
+* `test_the_weather_cache_on_disk_was_built_by_this_parser` — the cache manifest must name the
+  current parser version and archive digest.
+* `prc/weather.py` — the one METAR parser (VERSION 2.0.1; 2.0.0 had the same output and a looser
+  token grammar): information content per
   station-month, unknown is NaN, and `tests/test_weather_parser.py` (23 mutants, all killed).
 * `data/cache_weather/manifest.json` — a weather cache is stamped with the parser version and the
   archive digest, and `cmd_weather_cache` refuses to mix months from two parses.
@@ -176,9 +183,15 @@ should agree (here: the weather group). Any new `nan_to_num`, `fillna(<constant>
 
 ### NOT repaired
 
+* `lgbm_fold.py` / `lgbm_submit.py` do not read the cache manifest; a test checks the cache on disk,
+  but a fold run against a stale cache would not stop itself. Same reason: shared files.
+* The atlas session's parser (`data/atlas/code/wxcodes.py`) is still separate, with its own fog
+  definition; its owner (prc-challenge-25) retires it.
 * The four coercing design-matrix builders (site 16) still coerce; the invariant is pinned, not
   enforced at the boundary. `lgbm_submit.py` / `lgbm_fold.py` are shared with concurrent sessions.
-* `scripts/adsb_*` were not swept: they are owned by the ADS-B session, which edits them alone. The
-  class was sent to that session on 2026-09-11 so it can run the same sweep on its own files.
+* `scripts/adsb_*` were swept by the ADS-B session (prc-challenge-6e) on 2026-09-11: rows 19–23.
+  Three live sites were fixed test-first (each rehearsed RED), one dormant v1-parser site is recorded, and the raw
+  source was checked per aircraft on real days. The 2025 feature table was rebuilt after the fix; the pre-fix copy
+  is kept as `data/adsb/v2/features_2025janjul.pre_bc3.parquet` for comparison, and no measurement ever read it.
 * RESULT 22 (arm W) stands as measured on the v1 block; what it can and cannot claim is corrected in
   the pre-registration (note appended 2026-09-11).

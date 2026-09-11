@@ -18,9 +18,11 @@ script is safe to re-run.
 Every fetched month is also checked for INFORMATION CONTENT (`information_report`, 2026-09-11,
 bug class BC-3): a field that is constant across the whole month is printed with the evidence
 against it. The archive fills p01i with the literal "0.00" at every European station while the
-weather group reports rain; `check` passed those months because the rows were well-formed. The
-report does not refuse a month -- the other fields are sound -- and `prc.weather` reads an
-uninformative p01i as unknown, so the defect cannot re-enter through a new fetch unseen.
+weather group reports rain; `check` passed those months because the rows were well-formed. An
+UNINFORMATIVE field does not refuse a month -- the other fields are sound -- and `prc.weather`
+reads an uninformative p01i as unknown, so the defect cannot re-enter through a new fetch unseen.
+A month the parser cannot READ (an unknown weather token, a non-numeric value) is refused before it
+takes its name, so a re-run fetches it again instead of skipping it as complete.
 """
 from __future__ import annotations
 
@@ -127,12 +129,13 @@ def main(argv=None) -> int:
             continue
         text = fetch(month_url(station, year, month))
         n = check(text, station, year, month)
+        report = information_report(text)      # BEFORE the rename: a month the parser refuses is not kept
         part = dest.with_suffix(".part")
         part.write_text(text)
         part.rename(dest)                      # atomic: a truncated file never takes the real name
         got += 1
         print(f"{dest.name}  {n:6,} observations  {len(text)/1e6:5.2f} MB  [{time.time() - t0:5.0f}s]", flush=True)
-        for line in information_report(text):
+        for line in report:
             print(f"    UNINFORMATIVE {line}", flush=True)
     print(f"done: {got} fetched, {skipped} already on disk, {len(jobs)} asked; -> {out}", flush=True)
     return 0

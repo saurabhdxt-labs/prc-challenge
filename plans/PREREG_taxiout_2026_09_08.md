@@ -2889,3 +2889,19 @@ The stand block reads through it; `w_precip_mm` is replaced by `w_precip_int` (0
 2 moderate, 3 heavy). The v1 cache is kept as `data/cache_weather_v1_p01i_zero` so RESULT 22 stays
 reproducible. **A corrected weather arm is a NEW registration** with its own thresholds written before
 it runs; it is prc-challenge-25's to register, and nothing in this note pre-judges its outcome.
+
+
+---
+
+# NOTE · 2026-09-11 02:20 local (from `date`) · two corrections to the NOTE above on RESULT 22
+
+1. **The precipitation count.** The note above says the weather group reports precipitation at the
+   station on "18,947" observations. That was a cruder substring count, which dropped any report that
+   also carried a vicinity group (e.g. `-RA VCTS`). The parser's token-by-token count is **19,304**.
+   Every other number in the note stands.
+2. **Reproducing RESULT 22.** The note says keeping `data/cache_weather_v1_p01i_zero` keeps RESULT 22
+   reproducible. The v1 cache alone is not enough: the current code expects `w_precip_int` and cannot
+   read it. Reproduction needs that cache **and a checkout from before commit 108ab60**.
+
+Also recorded: the parser is now VERSION 2.0.1 (a stricter token grammar and join validation after
+code review); its output on the frozen archive is byte-identical to 2.0.0's.

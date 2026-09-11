@@ -16,6 +16,12 @@ exact hour-end excluded, direction forward, direction nearest, station key remov
 hour start [hourly_uses_only]; bare qualifier accepted [refuses_what_the_grammar]; duplicate key
 accepted [read_archive_refuses]; unknown codes read as "M" [unobservable_weather_group]; garbage
 coerced to NaN [numeric_fields_refuse_garbage].
+Second round, finished 2026-09-11 02:02 EDT (from `date`), all RED: phenomena not split into pairs
+[fm15_grammar]; missing-columns and timestamp checks removed [read_archive_refuses]; unversioned
+output name [main_writes_versioned]; naive and off-hour keys accepted [hourly_refuses_malformed].
+Third round (code review findings), finished 2026-09-11 02:20 EDT (from `date`), all RED: a bare descriptor
+accepted and an intensity on a non-precipitation token [refuses_what_the_grammar]; a row without a
+station accepted [read_archive_refuses]; a local (non-UTC) hour accepted [hourly_refuses_malformed].
 """
 from __future__ import annotations
 
@@ -58,10 +64,12 @@ def test_parse_token_reads_the_fm15_grammar(token, want):
     assert W.parse_token(token) == want
 
 
-@pytest.mark.parametrize("token", ["RERA", "VC", "-", "", "XX", "RAX", "TSSHRA", "+"])
+@pytest.mark.parametrize("token", ["RERA", "VC", "-", "", "XX", "RAX", "TSSHRA", "+", "FZ", "SH", "BL", "+BR", "-FG", "+TS"])
 def test_parse_token_refuses_what_the_grammar_does_not_produce(token):
-    """A recent-weather group, a bare qualifier, an unknown code, two descriptors: all raise, naming
-    the token, rather than being skipped (a skipped token would read as 'no weather')."""
+    """A recent-weather group, a bare qualifier, an unknown code, two descriptors, a descriptor with
+    no phenomenon (only TS, and VCSH/VCTS, may stand alone), an intensity on something that is not
+    precipitation (or FC/SS/DS): all raise, naming the token, rather than being read (a bare "FZ"
+    used to set wx_frozen; review 2026-09-11)."""
     with pytest.raises(ValueError, match="unparseable present-weather token"):
         W.parse_token(token)
 
@@ -178,8 +186,9 @@ def test_numeric_fields_refuse_garbage(tmp_path):
     bad = archive(tmp_path, {"EDDF_2025-01.csv": [("EDDF", "2025-01-10 05:00", "abc", 41, 12, "M", 6.21, "0.00", "M", "x")]})
     with pytest.raises(ValueError, match="tmpf: 1 values are neither numeric nor 'M'"):
         W.load_observations(bad)
-    with pytest.raises(ValueError, match="only meaningful for p01i"):
-        W._num(pd.Series(["T", "1.0"]), "vsby")
+    trace = archive(tmp_path / "t", {"EDDF_2025-01.csv": [("EDDF", "2025-01-10 05:00", 50, 41, 12, "M", "T", "0.00", "M", "x")]})
+    with pytest.raises(ValueError, match="vsby: a trace 'T' is only meaningful for p01i"):
+        W.load_observations(trace)
 
 
 # ------------------------------------------------------------------ the de-icing condition --------
@@ -260,6 +269,8 @@ def test_hourly_refuses_malformed_keys(tmp_path):
         W.hourly(obs, pd.DataFrame({"station": ["EDDF"], "hour": pd.to_datetime(["2025-01-10 10:00"])}))
     with pytest.raises(ValueError, match="on the hour"):
         W.hourly(obs, pd.DataFrame({"station": ["EDDF"], "hour": pd.to_datetime(["2025-01-10 10:05"], utc=True)}))
+    with pytest.raises(ValueError, match="must be UTC"):
+        W.hourly(obs, pd.DataFrame({"station": ["EDDF"], "hour": pd.to_datetime(["2025-01-10 10:00"]).tz_localize("Asia/Kolkata")}))
     with pytest.raises(ValueError, match="already carry output columns"):
         W.hourly(obs, pd.DataFrame({"station": ["EDDF"], "hour": h, "temp_c": [1.0]}))
 
@@ -279,6 +290,8 @@ def test_read_archive_refuses_a_broken_archive(tmp_path):
         W.read_archive(archive(tmp_path / "b", {"EDDF_2025-01.csv": [row, ("EDDF", "not a time") + row[2:]]}))
     with pytest.raises(ValueError, match="1 observations repeat a"):
         W.read_archive(archive(tmp_path / "c", {"EDDF_2025-01.csv": [row, row]}))
+    with pytest.raises(ValueError, match="1 weather rows have no station"):
+        W.read_archive(archive(tmp_path / "d", {"EDDF_2025-01.csv": [row, ("", "2025-01-10 06:00") + row[2:]]}))
 
 
 def test_main_writes_versioned_files_and_a_manifest(tmp_path):

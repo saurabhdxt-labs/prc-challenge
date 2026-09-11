@@ -6,14 +6,17 @@ Version 1 of the weather block (`scripts/stand_ab.load_weather`, 2026-09-09) tru
 `p01i` field as one-hour precipitation. The Iowa Environmental Mesonet returns p01i as the literal
 "0.00" -- not "M" -- for every European station, because European METARs carry no US hourly-
 precipitation group: 205,417 of 205,417 observations, 0 of 140 station-months with any other value,
-while 18,947 observations report precipitation in their present-weather group. So `w_precip_mm` was
+while 19,304 observations report precipitation at the station in their present-weather group
+(18,947 by the cruder substring count first quoted, which dropped any report that also carried a
+vicinity group such as "-RA VCTS"). So `w_precip_mm` was
 0.0 on every cache row, and the registered freezing rule (Amendment 24.3: cold AND (precipitation OR
 a frozen code)) silently lost its precipitation clause and missed cold rain and cold drizzle -- the
 conditions under which aircraft are de-iced. Arm W (RESULT 22) was measured on that block. Bug
 class BC-3 `sentinel-ingested-as-measurement`, reports/bug_classes.md.
 
-This module replaces every ad-hoc parse of the archive (stand_ab's loader and the atlas's scratch
-parser) so the fix lives in one place. It is a library: it reads the frozen archive written by
+This module is the one parse of the archive: stand_ab's loader reads through it, so the fix lives
+in one place. (The atlas session's scratch parser, data/atlas/code/wxcodes.py, is its owner's to
+retire; until it is, it carries its own fog definition, which excludes MI/BC/PR.) It is a library: it reads the frozen archive written by
 `scripts/fetch_weather.py`, never fetches, and writes nothing unless `main` is called.
 
 THE SOURCE OF EACH FIELD, AND WHAT WAS CHECKED
@@ -40,8 +43,9 @@ Each space-separated token is  [intensity or proximity] [descriptor] [phenomena.
     descriptor  MI PR BC DR BL SH TS FZ   (at most one)
     phenomena   precipitation DZ RA SN SG IC PL GR GS UP; obscuration BR FG FU VA DU SA HZ PY;
                 other PO SQ FC SS DS
-Every token on the frozen archive parses under this grammar (tests pin it); a token that does not
-raises, rather than being silently skipped.
+A descriptor must be followed by a phenomenon, except TS alone and VCSH / VCTS; an intensity sign
+applies only to precipitation and to FC, SS, DS. Every token on the frozen archive parses under
+this grammar (tests pin it); a token that does not raises, rather than being silently read.
 
 THE FLAGS (1.0 / 0.0, NaN when the weather group is unknown), AT THE STATION unless named VC:
     wx_ra wx_dz wx_sg wx_ic wx_pl wx_gs wx_gr wx_up   the phenomenon in any at-station token
@@ -72,7 +76,9 @@ THE DERIVED DE-ICING CONDITION -- a hypothesis for the arm to test, not a fact
     between +3°C and +10°C"; "Visible moisture can be defined in flight as clouds, fog with
     visibility of 1500m or less, and precipitation." This supports the SHAPE of dc_moist_cold. It
     is an ice-protection threshold, not a de-icing trigger; +3 °C is the LOW end of the quoted
-    range; counting mist (BR, visibility 1-5 km) as visible moisture goes beyond the quote.
+    range, and the quote says "less than" where the rule uses <=. Two clauses go BEYOND the quote:
+    mist (BR, visibility 1-5 km), and fog of any kind (including shallow MI, patches BC, partial
+    PR) at ANY visibility, where the quote counts fog only at 1500 m or less.
   * FAA, Ground Deicing Program General Information, Winter 2024-2025
     (https://www.faa.gov/other_visit/aviation_industry/airline_operators/airline_safety/deicing/
     24-25_FAA_General_Information_Document.pdf): "Frost HOTs are for active frost conditions in
@@ -100,7 +106,7 @@ import sys
 import numpy as np
 import pandas as pd
 
-VERSION = "2.0.0"
+VERSION = "2.0.1"
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RAW_DIR = ROOT / "data" / "weather"
 OUT_DIR = ROOT / "data" / "weather_obs"
@@ -142,8 +148,15 @@ def parse_token(token: str) -> tuple[str, str, tuple[str, ...]]:
     m = _TOKEN.fullmatch(token)
     if m is None or not token or (not m.group("desc") and not m.group("ph")):
         raise ValueError(f"unparseable present-weather token {token!r}")
-    ph = m.group("ph")
-    return m.group("prox") or "", m.group("desc") or "", tuple(ph[i:i + 2] for i in range(0, len(ph), 2))
+    prox, desc, ph = m.group("prox") or "", m.group("desc") or "", m.group("ph")
+    phs = tuple(ph[i:i + 2] for i in range(0, len(ph), 2))
+    bare_ok = (desc == "TS" and prox in ("", "VC")) or (desc == "SH" and prox == "VC")   # TS, VCTS, VCSH
+    if not phs and not bare_ok:
+        raise ValueError(f"unparseable present-weather token {token!r}: descriptor {desc} needs a phenomenon")
+    if prox in ("-", "+") and not any(p in PRECIPITATION + ("FC", "SS", "DS") for p in phs):
+        raise ValueError(f"unparseable present-weather token {token!r}: an intensity applies only to "
+                         "precipitation, FC, SS and DS")
+    return prox, desc, phs
 
 
 def _code_row(codes: str) -> dict[str, float]:
@@ -244,6 +257,9 @@ def read_archive(raw_dir: pathlib.Path | None = None) -> pd.DataFrame:
     if missing:
         raise ValueError(f"weather archive is missing columns {sorted(missing)} (a partial fetch?)")
     w = w[list(RAW_FIELDS)].copy()
+    nostation = w.station.isna() | (w.station.astype(str).str.strip() == "")
+    if nostation.any():
+        raise ValueError(f"{int(nostation.sum())} weather rows have no station")
     w["valid"] = pd.to_datetime(w.valid, utc=True, errors="coerce")
     if w.valid.isna().any():
         raise ValueError(f"{int(w.valid.isna().sum())} weather rows have an unparseable timestamp")
@@ -330,6 +346,9 @@ def hourly(obs: pd.DataFrame, keys: pd.DataFrame) -> pd.DataFrame:
     INCLUSIVE: a report stamped exactly H + 1 h counts for hour H). `obs_age_s` = (H + 1 h) - valid,
     so a stale report says so; a key with no observation at or before its hour's end gets NaN in
     every column. No observation after the hour's end is ever used, and none from another station.
+    CAUTION: the hour's end is later than any event inside the hour, so a caller keying an EVENT to
+    its hour lets that event see reports up to ~60 min after it. For a non-anticipating per-event
+    join, as-of join on the event's own time instead.
 
     `keys` needs `station` and `hour` (tz-aware UTC, on the hour); returned in the keys' order with
     every OBS_COLUMNS column except station, plus `obs_valid` and `obs_age_s`.
@@ -340,6 +359,8 @@ def hourly(obs: pd.DataFrame, keys: pd.DataFrame) -> pd.DataFrame:
     hour = pd.to_datetime(keys.hour)
     if hour.dt.tz is None:
         raise ValueError("keys.hour must be timezone-aware UTC")
+    if str(hour.dt.tz) != "UTC":
+        raise ValueError(f"keys.hour must be UTC, got {hour.dt.tz} (a local hour would join the wrong reports)")
     if (hour != hour.dt.floor("h")).any():
         raise ValueError("keys.hour must fall on the hour")
     end = (hour + pd.Timedelta(hours=1)).dt.tz_convert("UTC").astype("datetime64[ns, UTC]")
