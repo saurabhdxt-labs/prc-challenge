@@ -2816,3 +2816,38 @@ not a tight ~745. RESULT 21's "~745" is the point estimate of a wide interval.
 **Rule adopted from here on:** any lane whose gain is aimed at the disagreeing rows is intervalled with
 date blocks, stratified by month. The row bootstrap is retained only for lanes whose gain is spread
 through the body, and is reported beside the date-block interval, never alone.
+
+
+---
+
+# NOTE · 2026-09-10 20:48 local (from `date`) · the clock stamps on RESULTS 15-23 and Amendments 25-27
+
+A parallel session pointed out that several stamps in this file are later than the file's own save
+time (RESULT 23 says "19:50" and was committed at 19:24:21). **The stamps from RESULT 15 onward were
+not all taken from a clock.** This note separates the ones that were from the ones that were estimated,
+and bounds the estimated ones with the authoritative clocks around them. No block above is edited.
+
+**Measured: each stamp is the finish time of the run it reports,** copied from the arms driver's log
+(`reports/ARMS_QUEUE.log`, written by `date`) or the record's own `finished_utc`. These are
+**accurate to within one minute**: RESULT 15 (00:16, record finished 00:16:40), RESULT 18 (02:38,
+02:38:31), RESULT 19 (04:26, 04:26:25), RESULT 21 (06:20, 06:19:37), RESULT 22 (08:02, 08:02:00). Each
+block's text was written minutes after the stamp.
+
+**Estimated: no clock was read.** Their true times are bounded by the clocks around them:
+
+| block | stamp written | true time lies within |
+|---|---|---|
+| Amendment 25, RESULT 16, Amendment 26, RESULT 17 | 00:25 / 00:30 / 00:32 / 00:35 | after 00:16:40 (U-20.5's record) and before 02:38:31 (arm D's exit) |
+| Amendment 27, RESULT 20 | 04:32 / 04:45 | after 04:26:25 (arm Y's exit) and before 06:19:37 (arm F's exit) |
+| the two NOTES on RESULT 13 and the harness defect | 16:20 | after 16:17 (a `date` read that session) and before 17:01:36 (commit `d2280cd`) |
+| RESULT 23 | **19:50 — wrong** | **before 19:24:21** (commit `4e3a84e`): the stamp is at least 26 minutes late |
+
+**What this does and does not affect.** A pre-registration's claim is that each threshold existed
+before its measurement. That claim rests on **position**, not on the clock: this file is append-only,
+and Amendments 25, 26 and 27 each appear above the RESULT that evaluates them — 16, 17 and 20 — in the
+order they were written. Every estimated stamp above falls inside a window that preserves that order,
+and none of the measured stamps moves. A late stamp on a result cannot make a threshold look
+pre-registered that was not; an early stamp on an amendment could, and none is shown to be early.
+
+**Rule from here on:** every stamp in this file comes from `date` at the moment the block is written,
+and says so.
