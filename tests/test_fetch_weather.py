@@ -4,6 +4,12 @@
 The file had no tests until the 2026-09-11 post-mortem (bug class BC-3): its `check` validated the
 shape of a month and passed the months whose p01i is a constant placeholder. The information
 report added then is pinned here, with the rest of the script's contract.
+
+Second rehearsal round, finished 2026-09-11 02:02 EDT (from `date`), all RED: a month on disk refetched
+[main_writes_atomically]; the retry loop reduced to one attempt [fetch_retries]; the check skipped
+before the write [main_leaves_no_file].
+Third round, finished 2026-09-11 02:20 EDT (from `date`), RED: the information report moved back after the
+rename [a_month_the_parser_cannot_read].
 """
 from __future__ import annotations
 
@@ -135,3 +141,13 @@ def test_an_interrupted_write_never_leaves_a_file_under_the_real_name(tmp_path, 
         fw.main(["--smoke", "--out-dir", str(tmp_path)])
     assert not (tmp_path / "EHAM_2025-01.csv").exists()
     assert (tmp_path / "EHAM_2025-01.part").exists()
+
+
+def test_a_month_the_parser_cannot_read_never_takes_its_name(tmp_path, monkeypatch):
+    """The information report runs BEFORE the rename: a month with a token the grammar refuses
+    raises and leaves nothing behind, so a re-run fetches it again instead of skipping a month it
+    believes complete (review 2026-09-11: the report used to run after the rename)."""
+    monkeypatch.setattr(fw, "fetch", lambda url: month_text(station="EHAM", codes=lambda i: "XX" if i == 5 else "M"))
+    with pytest.raises(ValueError, match="unparseable present-weather token 'XX'"):
+        fw.main(["--smoke", "--out-dir", str(tmp_path)])
+    assert list(tmp_path.iterdir()) == []

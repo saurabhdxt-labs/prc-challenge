@@ -9,7 +9,11 @@ rehearsal 2026-09-11 between 01:21:39 and 01:48:18 EDT (two `date` reads) on loa
 w_precip_int zeroed as in v1 and the intensity offset shifted [converts_units]; precipitation
 dropped from w_freezing and its bound moved to 0 C [freezing_flag_follows]; w_lowvis and
 w_freezing turning an unknown into 0 [an_unknown_input]; vicinity thunder dropped
-[tests/test_sentinel_values.py::test_thunder]; the as-of join turned forward [never_reaches_forward].
+[tests/test_sentinel_values.py::test_thunder]; the as-of join turned forward [never_reaches_forward];
+the manifest check and the mismatch check removed [never_mixes_months].
+Second round, finished 2026-09-11 02:02 EDT (from `date`), all RED: the valid_s, AOBT_3 and ranking MVT_TIME
+guards removed [refuses_a_frame / asserts_the_stream / ranking_refuses]; WX_LOWVIS_KM moved to 3 km
+[contract, visibility_cap].
 """
 from __future__ import annotations
 

@@ -11,6 +11,10 @@ The class-level guard below walks every numeric column of every cache the featur
 and refuses a column that is constant across a whole month file, unless it is on an explicit
 allow-list with the reason it is legitimately constant. The other tests pin each sibling found in
 the codebase-wide sweep: fixed (a) or safe by a named invariant (b).
+
+Rehearsed 2026-09-11 02:20 EDT (from `date`): one column dropped from stand_ab.UNMATCHED_NAN_COLS turns the
+class guard RED (the all-NaN exemption is per column, not per cache); the stale-cache test was seen
+RED on the 2.0.0 cache after the 2.0.1 bump, before the rebuild.
 """
 from __future__ import annotations
 
@@ -32,49 +36,85 @@ _spec = importlib.util.spec_from_file_location("stand_ab", ROOT / "scripts" / "s
 stand_ab = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(stand_ab)
 
-needs_caches = pytest.mark.skipif(not all((DATA / c / JAN).exists() for c in
-                                          ("cache_weather", "cache_order", "cache_day", "cache_queue", "cache_unmatched")),
+FEATURE_CACHES = ("cache_stand", "cache_weather", "cache_order", "cache_day", "cache_queue", "cache_unmatched")
+needs_caches = pytest.mark.skipif(not all((DATA / c / JAN).exists() for c in FEATURE_CACHES),
                                   reason="the feature caches are built from challenge data that is not in the repo")
 needs_weather = pytest.mark.skipif(not (DATA / "weather").exists() or len(list((DATA / "weather").glob("*.csv"))) < 140,
                                    reason="the weather archive is built by scripts/fetch_weather.py and is not in the repo")
 needs_raw = pytest.mark.skipif(not (RAW / JAN).exists() or not (RAW / "ranking.parquet").exists(),
                                reason="challenge data is not redistributable")
 
-#: columns that are LEGITIMATELY constant within one month file, each with its reason. A column not
-#: listed here that turns out constant is a sentinel until proven otherwise.
+#: columns that are LEGITIMATELY constant across every feature file of a cache, each with its reason.
+#: A column not listed here that turns out constant is a sentinel until proven otherwise.
 CONSTANT_OK = {
     ("*", "month"): "a month file holds one calendar month by construction",
-    ("cache_unmatched", "sched_sec"): "SCHED_TIME is minute-precise (seconds are 0 on every row; pinned below)",
+    ("*", "sched_sec"): "SCHED_TIME is minute-precise (seconds are 0 on every row; pinned below)",
+    ("cache_stand", "actype_null"): "AIRCRAFT_TYPE is never null on a matched departure (pinned below)",
 }
-#: cache_unmatched columns that are NaN on every row BY CONSTRUCTION: anchored on AOBT_3 or on the
-#: flight-plan record, which an unmatched departure does not have (tests/test_unmatched_features.py
-#: pins the pattern row by row). NaN is the honest encoding of unknown, not a sentinel.
-ALL_NAN_OK = {"cache_unmatched"}
+#: cache_unmatched columns that are NaN on every row BY CONSTRUCTION, named one by one from the
+#: module's own lists (tests/test_unmatched_features.py pins the pattern row by row): the columns
+#: anchored on AOBT_3, the columns read from the *_flt clocks, and the target `delta`, which needs
+#: an AOBT_3. NaN is the honest encoding of unknown there, not a sentinel. Review 2026-09-11: this
+#: used to exempt the whole cache.
+ALL_NAN_OK = {"cache_unmatched": set(stand_ab.UNMATCHED_NAN_COLS) | set(stand_ab.UNMATCHED_FLT_COLS) | {"delta"}}
+
+
+def _feature_files(cache: str) -> list[pathlib.Path]:
+    """The feature files of a cache: the training months and the scored file. cache_stand also holds
+    fold-prediction records (fold_preds_*), which are not features and are not scanned."""
+    d = DATA / cache
+    return sorted(d.glob("training_*.parquet")) + [d / "ranking.parquet"]
 
 
 @needs_caches
 def test_no_cache_column_is_a_constant_sentinel():
-    """The class guard. Every numeric column of every cache, on a real month file, must vary — or be
-    on CONSTANT_OK with its reason, or be all-NaN in a cache whose all-NaN pattern is by construction.
+    """The class guard. Every numeric column of every feature cache, over ALL its feature files
+    (the twelve training months and the scored file), must take more than one value — or be on
+    CONSTANT_OK with its reason, or be one of the named all-NaN-by-construction columns. A
+    placeholder is constant everywhere; a rare event (thunder in December) is not, which is why the
+    check is over the union of files rather than month by month.
 
-    Fails on the pre-fix weather cache: `w_precip_mm` is the constant 0.0 on all 152,248 January rows.
-    It would have caught the defect the day the block was built.
+    Failed on the pre-fix weather cache: `w_precip_mm` was the constant 0.0 on every row. Review
+    2026-09-11 widened it: cache_stand was not scanned (it holds `actype_null`, constant 0 — true,
+    pinned below), only January was read, and all of cache_unmatched was exempt from the NaN check.
     """
     offenders = []
-    for cache in ("cache_weather", "cache_order", "cache_day", "cache_queue", "cache_unmatched"):
-        d = pd.read_parquet(DATA / cache / JAN)
-        for c in d.columns:
-            if c == "MVT_ID_mvt" or not pd.api.types.is_numeric_dtype(d[c]):
-                continue
-            v = d[c].to_numpy(dtype="float64")
-            fin = v[np.isfinite(v)]
-            if len(fin) == 0:
-                if cache not in ALL_NAN_OK:
-                    offenders.append(f"{cache}.{c}: all NaN")
-                continue
-            if np.unique(fin).size == 1 and (cache, c) not in CONSTANT_OK and ("*", c) not in CONSTANT_OK:
-                offenders.append(f"{cache}.{c}: constant {fin[0]:g} on {len(fin):,} rows")
+    for cache in FEATURE_CACHES:
+        lo, hi, seen = {}, {}, {}
+        files = _feature_files(cache)
+        assert len(files) == 13 and all(f.exists() for f in files), f"{cache}: expected 12 months + ranking"
+        for f in files:
+            d = pd.read_parquet(f)
+            for c in d.columns:
+                if c == "MVT_ID_mvt" or not pd.api.types.is_numeric_dtype(d[c]):
+                    continue
+                v = d[c].to_numpy(dtype="float64")
+                v = v[np.isfinite(v)]
+                seen.setdefault(c, False)
+                if len(v):
+                    seen[c] = True
+                    lo[c], hi[c] = min(lo.get(c, np.inf), v.min()), max(hi.get(c, -np.inf), v.max())
+        for c, ok in seen.items():
+            if not ok and c not in ALL_NAN_OK.get(cache, set()):
+                offenders.append(f"{cache}.{c}: NaN on every row of every file")
+            if ok and c in ALL_NAN_OK.get(cache, set()):
+                offenders.append(f"{cache}.{c}: named all-NaN by construction but carries values")
+            if ok and lo[c] == hi[c] and (cache, c) not in CONSTANT_OK and ("*", c) not in CONSTANT_OK:
+                offenders.append(f"{cache}.{c}: constant {lo[c]:g} across all {len(files)} files")
     assert not offenders, "constant columns ingested as data: " + "; ".join(offenders)
+
+
+@needs_raw
+def test_actype_null_is_zero_because_matched_departures_always_carry_a_type():
+    """Sibling (b), on CONSTANT_OK. cache_stand.actype_null is 0 on every row of every file: true data,
+    not a placeholder — AIRCRAFT_TYPE is populated on every matched departure (0 nulls among
+    2,402,128, measured 2026-09-11 over the twelve months and the scored file). Checked here on
+    January and the scored file; if a future file carries a null type the flag starts to vary and
+    this reason must be re-examined."""
+    for name in (JAN, "ranking.parquet"):
+        t = pq.read_table(RAW / name, columns=["PHASE_mvt", "AIRCRAFT_TYPE_mvt", "AOBT_3_flt"]).to_pandas()
+        dep = t[(t.PHASE_mvt == "DEP") & t.AOBT_3_flt.notna()]
+        assert len(dep) > 100_000 and dep.AIRCRAFT_TYPE_mvt.notna().all(), name
 
 
 def _archive(tmp_path, rows) -> pathlib.Path:
@@ -192,3 +232,18 @@ def _load(name: str):
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
+
+
+@needs_caches
+@needs_weather
+def test_the_weather_cache_on_disk_was_built_by_this_parser():
+    """A stale cache is the same defect one step removed: a fold reads v1 months while the code says
+    v2. The readers (lgbm_fold, lgbm_submit) do not check the manifest, so this does: the cache's
+    manifest must name this parser's VERSION, this archive's digest and this WEATHER_FEATS. Red the
+    moment the parser is bumped and the cache not rebuilt (seen RED 2026-09-11 on the 2.0.0 cache
+    after the 2.0.1 bump, before the rebuild)."""
+    import json
+    m = json.loads((DATA / "cache_weather" / "manifest.json").read_text())
+    assert m["parser_version"] == stand_ab.WX.VERSION, (m["parser_version"], stand_ab.WX.VERSION)
+    assert m["archive_digest"] == stand_ab.WX.archive_digest(stand_ab.WEATHER_RAW)
+    assert m["weather_feats"] == list(stand_ab.WEATHER_FEATS)
