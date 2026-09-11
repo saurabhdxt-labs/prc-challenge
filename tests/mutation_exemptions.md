@@ -12,7 +12,13 @@ Kept anyway: the dedicated error is the one a reader sees, and the composition s
 what MAY compose — a future amendment that adds "order" to that set would silently enable an arm
 whose cache does not exist without it. The equivalence is recorded rather than tested.
 
-## `w_lowvis`: `<` vs `<=` at 1.5 km is an EQUIVALENT mutant (2026-09-09, Amendment 24)
+## RETIRED 2026-09-11 — `w_lowvis`: `<` vs `<=` at 1.5 km was an EQUIVALENT mutant (2026-09-09, Amendment 24)
+
+**Retired.** The equivalence was an artifact of reading the archive's rounded miles naively: a METAR's
+1500 m arrives as 0.93 mi = 1.4967 km, so the strict rule wrongly flagged it. Since `prc.weather`
+2.0.2 every visibility is snapped to the FM 15 metre grid, 1500 m lands exactly on 1.5 km, and the
+`<` is TESTED (`tests/test_weather_features.py::test_low_visibility_is_strict_at_the_reported_1500_metres`).
+The original reasoning is kept below as the record of how an equivalent mutant hid a defect.
 
 `stand_ab.load_weather` derives `w_vis_km` as `parse(decimal string) * 1.609344` and flags
 `w_vis_km < WX_LOWVIS_KM` (1.5). Flipping that to `<=` survives the test suite, and it is not a

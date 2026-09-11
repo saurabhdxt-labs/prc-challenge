@@ -64,15 +64,14 @@ def micro_archive(tmp_path) -> pathlib.Path:
         # 06:00 freezing WITH precipitation -> w_freezing 1
         ("EGLL", "2025-03-10 06:00", 32.00, 32.00, 20.00, 35.00, 0.62, 0.04, "-SN", "x"),
         # 07:00 cold and dry, no code -> NOT freezing (no precipitation, no code)
-        ("EGLL", "2025-03-10 07:00", 33.80, 30.20, 5.00, "M", 5.00, 0.00, "M", "x"),
+        ("EGLL", "2025-03-10 07:00", 33.80, 30.20, 5.00, "M", 4.97, 0.00, "M", "x"),
         # 08:00 thunderstorm, trace precipitation
-        ("EGLL", "2025-03-10 08:00", 68.00, 59.00, 12.00, "M", 3.00, "T", "TSRA", "x"),
-        # 09:00 and 10:00 STRADDLE the 1.5 km edge by one float step through the real parse path
-        # (string -> to_numeric -> x 1.609344): 0.9320567883560009 mi is the LARGEST visibility
-        # whose km value is below 1.5 and 0.932056788356001 the SMALLEST at or above it. No decimal
-        # literal lands exactly on 1.5 km through that path, so strictness is pinned by the pair.
-        ("EGLL", "2025-03-10 09:00", 50.00, 41.00, 10.00, "M", "0.9320567883560009", 0.00, "M", "x"),
-        ("EGLL", "2025-03-10 10:00", 50.00, 41.00, 10.00, "M", "0.932056788356001", 0.00, "M", "x"),
+        ("EGLL", "2025-03-10 08:00", 68.00, 59.00, 12.00, "M", 1.99, "T", "TSRA", "x"),
+        # 09:00 and 10:00 sit either side of the 1.5 km edge AS THE ARCHIVE WRITES THEM: 0.87 mi is a
+        # METAR 1400 m, 0.93 mi a METAR 1500 m (every visibility is snapped to the FM 15 grid since
+        # 2026-09-11, so 1500 m lands exactly on 1.5 km and the strict `<` is tested, not equivalent).
+        ("EGLL", "2025-03-10 09:00", 50.00, 41.00, 10.00, "M", "0.87", 0.00, "M", "x"),
+        ("EGLL", "2025-03-10 10:00", 50.00, 41.00, 10.00, "M", "0.93", 0.00, "M", "x"),
     ]))
     (d / "LEMD_2025-03.csv").write_text(archive_csv([
         ("LEMD", "2025-03-10 05:30", 59.00, 41.00, 8.00, "M", 6.21, 0.00, "M", "x"),
@@ -137,15 +136,11 @@ def test_load_weather_converts_units_and_derives_the_flags(tmp_path):
     assert len(e) == 6 and str(e.valid.dt.tz) == "UTC"
     assert e.w_temp_c.tolist() == pytest.approx([10.0, 0.0, 1.0, 20.0, 10.0, 10.0], abs=1e-9)
     assert e.w_dewspread_c.tolist() == pytest.approx([5.0, 0.0, 2.0, 5.0, 5.0, 5.0], abs=1e-9)
-    assert e.w_vis_km.tolist()[:4] == pytest.approx([6.21 * 1.609344, 0.62 * 1.609344, 5.0 * 1.609344,
-                                                     3.0 * 1.609344], abs=1e-9)
+    assert e.w_vis_km.tolist() == [10.0, 1.0, 8.0, 3.2, 1.4, 1.5], "the METAR's metres, exactly"
     assert e.w_precip_int.tolist() == [0.0, 1.0, 0.0, 2.0, 0.0, 0.0]
     assert e.w_gust_kt.tolist() == [0.0, 35.0, 0.0, 0.0, 0.0, 0.0], "a missing gust is no gust, not unknown"
     assert e.w_wind_kt.tolist() == [10.0, 20.0, 5.0, 12.0, 10.0, 10.0]
     assert e.w_freezing.tolist() == [0.0, 1.0, 0.0, 0.0, 0.0, 0.0], "cold AND wet/frozen; cold and dry is not"
-    below, above = e.w_vis_km.iloc[4], e.w_vis_km.iloc[5]
-    assert below < 1.5 < above and float(np.nextafter(below, 2.0)) >= 1.5, \
-        "the pair must straddle the threshold by one float step, or it pins nothing"
     assert e.w_lowvis.tolist() == [0.0, 1.0, 0.0, 0.0, 1.0, 0.0], \
         "one float step below the bound is low visibility, one step above is not"
     assert e.w_thunder.tolist() == [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
@@ -316,9 +311,9 @@ def european_archive(tmp_path) -> pathlib.Path:
     d = tmp_path / "weather_eu"; d.mkdir()
     (d / "EDDM_2025-01.csv").write_text(archive_csv([
         ("EDDM", "2025-01-10 05:00", 30.20, 28.40, 8.00, "M", 6.21, "0.00", "M", "x"),      # -1 C, dry
-        ("EDDM", "2025-01-10 06:00", 35.60, 33.80, 10.00, "M", 2.00, "0.00", "-RA", "x"),  # +2 C, light rain
-        ("EDDM", "2025-01-10 07:00", 33.80, 32.00, 12.00, "M", 1.20, "0.00", "DZ", "x"),   # +1 C, drizzle
-        ("EDDM", "2025-01-10 08:00", 50.00, 44.60, 9.00, "M", 5.00, "0.00", "RA", "x"),    # +10 C, rain
+        ("EDDM", "2025-01-10 06:00", 35.60, 33.80, 10.00, "M", 1.99, "0.00", "-RA", "x"),  # +2 C, light rain
+        ("EDDM", "2025-01-10 07:00", 33.80, 32.00, 12.00, "M", 1.18, "0.00", "DZ", "x"),   # +1 C, drizzle
+        ("EDDM", "2025-01-10 08:00", 50.00, 44.60, 9.00, "M", 4.97, "0.00", "RA", "x"),    # +10 C, rain
         ("EDDM", "2025-01-10 09:00", 33.80, 30.20, 7.00, "M", 6.21, "0.00", "VCSH", "x"),  # showers NEARBY
     ]))
     return d
@@ -462,3 +457,16 @@ def test_cmd_weather_cache_never_mixes_months_from_two_parses(tmp_path, monkeypa
     with pytest.raises(ValueError, match="built by a different parse"):
         stand_ab.cmd_weather_cache(smoke=True)
     assert {p.name: p.stat().st_mtime_ns for p in cache.iterdir()} == before
+
+
+def test_low_visibility_is_strict_at_the_reported_1500_metres(tmp_path):
+    """Post-mortem 2026-09-11 (boundary lost in unit conversion). The registered rule is visibility
+    < 1.5 km. A METAR's 1500 m arrives as 0.93 mi; read naively it was 1.4967 km and flagged low.
+    Now 1500 m is exactly 1.5 km and NOT low; 1400 m (0.87 mi) is low."""
+    d = tmp_path / "wx_vis"; d.mkdir()
+    (d / "EGLL_2025-03.csv").write_text(archive_csv([
+        ("EGLL", "2025-03-10 05:00", 50.0, 41.0, 8.0, "M", "0.93", "0.00", "M", "x"),
+        ("EGLL", "2025-03-10 06:00", 50.0, 41.0, 8.0, "M", "0.87", "0.00", "M", "x"),
+    ]))
+    w = stand_ab.load_weather(d).reset_index(drop=True)
+    assert w.w_vis_km.tolist() == [1.5, 1.4] and w.w_lowvis.tolist() == [0.0, 1.0]

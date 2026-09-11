@@ -2905,3 +2905,16 @@ it runs; it is prc-challenge-25's to register, and nothing in this note pre-judg
 
 Also recorded: the parser is now VERSION 2.0.1 (a stricter token grammar and join validation after
 code review); its output on the frozen archive is byte-identical to 2.0.0's.
+
+
+---
+
+# NOTE · 2026-09-11 06:11 local (from `date`) · prc/weather.py 2.0.2: thresholds applied to converted values (BC-4)
+
+Reported by prc-challenge-25. In 2.0.1 a METAR's whole-degree temperatures and metre visibilities were
+compared against the de-icing and low-visibility thresholds AFTER lossy US-unit conversion: an exactly
+3 C dew-point spread read as 3.0000000000000004 (dc_frost off on 289 observations, deicing_condition on
+283) and a 1500 m visibility as 1.4967 km (w_lowvis wrongly 1 on 1,321 cache rows). 2.0.2 recovers the
+reported values exactly (temperatures to 0.1 C; visibility snapped to the FM 15 metre grid); nothing else
+in the output changes. **Arms registered on 2.0.1 (E5) keep it as registered; the effect is recorded in
+their own amendment.** Later arms pin 2.0.2. No RESULT above used 2.0.x.

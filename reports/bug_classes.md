@@ -195,3 +195,49 @@ should agree (here: the weather group). Any new `nan_to_num`, `fillna(<constant>
   is kept as `data/adsb/v2/features_2025janjul.pre_bc3.parquet` for comparison, and no measurement ever read it.
 * RESULT 22 (arm W) stands as measured on the v1 block; what it can and cannot claim is corrected in
   the pre-registration (note appended 2026-09-11).
+
+---
+
+## BC-4 · A threshold applied to a value that went through a lossy unit conversion (`boundary-lost-in-conversion`)
+
+**Surfaced:** 2026-09-11, reported by prc-challenge-25 while building its E5 harness on `prc/weather.py`
+2.0.1. Code and defect were this session's.
+
+**What happened.** The archive stores METAR values in US units: temperatures as Fahrenheit converted
+from the METAR's whole degrees Celsius, visibility as statute miles rounded to 0.01 from the METAR's
+metres. Converted back naively, the reported value was lost at exactly the thresholds the rules test:
+a 0 C / -3 C pair gave a dew-point spread of 3.0000000000000004, so `spread <= 3` turned `dc_frost` off
+(**289 observations, 283 losing `deicing_condition`**); +3 C came back as 2.9999999999999996 (4,969
+observations; right under `<= 3` by luck, wrong under any `< 3` variant); a METAR 1500 m came back as
+1.4967 km, so the strict `w_lowvis` (`< 1.5 km`) flagged it (**1,321 cache rows**).
+
+**Root cause.** The code compared thresholds against a *derived* number instead of the *reported*
+one. The reported quantity has a known unit and resolution (whole degrees C; the FM 15 visibility
+steps), and neither was recovered. **Why no test caught it:** every fixture value sat away from the
+thresholds or straddled them by a synthetic float step, never ON them through the real parse path —
+and the one boundary analysis done (the `<` vs `<=` visibility "equivalent mutant", 2026-09-09) was
+itself produced by the defect: 1500 m could not land on 1.5 km only because it was being misread.
+
+**Fix (2.0.2).** Temperatures rounded to 0.1 C (exact for the whole-degree source — measured: all
+205,408 values within 4e-15 of an integer — and it keeps a tenths source); visibility snapped to the
+FM 15 grid (all 63 distinct archive values within 7.98 m of a step; anything beyond half the 0.01-mile
+rounding raises). Output change measured against 2.0.1: temperatures only at float noise; `vis_km` to
+the reported metres everywhere; `dc_frost` +289, `deicing_condition` +283, `w_lowvis` -1,321; nothing else.
+
+### Sibling list
+
+| # | site | status |
+|---|---|---|
+| 1 | `prc/weather.py` temp_c / dewpoint_c / dewspread_c against `DEICE_*` | **fixed** (2.0.2) |
+| 2 | `prc/weather.py` vis_km against `DEICE_VIS_KM`; `stand_ab` `w_lowvis` against `WX_LOWVIS_KM` | **fixed** (2.0.2) |
+| 3 | `tests/mutation_exemptions.md` — the `<` vs `<=` visibility equivalence | **retired**: now a tested boundary |
+| 4 | `scripts/unm_physics.py:801` (prc-challenge-25's E5 harness) — converts tmpf itself | its SYNTHETIC smoke generator, deliberately reproducing 2.0.1's representation for an arm registered on 2.0.1; the owner's file, not edited |
+| 5 | `scripts/adsb_*` (unit conversions of altitude and speed) | not swept here — owned by the ADS-B session; the class was sent to it |
+| 6 | core PRC time arithmetic (`es()` seconds, `rwy_rate` per minute) | (b) integer seconds, exact; `rwy_rate` feeds no threshold |
+
+### Tripwire
+
+Before comparing any value from an external source against a threshold, recover it in the unit and
+resolution the source REPORTED, and put at least one test value exactly ON the threshold through the
+real parse path. An "equivalent mutant" at a boundary is a claim that no real value lands there —
+verify that against the source's own grid before recording it.

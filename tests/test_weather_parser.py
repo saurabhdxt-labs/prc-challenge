@@ -22,6 +22,10 @@ output name [main_writes_versioned]; naive and off-hour keys accepted [hourly_re
 Third round (code review findings), finished 2026-09-11 02:20 EDT (from `date`), all RED: a bare descriptor
 accepted and an intensity on a non-precipitation token [refuses_what_the_grammar]; a row without a
 station accepted [read_archive_refuses]; a local (non-UTC) hour accepted [hourly_refuses_malformed].
+Fourth round (BC-4, boundary lost in unit conversion; defect reported by prc-challenge-25), finished
+2026-09-11 06:11 EDT (from `date`), all RED: rounding removed from the temperature, the dew point and the spread
+[whole_degrees_come_back_exact]; visibility not snapped [units_and_the_gust_rule]; the snap tolerance
+check removed [visibility_comes_back_as_the_metres]; the grid's 100 m steps thinned [a_constant_p01i].
 """
 from __future__ import annotations
 
@@ -123,18 +127,18 @@ def test_an_unobservable_weather_group_is_unknown_not_dry():
 
 # ------------------------------------------------------------------ numbers, units, p01i ----------
 def test_units_and_the_gust_rule(tmp_path):
-    """F -> C for temperature and dew point, statute miles -> km, knots unchanged. A missing gust
+    """F -> C for temperature and dew point, statute miles -> the METAR's km, knots unchanged. A missing gust
     with a reported wind is 0 kt; with the wind missing the gust is NaN; a reported gust is kept."""
     d = archive(tmp_path, {"EDDF_2025-01.csv": [
         ("EDDF", "2025-01-10 05:00", 50.0, 41.0, 12, "M", 6.21, "0.00", "M", "x"),
-        ("EDDF", "2025-01-10 05:30", 50.0, 41.0, 22, 35, 3.00, "0.00", "M", "x"),
+        ("EDDF", "2025-01-10 05:30", 50.0, 41.0, 22, 35, 3.11, "0.00", "M", "x"),
         ("EDDF", "2025-01-10 06:00", "M", 41.0, "M", "M", "M", "0.00", "M", "x"),
     ]})
     o, _ = W.load_observations(d)
     assert list(o.columns) == W.OBS_COLUMNS and str(o.valid.dt.tz) == "UTC"
     assert o.temp_c.iloc[:2].tolist() == pytest.approx([10.0, 10.0], abs=1e-9)
     assert o.dewpoint_c.iloc[0] == pytest.approx(5.0) and o.dewspread_c.iloc[0] == pytest.approx(5.0)
-    assert o.vis_km.iloc[:2].tolist() == pytest.approx([6.21 * 1.609344, 3.0 * 1.609344])
+    assert o.vis_km.iloc[:2].tolist() == [10.0, 5.0], "the METAR's reported metres (10 km cap, 5000 m)"
     assert o.wind_kt.iloc[:2].tolist() == [12.0, 22.0]
     assert o.gust_kt.iloc[0] == 0.0 and o.gust_kt.iloc[1] == 35.0
     assert np.isnan(o.gust_kt.iloc[2]), "with the wind unknown the gust is unknown, not calm"
@@ -150,13 +154,13 @@ def test_a_constant_p01i_is_never_read_as_zero_precipitation(tmp_path):
     d = archive(tmp_path, {
         "EDDM_2025-01.csv": [
             ("EDDM", "2025-01-10 05:00", 30.2, 28.4, 8, "M", 6.21, "0.00", "M", "x"),
-            ("EDDM", "2025-01-10 06:00", 35.6, 33.8, 10, "M", 2.00, "0.00", "-RA", "x"),
-            ("EDDM", "2025-01-10 07:00", 33.8, 32.0, 12, "M", 1.20, "0.00", "DZ", "x"),
+            ("EDDM", "2025-01-10 06:00", 35.6, 33.8, 10, "M", 1.99, "0.00", "-RA", "x"),
+            ("EDDM", "2025-01-10 07:00", 33.8, 32.0, 12, "M", 1.18, "0.00", "DZ", "x"),
         ],
         "KBOS_2025-01.csv": [
-            ("KBOS", "2025-01-10 05:00", 35.6, 33.8, 10, "M", 2.00, "0.00", "M", "x"),
-            ("KBOS", "2025-01-10 06:00", 35.6, 33.8, 10, "M", 2.00, "0.04", "-RA", "x"),
-            ("KBOS", "2025-01-10 07:00", 35.6, 33.8, 10, "M", 2.00, "T", "-RA", "x"),
+            ("KBOS", "2025-01-10 05:00", 35.6, 33.8, 10, "M", 1.99, "0.00", "M", "x"),
+            ("KBOS", "2025-01-10 06:00", 35.6, 33.8, 10, "M", 1.99, "0.04", "-RA", "x"),
+            ("KBOS", "2025-01-10 07:00", 35.6, 33.8, 10, "M", 1.99, "T", "-RA", "x"),
         ]})
     o, info = W.load_observations(d)
     eddm, kbos = o[o.station == "EDDM"], o[o.station == "KBOS"]
@@ -173,7 +177,7 @@ def test_distinct_values_are_counted_as_numbers(tmp_path):
     """'0.00', '0.0' and '0' are one value: a provider changing its formatting must not make a
     constant field look informative."""
     d = archive(tmp_path, {"EDDM_2025-02.csv": [
-        ("EDDM", f"2025-02-10 0{i}:00", 35.6 + i, 33.8, 10, "M", 2.00, p, "-RA", "x")
+        ("EDDM", f"2025-02-10 0{i}:00", 35.6 + i, 33.8, 10, "M", 1.99, p, "-RA", "x")
         for i, p in enumerate(["0.00", "0.0", "0"])]})
     _, info = W.load_observations(d)
     p = info[info.field == "p01i"].iloc[0]
@@ -199,8 +203,8 @@ def test_deicing_condition_follows_its_documented_rule_and_three_valued_logic(tm
     rows = [  # temp F, dew F, vsby mi, wxcodes     -> moist, frost, deice
         (35.6, 33.8, 6.21, "-RA"),    # +2 C rain                         1 0 1
         (35.6, 33.8, 6.21, "M"),      # +2 C dry, clear                   0 0 0
-        (35.6, 33.8, "0.932056788356001", "M"),   # +2 C, vis one float step above 1.5 km   0 0 0
-        (35.6, 33.8, "0.9320567883560009", "M"),  # +2 C, vis one step below 1.5 km          1 0 1
+        (35.6, 33.8, "0.99", "M"),    # +2 C, vis 1600 m: above 1.5 km                   0 0 0
+        (35.6, 33.8, "0.93", "M"),    # +2 C, vis 1500 m: exactly 1.5 km, inclusive      1 0 1
         (35.6, 33.8, 1.86, "BR"),     # +2 C mist                         1 0 1
         (41.0, 39.2, 6.21, "-RA"),    # +5 C rain                         0 0 0
         (30.2, 26.6, 6.21, "M"),      # -1 C, spread 2                    0 1 1
@@ -348,3 +352,62 @@ def test_the_real_archive_parses_and_matches_an_independent_reading_of_its_codes
     assert int((obs.wx_fzra == 1).sum()) == 34 and int((obs.wx_fzdz == 1).sum()) == 18
     m = obs.valid.dt.month
     assert obs.deicing_condition[m == 1].mean() > 0.1 > obs.deicing_condition[m == 7].mean()
+
+
+# ---- post-mortem 2026-09-11 (reported by prc-challenge-25): boundaries lost in unit conversion ----
+def test_reported_whole_degrees_come_back_exact_and_the_frost_boundary_holds(tmp_path):
+    """A METAR reports whole degrees Celsius; the archive converts them to Fahrenheit (measured: every
+    one of 205,408 values is within 4e-15 of an integer C). Converting back naively left float
+    noise: 0 C / -3 C gave a spread of 3.0000000000000004, so `spread <= 3` turned frost OFF on an
+    exactly-3-degree spread (283 observations lost deicing_condition), and +3 C came back as
+    2.9999999999999996. The reported values must come back EXACTLY, and the rule must hold at them."""
+    d = archive(tmp_path, {"EDDM_2025-01.csv": [
+        ("EDDM", "2025-01-10 05:00", 32.0, 26.6, 8, "M", 6.21, "0.00", "M", "x"),    # 0 C, dew -3 C: spread exactly 3
+        ("EDDM", "2025-01-10 06:00", 37.4, 33.8, 8, "M", 6.21, "0.00", "-RA", "x"),  # +3 C exactly, light rain
+        ("EDDM", "2025-01-10 07:00", 33.8, 28.4, 8, "M", 6.21, "0.00", "M", "x"),    # +1 C, dew -2 C: spread exactly 3
+    ]})
+    o, _ = W.load_observations(d)
+    assert o.temp_c.tolist() == [0.0, 3.0, 1.0] and o.dewpoint_c.tolist() == [-3.0, 1.0, -2.0]
+    assert o.dewspread_c.tolist() == [3.0, 2.0, 3.0]
+    assert o.dc_frost.tolist() == [1.0, 0.0, 0.0], "0 C with a 3-degree spread is frost-prone; +1 C is not"
+    assert o.dc_moist_cold.tolist() == [0.0, 1.0, 0.0] and o.deicing_condition.tolist() == [1.0, 1.0, 0.0]
+    # the docstring's second claim: a TENTHS-resolution source (not this archive's) is kept exactly too;
+    # 0.3 C minus 0.1 C is 0.19999999999999998 in raw floats
+    t = archive(tmp_path / "tenths", {"KBOS_2025-01.csv": [("KBOS", "2025-01-10 05:00", 32.54, 32.18, 8, "M", 6.21, "0.00", "M", "x")]})
+    ot, _ = W.load_observations(t)
+    assert ot.temp_c.tolist() == [0.3] and ot.dewpoint_c.tolist() == [0.1] and ot.dewspread_c.tolist() == [0.2]
+
+
+def test_visibility_comes_back_as_the_metres_the_metar_reported(tmp_path):
+    """The archive gives visibility in statute miles rounded to 0.01 (<= 8.05 m of error) converted
+    from the METAR's metres, which step by 50 m to 800 m, 100 m to 5 km, 1 km to 9 km, and "9999"
+    for 10 km or more. Read naively, 1500 m came back as 1.4967 km and the strict `< 1.5 km`
+    low-visibility rule flagged it. Snapped to the METAR grid it is exactly 1.5 km; 6.21 mi is the
+    10 km cap. A value no METAR step explains within the rounding error raises."""
+    d = archive(tmp_path, {"EGLL_2025-01.csv": [
+        ("EGLL", f"2025-01-10 0{i}:00", 50, 41, 8, "M", v, "0.00", "M", "x")
+        for i, v in enumerate(["0.93", "0.87", "0.99", "0.50", "0.43", "6.21", "3.11"])]})
+    o, _ = W.load_observations(d)
+    assert o.vis_km.tolist() == [1.5, 1.4, 1.6, 0.8, 0.7, 10.0, 5.0]
+    bad = archive(tmp_path / "bad", {"EGLL_2025-01.csv": [("EGLL", "2025-01-10 05:00", 50, 41, 8, "M", "1.50", "0.00", "M", "x")]})
+    with pytest.raises(ValueError, match="vsby: 1 values are not a METAR visibility"):
+        W.load_observations(bad)
+
+
+@needs_weather
+def test_on_the_real_archive_every_reported_value_is_exact():
+    """On all 205,417 observations: temperatures and dew points are exact whole degrees, so every
+    spread is an exact integer (16,459 of them were a hair off 3 before the fix), and every
+    visibility equals the metres in the METAR body's own visibility group (26,431 pairs) or the
+    10 km cap."""
+    raw = W.read_archive()
+    obs = W.parse_observations(raw)
+    for c in ("temp_c", "dewpoint_c", "dewspread_c"):
+        v = obs[c].dropna().to_numpy()
+        assert (v == np.round(v)).all(), c
+    body = raw.metar.str.split(r"\s(?:TEMPO|BECMG|NOSIG|RMK)\b", n=1, regex=True).str[0]
+    metres = pd.to_numeric(body.str.extract(r"KT(?:\s\d{3}V\d{3})?\s(\d{4})(?:NDV)?\s")[0], errors="coerce")
+    both = metres.notna() & obs.vis_km.notna()
+    assert int(both.sum()) > 20_000
+    want = np.where(metres[both] >= 9999, 10_000.0, metres[both]) / 1000.0
+    assert np.array_equal(obs.vis_km[both].to_numpy(), want)
