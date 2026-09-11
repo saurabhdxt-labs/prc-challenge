@@ -101,3 +101,84 @@ stored baseline and refuses a load whose scale differs, with the field named in 
 not a guard, and it will decay as new records are written. The structural fix is a `convention`
 key in the parquet metadata plus a reader that refuses a record without one — not attempted here
 because `scripts/lgbm_fold.py` is shared with a concurrent session.
+
+---
+
+## BC-3 · A provider's placeholder ingested as a measurement (`sentinel-ingested-as-measurement`)
+
+**Surfaced:** 2026-09-10, found by the taxi-factor atlas session (`reports/TAXI_FACTOR_ATLAS_2026_09_10.md`,
+"Arm W's precipitation column is dead"). The code was this session's (Amendment 24, 2026-09-09).
+Post-mortem and fix 2026-09-10/11.
+
+**What happened.** `stand_ab.load_weather` read the Iowa Mesonet field `p01i` as one-hour
+precipitation. For every European station the archive returns the literal `"0.00"` — not `"M"` —
+because European METARs carry no US hourly-precipitation group: 205,417 of 205,417 observations,
+0 of 140 station-months with any other value, while the present-weather group reported
+precipitation at the station on 18,947 of them. `w_precip_mm` was 0.0 on every row of every cache,
+and the registered freezing rule (temp <= 3 C AND (precipitation OR a frozen code)) silently lost
+its precipitation clause: cold rain and cold drizzle, the conditions under which aircraft are
+de-iced, never flagged. **Arm W (RESULT 22) was measured on that block.**
+
+**Root cause.** An external field was trusted because it was well-formed. Every check the
+pipeline had — the fetch's header/station/row-count check, dtype, range (`>= 0`) — passes on a
+placeholder, because a placeholder is syntactically a valid value. Nothing asked whether the field
+carried *information*. The unit fixture used US-format `p01i` values (0.04, "T"), the shape the
+code was written for, not the shape the archive emits for the ten scored airports.
+
+**Why no test caught it** (post-mortem step 3): the fixture was too minimal in exactly the
+dimension that mattered — it modelled the provider's documentation, not its output — and no test
+looked at a real cache column's distribution. A constant column has no failing value to assert
+against; only a distributional check (the class guard below) can see it.
+
+**The class.** A value that means "not reported" or "unknown" arrives looking like a measurement:
+a literal zero, a cap, a default, or a comparison on NaN that casts to a definite 0.
+
+### Sibling list — every site with this shape (sweep 2026-09-11: `nan_to_num`, `fillna(`, `errors="coerce"`, comparisons cast to float on nullable columns, external fields; `scripts/adsb_*` owned by another session and excluded)
+
+| # | site | class | status |
+|---|---|---|---|
+| 1 | `stand_ab.load_weather` — `w_precip_mm = p01i * 25.4` | (a) the defect | **fixed**: replaced by `w_precip_int` from the weather group; `p01i` gated per station-month in `prc/weather.py` |
+| 2 | `stand_ab.load_weather` — `w_gust_kt = nan_to_num(gust)` when the WIND is also missing (7 rows) | (a) | **fixed**: NaN when the wind is unknown |
+| 3 | `stand_ab.load_weather` — `(x <= c).astype(float)` for `w_freezing` / `w_lowvis` / `w_thunder`: unknown temperature, visibility or weather group became a definite 0 (9 / 4 / 15 rows) | (a) | **fixed**: three-valued `le3/and3/or3` in `prc/weather.py` |
+| 4 | `stand_ab._wx_num` — a trace `"T"` substituted as 0.05 BEFORE the inch->mm conversion (1.27 mm) | (a), latent | **fixed**: `TRACE_MM` applied after conversion; unreachable on the frozen archive (no `T`) |
+| 5 | `stand_ab._wx_num` — `errors="coerce"` turned a garbage value into NaN silently | (a), latent | **fixed**: `prc.weather._num` raises on anything but a number or `M` |
+| 6 | `fetch_weather.check` — shape checks only | (a) | **fixed**: `information_report` prints any single-valued field with the contradicting evidence |
+| 7 | `w_vis_km` — 6.21 mi (the "9999"/CAVOK 10 km cap) on 87% of observations | (b) right-censored, true | pinned: `test_visibility_cap_is_far_from_the_low_visibility_flag` |
+| 8 | `w_thunder` — 0 on 99.94% of January rows | (b) rare, true | pinned: equal to the TS codes on all 205,417 observations |
+| 9 | `cache_unmatched` — columns all-NaN by construction | (b) NaN is the honest unknown | pinned by `tests/test_unmatched_features.py`; on `ALL_NAN_OK` |
+| 10 | `cache_unmatched.sched_sec` — constant 0 | (b) schedules are minute-precise | pinned: `test_schedule_seconds_are_zero_because_schedules_are_minute_precise` |
+| 11 | `build_submission.py:234` — the L-e design matrix ends in `nan_to_num` | (b) inputs complete on every scored row | pinned: `test_scored_rows_have_complete_schedule_and_movement_times` |
+| 12 | `build_submission.py:146, 377, 380`; `prc/encoding.py:66, 72` — unseen level -> prior, support -> 0 | (b) the encoding's definition: an unseen level has zero support | by design |
+| 13 | `stand_ab.py:279, 1375` — `nancumsum(nan_to_num(ac))` in the queue sums | (b) a missing contribution adds nothing to a count | classified 2026-09-10 |
+| 14 | `unm_congestion.py:160` — `hprox_n` NaN -> 0 | (b) an airport-hour absent from a count table has count 0 (its docstring) | by design |
+| 15 | `cond_experts.py:275` — `nan_to_num(lab)` outside `tr` | (b) `fit_classifier` reads `label[fit]`, `label[es]`, `label[tr]` only, all inside `tr` | read 2026-09-11 |
+| 16 | `lgbm_submit.design_matrix:832`, `stand_ab.py:461`, `lgbm_ab.py:64, 95` — `to_numeric(errors="coerce")` would turn a text column into an all-NaN feature | (b) no feature list names a text cache column | pinned: `test_no_feature_list_sends_a_text_column_through_the_coercing_design_matrix` (rehearsed RED with `ADEP_mvt` added) |
+| 17 | `stand_ab.py:527` — diagnostic cut mask NaN -> False | (b) a printout, never a feature | — |
+| 18 | `rome_fill.py:186` — airline propensity default 0.45 | (b) a synthetic harness's documented prior | — |
+
+### The guards
+
+* `tests/test_sentinel_values.py::test_no_cache_column_is_a_constant_sentinel` — every numeric
+  column of every cache must vary on a real month, or sit on `CONSTANT_OK` with its reason. It
+  would have caught this defect the day the block was built.
+* `prc/weather.py` — the one METAR parser (VERSION 2.0.0): information content per
+  station-month, unknown is NaN, and `tests/test_weather_parser.py` (23 mutants, all killed).
+* `data/cache_weather/manifest.json` — a weather cache is stamped with the parser version and the
+  archive digest, and `cmd_weather_cache` refuses to mix months from two parses.
+
+### Tripwire
+
+Any new external field (a new archive column, an ADS-B field, a schedule attribute) gets an
+information-content check on the REAL source before a feature reads it: distinct values per
+natural unit (station-month, airport-day), and a cross-check against an independent field that
+should agree (here: the weather group). Any new `nan_to_num`, `fillna(<constant>)` or
+`(x <op> c).astype(float)` on a nullable column is added to the table above with its class.
+
+### NOT repaired
+
+* The four coercing design-matrix builders (site 16) still coerce; the invariant is pinned, not
+  enforced at the boundary. `lgbm_submit.py` / `lgbm_fold.py` are shared with concurrent sessions.
+* `scripts/adsb_*` were not swept: they are owned by the ADS-B session, which edits them alone. The
+  class was sent to that session on 2026-09-11 so it can run the same sweep on its own files.
+* RESULT 22 (arm W) stands as measured on the v1 block; what it can and cannot claim is corrected in
+  the pre-registration (note appended 2026-09-11).

@@ -2851,3 +2851,41 @@ pre-registered that was not; an early stamp on an amendment could, and none is s
 
 **Rule from here on:** every stamp in this file comes from `date` at the moment the block is written,
 and says so.
+
+
+---
+
+# NOTE · 2026-09-11 01:48 local (from `date`) · RESULT 22 was measured on a weather block that could not see precipitation
+
+**The defect.** The block RESULT 22 evaluated (Amendment 24, `stand_ab.load_weather` as of 2026-09-09)
+read the archive field `p01i` as one-hour precipitation. The Iowa Mesonet archive fills it with the
+literal `"0.00"` at every European station — 205,417 of 205,417 observations, 0 of 140 station-months
+with any other value — while the METAR weather group reports precipitation at the station on 18,947 of
+them. So `w_precip_mm` was 0.0 on every row, and `w_freezing` — registered in 24.3 as temp <= 3 C AND
+(precipitation OR a FZ/SN/PL/GS code) — was computed as temp <= 3 C AND a frozen code only: **cold rain
+and cold drizzle never flagged.** Found by the taxi-factor atlas session; bug class BC-3 in
+`reports/bug_classes.md`. No block above is edited.
+
+**What RESULT 22 still says.** Its clause table, verdict (INCONCLUSIVE) and band gains stand as the
+measurement of *that block*, which is what they are: the v1 block, as built, gained on the body and
+not on the tail (date-block tail interval per RESULT 23).
+
+**What is withdrawn.**
+- **"it refutes the mechanism I argued for it" / "This refutes the reasoning I used to justify the
+  lane."** Withdrawn. A block that cannot represent precipitation cannot test a mechanism whose
+  first ingredient is precipitation at low temperature. RESULT 22 neither supports nor refutes the
+  de-icing mechanism; it is untested.
+- **"The block does carry the de-icing signal."** Withdrawn: the block carried a cold-AND-frozen-code
+  signal, not the registered freezing rule.
+- **"Freezing conditions cover 1.92% of scored rows ... the mechanism is real, too rare."** Withdrawn:
+  1.92% is the share of the defective flag. The corrected share has not been measured and is not
+  quoted here.
+- **Board scale "~320 MSE"** is the v1 block's and says nothing about a corrected one.
+
+**What exists now.** `prc/weather.py` (VERSION 2.0.0) is the one METAR parser: precipitation from the
+present-weather group (FM 15 grammar, token by token), p01i gated per station-month on its information
+content, unknown inputs NaN rather than 0, and a cited de-icing condition kept beside its raw flags.
+The stand block reads through it; `w_precip_mm` is replaced by `w_precip_int` (0 none, 1 light,
+2 moderate, 3 heavy). The v1 cache is kept as `data/cache_weather_v1_p01i_zero` so RESULT 22 stays
+reproducible. **A corrected weather arm is a NEW registration** with its own thresholds written before
+it runs; it is prc-challenge-25's to register, and nothing in this note pre-judges its outcome.

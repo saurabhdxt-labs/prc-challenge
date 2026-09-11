@@ -25,3 +25,9 @@ compute the same function.
 The test pins what is real — one step below flags, one step above does not — and asserts the pair
 actually straddles, so a change to the conversion constant that moved them to the same side would
 fail rather than quietly weaken the check. Recorded rather than tested.
+
+Since 2026-09-11 the parse (`* MI_TO_KM`) lives in `prc.weather.parse_observations` and
+`load_weather` reads `vis_km` from it; the flag and the equivalence are unchanged. The same holds
+for the visibility clause of `prc.weather`'s `dc_moist_cold` (`le3(vis_km, 1.5)`); there the `<=`
+is not left untested, because `le3` itself is pinned at an exactly representable bound (3.0 <= 3.0)
+in `tests/test_weather_parser.py::test_three_valued_helpers`.

@@ -73,7 +73,7 @@ ORDER_FEATS = ["o_dev_mvt", "o_dev_flt", "o_n_line"]
 ORDER_RNG_OFFSET = 8_887
 #: Amendment 24's weather block, from its OWN RNG stream, so no earlier draw moves: a freezing
 #: share near the real 1.5%, a low-visibility share near 1%, thunder near 0.3%
-WEATHER_FEATS = ["w_temp_c", "w_dewspread_c", "w_wind_kt", "w_gust_kt", "w_vis_km", "w_precip_mm",
+WEATHER_FEATS = ["w_temp_c", "w_dewspread_c", "w_wind_kt", "w_gust_kt", "w_vis_km", "w_precip_int",
                  "w_freezing", "w_lowvis", "w_thunder", "w_age_s"]
 WEATHER_RNG_OFFSET = 9_931
 N_DAYS = 30                       # synthetic airport-days per month for the day block
@@ -201,7 +201,7 @@ def weather_block(rng_w, n) -> dict:
     return {"w_temp_c": temp, "w_dewspread_c": np.clip(rng_w.normal(4.0, 2.0, n), 0, None),
             "w_wind_kt": np.clip(rng_w.normal(10.0, 5.0, n), 0, None),
             "w_gust_kt": np.where(rng_w.random(n) < 0.15, rng_w.uniform(20, 45, n), 0.0),
-            "w_vis_km": vis, "w_precip_mm": np.where(rng_w.random(n) < 0.2, rng_w.uniform(0, 3, n), 0.0),
+            "w_vis_km": vis, "w_precip_int": np.where(rng_w.random(n) < 0.2, np.floor(rng_w.uniform(1, 4, n)), 0.0),   # same draws as v1
             "w_freezing": freezing, "w_lowvis": (vis < 1.5).astype(float),
             "w_thunder": (rng_w.random(n) < 0.03).astype(float),
             "w_age_s": rng_w.uniform(0, 1_800, n)}

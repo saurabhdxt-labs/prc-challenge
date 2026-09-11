@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import gc
 import glob
+import json
 import pathlib
 import resource
 import sys
@@ -44,6 +45,9 @@ import pyarrow.parquet as pq
 from sklearn.ensemble import HistGradientBoostingRegressor as HGR
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from prc import weather as WX  # noqa: E402  (the one METAR parser; the weather block reads through it)
+
 RAW = ROOT / "data" / "raw"
 CACHE = ROOT / "data" / "cache_stand"
 APTS = ["EDDF", "EDDM", "EGLL", "EHAM", "LEBL", "LEMD", "LFPG", "LIRF", "LSZH", "LTFM"]
@@ -1075,61 +1079,42 @@ WEATHER_RAW = ROOT / "data" / "weather"
 WCOLS = ["PHASE_mvt", "MVT_ID_mvt", "ADEP_mvt", "ADES_mvt", "MVT_TIME_UTC_mvt", "SCHED_TIME_UTC_mvt",
          "BLOCK_TIME_UTC_mvt", "TAXITIME_SEC_mvt", "AOBT_3_flt"]
 #: per row, from the observation valid AT OR BEFORE the row's own pushback anchor - never after it,
-#: so nothing downstream of the hidden off-block can leak in:
+#: so nothing downstream of the hidden off-block can leak in. Every column is derived by
+#: `prc.weather` (version WX.VERSION), the one parser; an unknown input is NaN, never a definite 0:
 #:   w_temp_c, w_dewspread_c   temperature and (temperature - dewpoint), the de-icing axis
-#:   w_wind_kt, w_gust_kt      wind; a METAR omits the gust group when there is no gust, so a
-#:                             missing gust is 0 kt (absence of gust), not an unknown
-#:   w_vis_km, w_precip_mm     visibility and one-hour precipitation ("T", a trace, is 0.05 mm)
-#:   w_freezing                temp <= 3 C AND (precipitation > 0 OR a FZ/SN/PL/GS code)
+#:   w_wind_kt, w_gust_kt      wind; a missing gust with a reported wind is 0 kt (a METAR omits the
+#:                             group when there is no gust); with the wind missing it is NaN
+#:   w_vis_km                  visibility (6.21 mi = 10 km is the "9999"/CAVOK cap: ">= 10 km")
+#:   w_precip_int              precipitation AT the station from the present-weather group: 0 none,
+#:                             1 light, 2 moderate, 3 heavy. Replaced w_precip_mm on 2026-09-11:
+#:                             the archive's p01i is a constant "0.00" at every European station
+#:                             (bug class BC-3), so an amount in mm cannot be measured here
+#:   w_freezing                temp <= 3 C AND (precipitation OR a FZ/SN/PL/GS/GR/IC code) (24.3)
 #:   w_lowvis                  visibility < 1.5 km
-#:   w_thunder                 a TS code
+#:   w_thunder                 a TS code, at the station or in the vicinity (as registered)
 #:   w_age_s                   how old the observation is at the anchor; a stale one says so
-WEATHER_FEATS = ["w_temp_c", "w_dewspread_c", "w_wind_kt", "w_gust_kt", "w_vis_km", "w_precip_mm",
+WEATHER_FEATS = ["w_temp_c", "w_dewspread_c", "w_wind_kt", "w_gust_kt", "w_vis_km", "w_precip_int",
                  "w_freezing", "w_lowvis", "w_thunder", "w_age_s"]
 WX_FREEZE_C = 3.0
 WX_LOWVIS_KM = 1.5
-WX_TRACE_MM = 0.05
-WX_FREEZE_CODES = ("FZ", "SN", "PL", "GS", "GR", "IC")
-
-
-def _wx_num(series) -> np.ndarray:
-    """The archive's numeric field: 'M' is missing, 'T' a trace; everything else a float."""
-    v = pd.to_numeric(series.replace({"M": np.nan, "T": WX_TRACE_MM}), errors="coerce")
-    return v.to_numpy(dtype="float64")
 
 
 def load_weather(raw_dir: pathlib.Path | None = None) -> pd.DataFrame:
-    """The frozen archive as one frame: station, valid (UTC) and the derived observation columns,
-    sorted by time. Never fetches - `scripts/fetch_weather.py` archives, this reads."""
-    raw_dir = WEATHER_RAW if raw_dir is None else pathlib.Path(raw_dir)
-    files = sorted(raw_dir.glob("*.csv"))
-    if not files:
-        raise FileNotFoundError(f"no weather archive in {raw_dir} (run scripts/fetch_weather.py first)")
-    frames = [pd.read_csv(f, dtype=str) for f in files]
-    w = pd.concat(frames, ignore_index=True)
-    need = {"station", "valid", "tmpf", "dwpf", "sknt", "gust", "vsby", "p01i", "wxcodes"}
-    missing = need - set(w.columns)
-    if missing:
-        raise ValueError(f"weather archive is missing columns {sorted(missing)} (a partial fetch?)")
-    o = pd.DataFrame({"station": w.station.astype(str)})
-    o["valid"] = pd.to_datetime(w.valid, utc=True, errors="coerce")
-    if o.valid.isna().any():
-        raise ValueError(f"{int(o.valid.isna().sum())} weather rows have an unparseable timestamp")
-    tmpf, dwpf = _wx_num(w.tmpf), _wx_num(w.dwpf)
-    o["w_temp_c"] = (tmpf - 32.0) * 5.0 / 9.0
-    o["w_dewspread_c"] = (tmpf - dwpf) * 5.0 / 9.0
-    o["w_wind_kt"] = _wx_num(w.sknt)
-    o["w_gust_kt"] = np.nan_to_num(_wx_num(w.gust), nan=0.0)      # a METAR omits the group when calm
-    o["w_vis_km"] = _wx_num(w.vsby) * 1.609344
-    o["w_precip_mm"] = _wx_num(w.p01i) * 25.4
-    codes = w.wxcodes.fillna("").astype(str).str.upper()
-    freeze_code = np.zeros(len(w), dtype=bool)
-    for c in WX_FREEZE_CODES:
-        freeze_code |= codes.str.contains(c, regex=False).to_numpy()
-    o["w_freezing"] = ((o.w_temp_c <= WX_FREEZE_C) & ((o.w_precip_mm > 0) | freeze_code)).astype("float64")
-    o["w_lowvis"] = (o.w_vis_km < WX_LOWVIS_KM).astype("float64")
-    o["w_thunder"] = codes.str.contains("TS", regex=False).to_numpy().astype("float64")
-    o = o.sort_values("valid", kind="mergesort").reset_index(drop=True)
+    """The frozen archive as one frame: station, valid (UTC) and the w_* observation columns,
+    sorted by time, read through `prc.weather`. Never fetches - `scripts/fetch_weather.py`
+    archives, this reads."""
+    obs, _ = WX.load_observations(WEATHER_RAW if raw_dir is None else pathlib.Path(raw_dir))
+    o = pd.DataFrame({"station": obs.station.to_numpy(), "valid": obs.valid.array})
+    o["w_temp_c"] = obs.temp_c.to_numpy()
+    o["w_dewspread_c"] = obs.dewspread_c.to_numpy()
+    o["w_wind_kt"] = obs.wind_kt.to_numpy()
+    o["w_gust_kt"] = obs.gust_kt.to_numpy()
+    o["w_vis_km"] = vis = obs.vis_km.to_numpy()
+    wet = obs.wx_precip.to_numpy()
+    o["w_precip_int"] = np.where(wet == 1.0, obs.wx_intensity.to_numpy() + 2.0, wet)
+    o["w_freezing"] = WX.and3(WX.le3(o.w_temp_c.to_numpy(), WX_FREEZE_C), WX.or3(wet, obs.wx_frozen.to_numpy()))
+    o["w_lowvis"] = np.where(np.isnan(vis), np.nan, (vis < WX_LOWVIS_KM).astype("float64"))
+    o["w_thunder"] = WX.or3(obs.wx_ts.to_numpy(), obs.wx_vcts.to_numpy())
     #: the as-of join runs on SECONDS SINCE EPOCH via `es`, the one place this project defines the
     #: time scale: pandas refuses a merge between datetime64 columns of different resolutions (the
     #: archive parses to [us]), and `.astype("int64")` on a timestamp yields MICROseconds, a
@@ -1195,8 +1180,25 @@ def build_weather_ranking(path: pathlib.Path, w: pd.DataFrame | None = None) -> 
 
 def cmd_weather_cache(smoke: bool, ranking: bool = False):
     """Write data/cache_weather/<raw stem>.parquet: MVT_ID_mvt + WEATHER_FEATS, one file per
-    calendar month, joined onto the stand caches by MVT_ID (or positionally: same rows, order)."""
+    calendar month, joined onto the stand caches by MVT_ID (or positionally: same rows, order).
+
+    The directory carries manifest.json (parser version, archive digest, WEATHER_FEATS). A build
+    refuses a directory whose manifest differs, or that holds parquet files and no manifest (a
+    pre-2026-09-11 cache): months from two parses must never sit side by side, which is how a
+    fold would silently train on v1 months and score on v2 ones. Move the old cache aside first."""
     WCACHE.mkdir(parents=True, exist_ok=True)
+    want = {"parser_version": WX.VERSION, "archive_digest": WX.archive_digest(WEATHER_RAW),
+            "weather_feats": list(WEATHER_FEATS)}
+    manifest = WCACHE / "manifest.json"
+    if manifest.exists():
+        have = json.loads(manifest.read_text())
+        if have != want:
+            raise ValueError(f"{WCACHE} was built by a different parse (parser {have.get('parser_version')!r}, "
+                             f"this build {WX.VERSION!r}, or a different archive or feature list): move it aside")
+    elif any(WCACHE.glob("*.parquet")):
+        raise ValueError(f"{WCACHE} holds parquet files but no manifest (a cache from before the parser was "
+                         "versioned): move it aside, e.g. to data/cache_weather_v1_p01i_zero")
+    manifest.write_text(json.dumps(want, indent=2) + "\n")
     w = load_weather()
     print(f"weather archive: {len(w):,} observations, {w.station.nunique()} stations, "
           f"{w.valid.min():%Y-%m-%d} .. {w.valid.max():%Y-%m-%d}", flush=True)

@@ -308,8 +308,13 @@ footer{margin-top:72px; border-top:1px solid var(--rule); padding-top:18px; colo
       <div class="why"><span class="chip hold">Inconclusive</span>Improves the body (+1.22 s in both lower
         bands) and <b>does not help the disagreeing rows</b> — beyond twenty minutes it is no better (−2.67 s,
         an interval that crosses zero once whole dates are resampled).
-        January +1.74 s, July +0.05 s. The de-icing signal is real and too rare: freezing covers 1.9% of
-        scored rows. ~320 MSE. <b>Complementary to arm F</b> — F moves the tail, W the body.</div>
+        January +1.74 s, July +0.05 s. ~320 MSE. <b>Complementary to arm F</b> — F moves the tail, W the body.
+        <br><b>Correction, 11 September:</b> this block could not see precipitation. The weather archive
+        fills its precipitation field with a literal 0.00 at every European station, so the block's
+        precipitation was zero on every row and its freezing flag missed cold rain and drizzle. The
+        numbers above measure that block only; <b>the de-icing mechanism was never tested</b>, and the earlier
+        "freezing covers 1.9% of scored rows" is withdrawn. A corrected parser (<code>prc/weather.py</code> 2.0.0)
+        reads precipitation from the METAR weather group; a corrected arm is a new registration.</div>
     </div>
 
     <div class="lane">
