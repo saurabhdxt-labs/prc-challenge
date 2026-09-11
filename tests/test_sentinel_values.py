@@ -144,16 +144,17 @@ def test_gust_is_unknown_when_the_wind_itself_is_unknown(tmp_path):
 def test_visibility_cap_is_far_from_the_low_visibility_flag(tmp_path):
     """Sibling (b), safe by a named invariant. European METARs report "9999" for 10 km or more, which
     the archive gives as 6.21 statute miles on 87% of observations — a right-censored cap, not an
-    exact value. The low-visibility flag reads only values below 1.5 km, so the cap can never reach
-    it; the continuous w_vis_km column means ">= 10 km" at its maximum, which a tree treats as the top
-    category. Pinned so a change to the flag's threshold cannot silently cross the cap."""
+    exact value; since 2026-09-11 it is read back as exactly 10.0 km. The low-visibility flag reads
+    only values below 1.5 km, so the cap can never reach it; the continuous w_vis_km column means
+    ">= 10 km" at its maximum, which a tree treats as the top category. Pinned so a change to the
+    flag's threshold cannot silently cross the cap."""
     w = stand_ab.load_weather(_archive(tmp_path, [
         ("EDDF", "2025-01-10 05:00", 41.0, 35.6, 8.0, "M", 6.21, "0.00", "M", "x"),
         ("EDDF", "2025-01-10 06:00", 41.0, 35.6, 8.0, "M", 0.62, "0.00", "FG", "x"),
     ])).sort_values("valid").reset_index(drop=True)
-    cap_km = 6.21 * 1.609344
+    cap_km = 10.0
     assert stand_ab.WX_LOWVIS_KM < cap_km / 5, "the flag threshold must stay far below the 10 km cap"
-    assert w.w_vis_km.iloc[0] == pytest.approx(cap_km) and w.w_lowvis.iloc[0] == 0.0
+    assert w.w_vis_km.iloc[0] == cap_km and w.w_lowvis.iloc[0] == 0.0
     assert w.w_lowvis.iloc[1] == 1.0
 
 

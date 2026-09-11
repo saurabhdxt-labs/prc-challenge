@@ -31,6 +31,17 @@ THE SOURCE OF EACH FIELD, AND WHAT WAS CHECKED
   * `p01i` is consumed only in a station-month whose reported values take at least two distinct
     values (`information_content`); elsewhere `precip_mm` is NaN, never 0. On the frozen archive
     that is every station-month, so `precip_mm` is NaN on every row -- which is the truth.
+  * Temperatures and visibility come back in the unit and resolution the METAR REPORTED (2.0.2,
+    post-mortem of a defect found by prc-challenge-25). The archive's Fahrenheit is a conversion
+    of the METAR's whole degrees Celsius (measured: all 205,408 values within 4e-15 of an integer
+    C); converted back naively, 0 C / -3 C gave a spread of 3.0000000000000004 and `spread <= 3`
+    turned frost off on 283 observations. Temperatures are rounded to 0.1 C, which removes the
+    noise exactly and would keep a tenths-resolution source. Visibility arrives in statute miles
+    rounded to 0.01 (<= 8.05 m of error) from the METAR's metres, which step by 50 m to 800 m,
+    100 m to 5 km and 1 km to 9 km, with "9999" meaning 10 km or more; read naively 1500 m was
+    1.4967 km and the strict `< 1.5 km` rule flagged it. It is snapped to that grid (all 63
+    distinct archive values lie within 7.98 m of a step); a value no step explains within the
+    rounding error raises.
   * A missing gust with a REPORTED wind is 0 kt (a METAR omits the group when there is no gust);
     with the wind missing too, the gust is unknown (NaN). v1 wrote 0 kt for both.
   * Every flag and every derived condition uses three-valued logic: an unknown input yields NaN,
@@ -106,7 +117,7 @@ import sys
 import numpy as np
 import pandas as pd
 
-VERSION = "2.0.1"
+VERSION = "2.0.2"
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RAW_DIR = ROOT / "data" / "weather"
 OUT_DIR = ROOT / "data" / "weather_obs"
@@ -117,6 +128,14 @@ RAW_FIELDS = ("station", "valid", "tmpf", "dwpf", "sknt", "gust", "vsby", "p01i"
 NUMERIC_FIELDS = ("tmpf", "dwpf", "sknt", "gust", "vsby", "p01i")
 
 MI_TO_KM = 1.609344
+TEMP_DECIMALS = 1                     #: the reported temperature resolution kept (the source is whole C)
+#: every visibility an FM 15 METAR can report, in metres: 50 m steps to 800 m, 100 m steps to 5 km,
+#: 1 km steps to 9 km, and 10 km for "9999" (10 km or more) -- the grid the archive's miles came from
+METAR_VIS_M = np.array(sorted(set(range(0, 800, 50)) | set(range(800, 5000, 100)) | set(range(5000, 10001, 1000))),
+                       dtype="float64")
+#: half of the archive's 0.01-mile rounding: a reading farther than this from every METAR step was
+#: not converted from a METAR visibility
+VIS_SNAP_TOL_M = 0.005 * MI_TO_KM * 1000.0
 IN_TO_MM = 25.4
 #: the value a "T" (trace, less than 0.01 in) takes, in MILLIMETRES. v1 substituted 0.05 before the
 #: inch->mm conversion and so wrote 1.27 mm; the registered value is 0.05 mm.
@@ -228,6 +247,22 @@ def _num(series: pd.Series, field: str) -> np.ndarray:
     return v.to_numpy(dtype="float64")
 
 
+def metar_visibility_km(miles: np.ndarray) -> np.ndarray:
+    """Statute miles (as archived) -> the METAR's reported visibility in km, exactly: snapped to the
+    nearest FM 15 step. NaN stays NaN; a value farther than VIS_SNAP_TOL_M from every step raises."""
+    m = np.asarray(miles, dtype="float64") * MI_TO_KM * 1000.0
+    ok = ~np.isnan(m)
+    idx = np.abs(m[ok, None] - METAR_VIS_M[None, :]).argmin(axis=1)
+    resid = np.abs(m[ok] - METAR_VIS_M[idx])
+    bad = resid > VIS_SNAP_TOL_M
+    if bad.any():
+        raise ValueError(f"vsby: {int(bad.sum())} values are not a METAR visibility (no FM 15 step within "
+                         f"{VIS_SNAP_TOL_M:.2f} m), e.g. {np.asarray(miles, dtype='float64')[ok][bad][0]} mi")
+    out = np.full(m.shape, np.nan)
+    out[ok] = METAR_VIS_M[idx] / 1000.0
+    return out
+
+
 def le3(x: np.ndarray, c: float) -> np.ndarray:
     """x <= c in three-valued logic: NaN where x is unknown."""
     return np.where(np.isnan(x), np.nan, (x <= c).astype("float64"))
@@ -306,10 +341,10 @@ def parse_observations(raw: pd.DataFrame, info: pd.DataFrame | None = None) -> p
     info = information_content(raw) if info is None else info
     tmpf, dwpf = _num(raw.tmpf, "tmpf"), _num(raw.dwpf, "dwpf")
     o = pd.DataFrame({"station": raw.station.astype(str).to_numpy(), "valid": raw.valid.array})
-    o["temp_c"] = (tmpf - 32.0) * 5.0 / 9.0
-    o["dewpoint_c"] = (dwpf - 32.0) * 5.0 / 9.0
-    o["dewspread_c"] = o.temp_c - o.dewpoint_c
-    o["vis_km"] = _num(raw.vsby, "vsby") * MI_TO_KM
+    o["temp_c"] = np.round((tmpf - 32.0) * 5.0 / 9.0, TEMP_DECIMALS)      # the reported value, exactly
+    o["dewpoint_c"] = np.round((dwpf - 32.0) * 5.0 / 9.0, TEMP_DECIMALS)
+    o["dewspread_c"] = np.round(o.temp_c - o.dewpoint_c, TEMP_DECIMALS)   # a difference of tenths, exactly
+    o["vis_km"] = metar_visibility_km(_num(raw.vsby, "vsby"))
     wind = _num(raw.sknt, "sknt")
     gust = _num(raw.gust, "gust")
     o["wind_kt"] = wind
