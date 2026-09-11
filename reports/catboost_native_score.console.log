@@ -1,0 +1,2 @@
+C_delta        RMSE  225.784 (F 222.563)  gain -3.220 [-4.016, -2.424]  net    -1422 MSE  fill +2.70  non-fill -3.99  -> not shortlisted
+C_delta_blend  RMSE  221.345 (F 222.563)  gain +1.219 [+0.832, +1.613]  net     +533 MSE  fill +3.62  non-fill +0.91  -> not shortlisted

@@ -1,0 +1,84 @@
+[16:52:49 +      2s] loaded /Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/catboost_native_input.parquet: 2,062,440 rows x 72 columns; peak RSS 2.60 GB
+[16:52:49 +      2s] catboost 1.2.10: early stop on 344,840 rows, fit 1,378,585; 72 columns (13 categorical); depth 8 lr 0.15 ctr 2 <= 12,000 iters
+0:	learn: 353.6039253	test: 355.0715901	best: 355.0715901 (0)	total: 445ms	remaining: 1h 29m
+250:	learn: 210.0760850	test: 214.9081897	best: 214.9081897 (250)	total: 1m 53s	remaining: 1h 28m 26s
+500:	learn: 201.1065629	test: 209.9079799	best: 209.9079799 (500)	total: 3m 49s	remaining: 1h 27m 55s
+750:	learn: 195.4392376	test: 207.5717804	best: 207.5713628 (749)	total: 5m 44s	remaining: 1h 25m 58s
+1000:	learn: 191.3659294	test: 206.2848518	best: 206.2826760 (998)	total: 7m 40s	remaining: 1h 24m 22s
+1250:	learn: 188.2489632	test: 205.4072518	best: 205.4072518 (1250)	total: 9m 34s	remaining: 1h 22m 16s
+1500:	learn: 185.5210011	test: 204.7643048	best: 204.7643048 (1500)	total: 11m 28s	remaining: 1h 20m 17s
+1750:	learn: 183.1362367	test: 204.3361959	best: 204.3361959 (1750)	total: 13m 22s	remaining: 1h 18m 19s
+2000:	learn: 181.0042529	test: 203.9780862	best: 203.9701439 (1993)	total: 15m 23s	remaining: 1h 16m 53s
+2250:	learn: 179.0509070	test: 203.7500472	best: 203.7483653 (2247)	total: 17m 19s	remaining: 1h 15m 2s
+2500:	learn: 177.1717733	test: 203.5707009	best: 203.5673669 (2496)	total: 19m 15s	remaining: 1h 13m 9s
+2750:	learn: 175.4946179	test: 203.3673100	best: 203.3616957 (2737)	total: 21m 13s	remaining: 1h 11m 19s
+3000:	learn: 173.7756901	test: 203.2235667	best: 203.2212574 (2997)	total: 23m 5s	remaining: 1h 9m 13s
+3250:	learn: 172.2465203	test: 203.0597713	best: 203.0589458 (3249)	total: 24m 59s	remaining: 1h 7m 16s
+3500:	learn: 170.8348812	test: 202.9724056	best: 202.9724056 (3500)	total: 27m 2s	remaining: 1h 5m 37s
+3750:	learn: 169.4798393	test: 202.8528968	best: 202.8527640 (3749)	total: 28m 59s	remaining: 1h 3m 45s
+4000:	learn: 168.1192470	test: 202.7581323	best: 202.7581323 (4000)	total: 30m 56s	remaining: 1h 1m 51s
+4250:	learn: 166.8403343	test: 202.6899450	best: 202.6885160 (4248)	total: 32m 51s	remaining: 59m 54s
+4500:	learn: 165.6360188	test: 202.6476500	best: 202.6349933 (4392)	total: 34m 47s	remaining: 57m 58s
+4750:	learn: 164.4791970	test: 202.6062274	best: 202.6037636 (4740)	total: 36m 43s	remaining: 56m 2s
+5000:	learn: 163.3351427	test: 202.5515746	best: 202.5447842 (4989)	total: 38m 42s	remaining: 54m 10s
+5250:	learn: 162.2518686	test: 202.5327739	best: 202.5327739 (5250)	total: 40m 39s	remaining: 52m 16s
+5500:	learn: 161.2227317	test: 202.5175708	best: 202.5160565 (5495)	total: 42m 33s	remaining: 50m 16s
+5750:	learn: 160.1800485	test: 202.5194425	best: 202.5060660 (5670)	total: 44m 35s	remaining: 48m 26s
+Stopped by overfitting detector  (200 iterations wait)
+
+bestTest = 202.506066
+bestIteration = 5670
+
+Shrink model to first 5671 iterations.
+[17:38:36 +   2749s] best iteration 5,670; refit count 7,090 (arm F's rule)   2747s   peak RSS 6.40 GB
+0:	learn: 353.7323443	total: 621ms	remaining: 1h 13m 24s
+250:	learn: 209.7864343	total: 2m 25s	remaining: 1h 5m 56s
+500:	learn: 201.0921904	total: 5m	remaining: 1h 5m 57s
+750:	learn: 195.8499339	total: 7m 38s	remaining: 1h 4m 27s
+1000:	learn: 192.0062953	total: 9m 59s	remaining: 1h 49s
+1250:	learn: 189.0717166	total: 12m 18s	remaining: 57m 24s
+1500:	learn: 186.5999271	total: 14m 33s	remaining: 54m 12s
+1750:	learn: 184.3619070	total: 16m 49s	remaining: 51m 18s
+2000:	learn: 182.3837870	total: 19m 10s	remaining: 48m 45s
+2250:	learn: 180.5977523	total: 21m 26s	remaining: 46m 5s
+2500:	learn: 178.9236963	total: 23m 41s	remaining: 43m 27s
+2750:	learn: 177.3382336	total: 26m	remaining: 41m 1s
+3000:	learn: 175.9390602	total: 28m 17s	remaining: 38m 33s
+3250:	learn: 174.6351403	total: 30m 42s	remaining: 36m 15s
+3500:	learn: 173.4177843	total: 32m 58s	remaining: 33m 47s
+3750:	learn: 172.1859258	total: 35m 19s	remaining: 31m 26s
+4000:	learn: 170.9714875	total: 37m 39s	remaining: 29m 4s
+4250:	learn: 169.8109878	total: 39m 56s	remaining: 26m 40s
+4500:	learn: 168.7764022	total: 42m 36s	remaining: 24m 30s
+4750:	learn: 167.7318087	total: 45m 13s	remaining: 22m 15s
+5000:	learn: 166.7232345	total: 48m 7s	remaining: 20m 6s
+5250:	learn: 165.7529067	total: 50m 35s	remaining: 17m 42s
+5500:	learn: 164.8393740	total: 53m 18s	remaining: 15m 23s
+5750:	learn: 163.8767929	total: 56m 18s	remaining: 13m 6s
+6000:	learn: 162.9547063	total: 58m 58s	remaining: 10m 42s
+6250:	learn: 162.0898677	total: 1h 1m 28s	remaining: 8m 15s
+6500:	learn: 161.2311497	total: 1h 3m 56s	remaining: 5m 47s
+6750:	learn: 160.4705053	total: 1h 6m 20s	remaining: 3m 19s
+7000:	learn: 159.6960097	total: 1h 8m 56s	remaining: 52.6s
+7089:	learn: 159.4005102	total: 1h 9m 46s	remaining: 0us
+[18:48:40 +   6953s] refit 7,090 trees on 1,723,425 rows in 4204s; predicted 339,015   peak RSS 6.40 GB
+[18:48:40 +   6953s] wrote /Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/catboost_native_delta.npy (+ .json); wall 6953s; peak RSS 6.4 GB
+     6954.21 real     38931.20 user       540.07 sys
+          6867288064  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             7899457  page reclaims
+                4032  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+               18072  voluntary context switches
+            28361937  involuntary context switches
+          3036575834  instructions retired
+          1031757171  cycles elapsed
+            62276184  peak memory footprint
+exit 0

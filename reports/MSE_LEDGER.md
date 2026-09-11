@@ -538,3 +538,33 @@ Today: v7 285.8013 → v9 282.6790 (E3C −1,775) → **v10 281.5182** (E1 −65
   test, full input 14:53, gate recorded in `plans/PREREG_catboost_native_2026_09_10.md`); it was uncoordinated with this
   session, not ungated. Its log is kept as `reports/catboost_native_delta_STOPPED_1542.console.log`; not a result.
   C_delta relaunched 16:57 from this session.
+- **18:28 — E4 (ADS-B EHAM, AOBT_3-referenced) cannot return WORKING by design (C3 failed on the 2025 census; recorded
+  pre-ingest); E4b (label-referenced, validated on unseen 2025-12-27/28): NOT WORKING** — V1 matched RMSE 487.6 s vs a
+  200 s bar, driven by a handful of gross errors (without the top 20 of 914 rows: 116 s); V2 on 30 unmatched rows
+  119 s vs S1C 397 s. No 2026 ingest. A guarded successor would need fresh validation days.
+- **18:49 — CatBoost native C_delta screen: NOT SHORTLISTED.** Alone −1,422 (225.78 vs F 222.56, worse at 9/10 airports);
+  fixed 0.5 blend with F **+533** [+0.83, +1.61 s], gain carried by the |delta| > 10 min tail (+5.2 s) and LIRF (+4.9 s).
+  Below the 1,000 compute bar; blend-on-inner-OOF is the only path left for this learner.
+- **19:20 — RESULT E4b is VOID** (instrument defect, found by an independent review and re-verified): the matched join
+  picks the same-callsign INBOUND leg on some rows; 7 such rows = 91.8% of V1's SSE. Not a verdict on the sensor.
+  A fresh E4c (take-off-anchored join, regression test, fresh validation days) is required before any ADS-B claim.
+  The same review: matched-lane paired bootstraps are row-iid (intervals ≈ 4.6× too narrow) — no past verdict flips,
+  but new matched arms use a day-block interval.
+- **Correction (19:40) to the 19:20 line:** "row bootstrap ≈ 4.6× too narrow" is the independent review's figure
+  (project memory `project_prc_full_review_2026_09_10.md`, arm F's interval; its raw JSON was in a wiped scratchpad) and
+  was NOT independently verified here. TOP_PATH's own date-block check on the queue block gave ≈ 1.5× ([+1.186, +1.954]
+  vs row [+1.316, +1.812]) — the factor is likely lane-specific. phantom-forecaster-22 is re-intervalling its arm
+  records with a day-block bootstrap from the stored parquets; the per-arm ratios will be recorded when they exist.
+- **19:55 — day-block re-interval of the matched arms (phantom-forecaster-22, RESULT 23 in its prereg; `tools/dayblock_reinterval.py`;
+  62 dates, Jan / Jul resampled separately, 2,000 draws; reproduces TOP_PATH's independent queue-block interval):**
+  width ratio day-block / row — queue 1.59×, **arm F 4.60×** ([+0.633, +3.327] s), W 1.58×, D 1.47×, Y blend 1.02×, A27 0.98×.
+  The review's 4.6× is therefore CORRECT for arm F and lane-specific (F's gain lives on held-row tail days). F still passes
+  every clause under date blocks; its board value is real but wide (≈ 280–1,500 MSE, not a tight ≈ 745). Weakened: W's gt20
+  "worse" → no better, not worse; Y-alone's tail gains do not survive (Y-blend's do). Supersedes the 19:40 correction's
+  "unverified". **Rule from here: any tail-targeted or matched arm is intervalled by day blocks** (as CAP's C1 already is).
+- **Timestamp correction (2026-09-10 20:47:51, from `date`):** stamps in this session's appended blocks today (e.g. "19:20", "19:40",
+  "19:55", and prereg amendment stamps) were typed estimates, not clock reads. Where a log fixes the order it is noted in
+  the prereg (CAP.1 ≤ 19:18:11, before the fit). From now on every stamp is taken from `date`.
+- **2026-09-10 21:15:57 — CAP (127,20,0.6 on arm F's design): ESTABLISHED, net +253 weighted fold MSE, NOT shipped** (ship bar +500).
+  Day-block [+0.32, +0.82] s; all three seeds beat F's; fill and tail improve. A real, small, spread gain — worth ≈ +250 on the
+  board at the matched lane's 1:1 transfer if a ship is separately registered.

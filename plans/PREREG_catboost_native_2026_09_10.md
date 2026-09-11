@@ -52,3 +52,21 @@ peak 3.67 GB, exit 0 — not a result. Full input built 14:53: 2,062,440 rows (3
 name-collision bug (`proxy`/`sp` scoring copies overwrote the float32 features) was caught by the worker's
 contract before any fit and fixed (`assemble_output`, test + mutation RED). Memory extrapolated 8–10 GB < 12 GB
 bar. AC power. Waivers (b) mutation runner, (c) coverage, (f) metrics: standing.
+
+## RESULT C_delta (screen) · 2026-09-10 18:49 — **NOT SHORTLISTED** (both arms)
+
+Source: `reports/catboost_native.json` (`catboost_native.py score`, exit 0); fit `reports/catboost_native_delta.console.log`
+(launched 16:52 from prc-challenge-25 after its own gate; best_iter 5,670 of ≤ 12,000; refit 7,090 trees on 1,723,425
+rows; wall 6,953 s; peak RSS 6.4 GB). 339,015 holdout rows, arm F 222.5632.
+
+| arm | RMSE | gain | 95% CI | net weighted fold MSE | shortlist rule |
+|---|---|---|---|---|---|
+| `C_delta` | 225.784 | −3.22 s | [−4.02, −2.42] | **−1,422** | not shortlisted (interval against) |
+| `0.5·C_delta + 0.5·F` | 221.345 | **+1.22 s** | [+0.83, +1.61] | **+533** | not shortlisted (net < 1,000) |
+
+H-C1 as stated (native categoricals beat F's representation) is **NOT WORKING at screen level**: C_delta loses at 9 of
+10 airports (LIRF +0.3 s) and in every |delta| band. Reported, not decisional: the fixed 0.5 blend's gain is carried by
+the clock-disagreement tail (|delta| > 10 min +5.24 s; > 20 min +11.32 s) and LIRF (+4.88 s), with EHAM −0.72 and LSZH
+−0.49 — the two learners' errors differ where F is weakest. A screen is one seed, one fold: not a refutation of
+blending. The registered next step for a blend is weights fitted on inner OOF (plan Stage 3d), which needs C_delta's
+inner-OOF predictions (another heavy run) — a compute-allocation decision, not a verdict. C_sched not run.

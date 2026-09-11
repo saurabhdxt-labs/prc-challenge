@@ -1,0 +1,10 @@
+[19:18:11 +      1s] queue block: 12 columns joined POSITIONALLY onto 12 months from /Users/saurabhdxt/Projects/prc-challenge/data/cache_queue (row counts asserted per month; the order is the v6 builder's, proven on March both ways)
+[19:18:11 +      1s] order block: 3 columns joined POSITIONALLY onto 12 months from /Users/saurabhdxt/Projects/prc-challenge/data/cache_order (row counts asserted per month; the order is build_features's, tests/test_order_features.py)
+[19:18:11 +      1s] loaded 12 months (2,062,440 rows): holdout (months (1, 7)) 339,015; training 1,723,425; fit 1,378,585; early-stop 344,840; airports ['EDDF', 'EDDM', 'EGLL', 'EHAM', 'LEBL', 'LEMD', 'LFPG', 'LIRF', 'LSZH', 'LTFM']; peak RSS 2.63 GB
+[19:18:17 +      6s] design matrix 2,062,440 x 83 float32 (0.68 GB); peak RSS 3.09 GB
+[19:18:17 +      6s] arm CAP: setting (127, 20, 0.6) on arm F's 83-column design; params {'objective': 'regression', 'metric': 'rmse', 'learning_rate': 0.01, 'num_leaves': 127, 'min_data_in_leaf': 20, 'feature_fraction': 0.6, 'bagging_fraction': 0.8, 'bagging_freq': 1, 'cat_smooth': 20, 'min_data_per_group': 100, 'max_cat_threshold': 64, 'num_threads': 4, 'verbosity': -1, 'seed': 0}
+[19:18:17 +      6s] [cap] early stopping on 83 features, target delta
+[20:13:55 +   3345s] [cap] seed 0 alone: matched RMSE 222.4099 on 339,015 holdout rows   [1876s]
+[20:44:35 +   5185s] [cap] seed 1 alone: matched RMSE 222.6416 on 339,015 holdout rows   [1840s]
+[21:15:05 +   7015s] [cap] seed 2 alone: matched RMSE 222.5230 on 339,015 holdout rows   [1830s]
+[21:15:05 +   7015s] json -> /Users/saurabhdxt/Projects/prc-challenge/reports/capacity_f_fit.json   best_iter 33,352 n_ref 41,694   wall 7015s

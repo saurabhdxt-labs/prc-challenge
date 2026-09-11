@@ -1,0 +1,11 @@
+[15:42:48 +      2s] loaded /Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/catboost_native_input.parquet: 2,062,440 rows x 72 columns; peak RSS 2.60 GB
+[15:42:48 +      2s] catboost 1.2.10: early stop on 344,840 rows, fit 1,378,585; 72 columns (13 categorical); depth 8 lr 0.15 ctr 2 <= 12,000 iters
+0:	learn: 353.6039253	test: 355.0715901	best: 355.0715901 (0)	total: 460ms	remaining: 1h 31m 55s
+250:	learn: 210.0760850	test: 214.9081897	best: 214.9081897 (250)	total: 2m 7s	remaining: 1h 39m 6s
+500:	learn: 201.1065629	test: 209.9079799	best: 209.9079799 (500)	total: 4m 19s	remaining: 1h 39m 6s
+750:	learn: 195.4392376	test: 207.5717804	best: 207.5713628 (749)	total: 6m 15s	remaining: 1h 33m 43s
+1000:	learn: 191.3659294	test: 206.2848518	best: 206.2826760 (998)	total: 8m 11s	remaining: 1h 29m 57s
+1250:	learn: 188.2489632	test: 205.4072518	best: 205.4072518 (1250)	total: 10m 4s	remaining: 1h 26m 29s
+1500:	learn: 185.5210011	test: 204.7643048	best: 204.7643048 (1500)	total: 11m 58s	remaining: 1h 23m 45s
+1750:	learn: 183.1362367	test: 204.3361959	best: 204.3361959 (1750)	total: 13m 52s	remaining: 1h 21m 12s
+2000:	learn: 181.0042529	test: 203.9780862	best: 203.9701439 (1993)	total: 15m 50s	remaining: 1h 19m 11s
