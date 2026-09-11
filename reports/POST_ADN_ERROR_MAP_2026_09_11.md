@@ -86,3 +86,30 @@ uncovered fold error stay unreachable by any registered source.
 
 53 has since found a design error in the KS hold: the same rule fires Jan-vs-Jul inside 2025, on the data the stacker validated on.
 That rule is what keeps EDDF, LEBL and LSZH on F, three of 2025's strongest ADN airports. It is an owner decision, recorded in SHIP-ADN.
+
+## 6. Where the reachable error sits, by HOW the flight was seen (added 2026-09-11 18:21 EDT; descriptive, fold A)
+
+The owner's target moved to 260 (2nd is 260.93; −3,930 board MSE from v11). Splitting the ADS-B-covered rows after ADN:
+
+| regime · coverage code | rows | after ADN | ADN's gain | RMSE after |
+|---|---|---|---|---|
+| agree · 2 (joined mid-taxi) | 63,345 | 4,086 | 1,355 | 149 s |
+| agree · 3 (seen from the stand) | 55,550 | 1,889 | 1,887 | 108 s |
+| **early · 2** | **3,186** | **4,967** | 542 | **733 s** |
+| early · 3 | 2,941 | 1,867 | 888 | 468 s |
+| late · 2 / 3 | 1,094 / 1,620 | 364 / 318 | 191 / 283 | 338 / 260 s |
+
+**Code 2 carries 9,417 of the 13,491 units still reachable (70%), on 67,625 rows.**
+
+**Mechanism, from the features themselves:** on early rows,
+- code 3: first seen on the ground 803 s BEFORE AOBT_3, stand dwell ends +24 s, and ADN predicts −880 of a −962 s true delta (91%).
+- code 2: first seen +162 s AFTER AOBT_3, no dwell at all, and ADN predicts −671 of −926 (72%).
+The pushback is simply not observed on code-2 rows; the stacker is extrapolating from a mid-taxi sighting.
+
+**Headroom (an upper bound, not a forecast):** bringing code-2 rows to code-3 accuracy would be worth ≈ 4,900 fold units
+(early ≈ 2,930, agree ≈ 1,940). Parity is unlikely — the observation itself is missing — but a third of it is ≈ 1,600,
+and 260 needs ≈ 3,300 from v12.
+
+**The idea this suggests** (prc-challenge-53's lane, needs its own registration): reconstruct the unobserved start of taxi on
+code-2 rows by working back from the first sighting — the stand's position, `path_m`, `taxi_med_gs`, `dwell_to_centroid_m` —
+instead of leaving the stacker to extrapolate. Nothing here measures that; it is where the remaining reachable error is.

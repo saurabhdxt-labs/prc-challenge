@@ -48,11 +48,13 @@ SOURCES = ("saved_boosters", "refit")
 #: lgbm_submit's block order (FEATS [+ QUEUE] [+ DAY] [+ ORDER] [+ WEATHER]); a block list must follow it
 FEATURE_BLOCKS = ("queue", "day", "order", "weather")
 #: the Rome rules, in the order v7 -> v10 applied them; P2a allows an ordered subset, never a reorder
-RULE_ORDER = ("fill_classifier", "dateslip", "schedule_floor")
+RULE_ORDER = ("fill_classifier", "dateslip", "schedule_floor", "local_day_schedule")   # + RLD (2026-09-11), last
 #: values the wrapped scripts hard-code (rome_bandfloor.LO / HI / AIRPORT; rome_fill, rome_dateslip and
 #: fit_unmatched's `_lirf_fill_model` are written for this airport). lanes.check_pins() re-reads them.
 PINNED = types.MappingProxyType({"schedule_floor_lo_s": 24_000.0, "schedule_floor_hi_s": 86_400.0,
-                                 "rules_airport": "LIRF"})
+                                 "rules_airport": "LIRF",
+                                 # rome_local_day.SP_LO / SP_HI (plans/PREREG_rome_local_day_rule_2026_09_11.md)
+                                 "local_day_lo_s": 24_000.0, "local_day_hi_s": 86_400.0})
 #: keys that would splice an earlier submission; refused with the landmine named
 SPLICE_KEYS = ("base", "base_submission", "base_file", "splice", "previous_submission")
 SUBMISSIONS_DIR = "submissions"
@@ -91,9 +93,17 @@ class ScheduleFloor:
 
 
 @dataclass(frozen=True)
+class LocalDay:
+    """RLD: LIRF unmatched rows with lo <= sp < hi whose take-off is on the schedule's LOCAL day take rint(sp)."""
+    lo_s: float
+    hi_s: float
+
+
+@dataclass(frozen=True)
 class AirportRules:
     order: tuple = ()                           # the enabled rules, in application order
     schedule_floor: ScheduleFloor | None = None
+    local_day: LocalDay | None = None
 
     @property
     def fill_classifier(self) -> bool:
@@ -347,10 +357,19 @@ def _parse_rules(code: str, v) -> AirportRules:
             raise E.PinnedValueError(f"{p}.schedule_floor: ({floor.lo_s:g}, {floor.hi_s:g}) differs from rome_bandfloor's "
                                      f"(LO, HI) = ({PINNED['schedule_floor_lo_s']:g}, {PINNED['schedule_floor_hi_s']:g}); "
                                      "changing the band is a registered change, not a config edit")
+    local_day = None
+    if "local_day_schedule" in d:
+        f = _map(d["local_day_schedule"], f"{p}.local_day_schedule", required=("lo_s", "hi_s"))
+        local_day = LocalDay(lo_s=_num(f["lo_s"], f"{p}.local_day_schedule.lo_s"),
+                             hi_s=_num(f["hi_s"], f"{p}.local_day_schedule.hi_s"))
+        if (local_day.lo_s, local_day.hi_s) != (PINNED["local_day_lo_s"], PINNED["local_day_hi_s"]):
+            raise E.PinnedValueError(f"{p}.local_day_schedule: ({local_day.lo_s:g}, {local_day.hi_s:g}) differs from "
+                                     f"rome_local_day's (SP_LO, SP_HI) = ({PINNED['local_day_lo_s']:g}, "
+                                     f"{PINNED['local_day_hi_s']:g}); the band is registered in RLD's prereg")
     if order and code != PINNED["rules_airport"]:
         raise E.PinnedValueError(f"{p}: the Rome rules (rome_fill / rome_dateslip / rome_bandfloor) are written for "
                                  f"{PINNED['rules_airport']} only; generalising them to {code} is a P2b change")
-    return AirportRules(order=order, schedule_floor=floor)
+    return AirportRules(order=order, schedule_floor=floor, local_day=local_day)
 
 
 def _parse_airport(code: str, v, lanes: Mapping[str, Lane]) -> Airport:

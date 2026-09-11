@@ -79,7 +79,9 @@ def check_pins(cfg) -> dict:
     st = legacy.stratum()
     got = {"schedule_floor_lo_s": float(st.rb.LO), "schedule_floor_hi_s": float(st.rb.HI),
            "rules_airport": st.rb.AIRPORT}
-    also = {"unm_congestion.ROME": st.uc.ROME, "unm_congestion_ship.ROME": st.ucs.ROME}
+    rl = legacy.rome_local_day()
+    got.update(local_day_lo_s=float(rl.SP_LO), local_day_hi_s=float(rl.SP_HI))
+    also = {"unm_congestion.ROME": st.uc.ROME, "unm_congestion_ship.ROME": st.ucs.ROME, "rome_local_day.AIRPORT": rl.AIRPORT}
     bad = {k: (v, C.PINNED[k]) for k, v in got.items() if v != C.PINNED[k]}
     bad.update({k: (v, C.PINNED["rules_airport"]) for k, v in also.items() if v != C.PINNED["rules_airport"]})
     if tuple(st.bs.SEEDS) != tuple(cfg.seeds) or tuple(st.sf.SEEDS) != tuple(cfg.seeds):
@@ -269,11 +271,29 @@ def run_rules_lane(lane: C.Lane, airport: C.Airport, rows: np.ndarray, scored_un
         floored = after != v
         v = after
         info.update(n_floor_rule_rows=finfo["n_rule_rows"], n_floor_changed=finfo["n_values_differ"])
+    rld = np.zeros(len(te), dtype=bool)
+    if rules.local_day is not None:
+        v, rld = _local_day(te.reset_index(drop=True), v)
+        info.update(n_local_day_changed=int(rld.sum()), local_day_changed_ids=ids[rld].tolist())
     head = "R2" if rules.fill_classifier else "S1"
-    stage = np.array([head + ("+DS" if g else "") + ("+E1" if f else "") for g, f in zip(in_g, floored)], dtype=object)
+    stage = np.array([head + ("+DS" if g else "") + ("+E1" if f else "") + ("+RLD" if r else "")
+                      for g, f, r in zip(in_g, floored, rld)], dtype=object)
     info["p"] = p
     model = lane.model + ("+rome_fill_R" if rules.fill_classifier else "")
     return LaneResult(lane=lane.id, ids=ids, values=v, provenance=_prov(ids, lane.id, model, stage), info=info)
+
+
+def _local_day(te: pd.DataFrame, v) -> tuple:
+    """RLD after the floor: rome_local_day.apply_rld on the lane's own values. (new values float64, rows changed).
+    Refuses a lane whose sp is not MVT − SCHED in seconds: the rule recomputes it from the two clocks."""
+    rl = legacy.rome_local_day()
+    sp = (pd.to_datetime(te.MVT_TIME_UTC_mvt, utc=True) - pd.to_datetime(te.SCHED_TIME_UTC_mvt, utc=True)).dt.total_seconds()
+    if not np.allclose(sp.to_numpy(), te.sp.to_numpy(dtype="float64"), rtol=0, atol=1e-6):
+        raise E.LaneError("the lane's sp differs from MVT - SCHED; RLD would key on another quantity")
+    frame = te[["MVT_ID_mvt", "ADEP_mvt", "unmatched", "SCHED_TIME_UTC_mvt", "MVT_TIME_UTC_mvt"]].assign(
+        base=np.asarray(v, dtype="float64"))
+    new, moved = rl.apply_rld(frame)
+    return np.asarray(new, dtype="float64"), np.asarray(moved, dtype=bool)
 
 
 # =================================================================================================

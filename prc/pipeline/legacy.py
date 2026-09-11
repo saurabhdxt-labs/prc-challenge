@@ -54,6 +54,14 @@ def matched() -> SimpleNamespace:
 
 
 @functools.lru_cache(maxsize=1)
+def rome_local_day():
+    """prc-challenge-6e/53's scripts/rome_local_day.py (rule RLD; read-only): apply_rld, SP_LO, SP_HI, AIRPORT, TZ."""
+    _ensure_path()
+    import rome_local_day as m  # noqa: E402
+    return m
+
+
+@functools.lru_cache(maxsize=1)
 def adsb_stack():
     """prc-challenge-6e's scripts/adsb_stack.py (read-only): day_folds and predict_residual."""
     _ensure_path()

@@ -1,0 +1,12 @@
+2025 joined scored rows 127,736; 2026 joined rows 166,999
+K0 {"LIRF": {"auc": 0.5205769239769998, "ess_frac": 0.9792331307793428, "G_even": 8693.579921806182, "ci_even": [5047.725933340456, 12140.732426297538], "Gw_even": 9343.49656388518, "rule": "PASS"}, "overall": "PASS"}
+K+ {"G": 14025.57555746158, "G_true": 14979.981137426386, "Gw": 14882.85398644936, "planted_change": 954.4055799648067, "rule": "PASS"}
+LIRF {"n25": 11552, "n26": 5276, "auc": 0.7584620089481665, "ess": 3918.08557070443, "ess_frac": 0.33916945729782116, "G": 12324.441832901835, "Gw": 9471.467261195085, "ci_Gw": [3061.86467916967, 16565.153018105488], "ratio": 0.7685108493846485, "V1": true, "C1": true, "C2": true, "decision": "SHIP"}
+Traceback (most recent call last):
+  File "/Users/saurabhdxt/Projects/prc-challenge/scripts/reweight_check.py", line 238, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/Users/saurabhdxt/Projects/prc-challenge/scripts/reweight_check.py", line 233, in main
+    print(f"harness {harness}; ship from D: {ship}; final gate {rec['gate_final']}", flush=True)
+                                                                ~~~^^^^^^^^^^^^^^
+KeyError: 'gate_final'

@@ -139,3 +139,29 @@ the coverage code can show.
 **Final gate, by the owner's pre-agreed mapping:** EDDF, EDDM, EGLL, EHAM, LEBL, LEMD, LFPG, LSZH, LTFM; LIRF keeps F on coverage.
 - Handed to prc-challenge-53 to register as SHIP-ADN.4 ("D, per RWC") before building.
 - SHIP-ADN's P formula for this gate = 5,680 (computed 16:1x from the gate entries; 53 to confirm).
+
+## Amendment RWC.3 · 2026-09-11 17:49:46 EDT: LIRF, owner-directed, before any LIRF number
+
+The owner asked for top 5 "with v12". RLD alone (−519 if the rows are fills) leaves v12 about 40 MSE short of 5th.
+LIRF was kept on F by SHIP-ADN's 0.7× COVERAGE rule (0.448 → 0.199), not by the KS rule, so it was outside D. Its question
+is the same one RWC asks: does ADN's 2025 gain survive the 2026 mix of joined rows at LIRF? A coverage collapse can
+change the kind of flight that is still joined.
+
+**Scope extension:** D' = {LIRF}. The machinery, clauses and thresholds are unchanged (V1 ESS ≥ 0.20 n, C1 lower bound > 0,
+C2 G_w ≥ 0.5 G; the RWC.2 classifier). The harness is K0 at LIRF (the same rule) plus the already-PASSED pooled K+.
+**Honest label:** this extension is chosen after RWC's other results were seen, and it is owner-directed.
+**Decision:** SHIP at LIRF iff V1 ∧ C1 ∧ C2 and K0 PASS at LIRF. Otherwise LIRF keeps F, and v12 is RLD only.
+A SHIP goes to prc-challenge-53 as a SHIP-ADN amendment (the owner's decision, "with v12"), gated before any build.
+The projection uses SHIP-ADN's P formula with k = 1: P_LIRF = 189.
+
+# RESULT RWC.3 (LIRF) · 2026-09-11 17:51:21 EDT (`reports/rwc_lirf.json`, `reports/rwc_lirf.console.log`)
+
+- **Harness PASS.** K0 at LIRF: AUC 0.521, ESS 0.979, G_w inside the interval. K+: as before, 90% of the plant recovered.
+- **LIRF:** n25 11,552 / n26 5,276; AUC 0.758; ESS/n 0.339; G 12,324; G_w 9,471 (0.77×); 95% day-block interval [3,062, 16,565].
+  V1 ✓ C1 ✓ C2 ✓, so **SHIP**.
+- **Against the shapes:** it passes every clause but sits at the edge of the TRUE shape. The ratio of 0.77 is inside ±30%.
+  ESS 0.34 n is above the 0.20 bar but not "well above". The interval is wide.
+  A weaker pass than D's four: the 2026 LIRF joined mix differs from 2025's more than any other airport's (AUC 0.76).
+- **Projection:** P_LIRF 189 at k = 1; about 146 if scaled by the reweighted ratio.
+- (The script's last print line referenced a key that exists only in the default mode. The crash came after the JSON was
+  written, and the fix is to that print line only; tests 15 passed.)

@@ -87,3 +87,20 @@ def test_normal_score_is_within_airport_and_zero_for_missing():
     x = np.array([1.0, 2.0, 3.0, 10.0, np.nan])
     z = R.normal_score(x, ap)
     assert z[1] == pytest.approx(0.0) and z[0] < 0 < z[2] and z[4] == 0.0 and z[3] == pytest.approx(0.0)
+
+
+def test_run_k0_and_the_verdict_cover_exactly_the_airports_asked_for():
+    """RWC.3 runs the same machinery on D' = {LIRF}: run_k0 and run_verdict must report exactly the airports passed in.
+    Rehearsed 2026-09-11 (c70): run_k0 iterating the module-level D instead of its argument -> RED."""
+    rng = np.random.default_rng(3)
+    rows = []
+    for a in ("LIRF", "EDDM"):
+        n = 2400
+        days = pd.date_range("2025-01-01", periods=24, freq="D").strftime("%Y-%m-%d").to_numpy()
+        rows.append(_X(rng, n).assign(ap=a, day=rng.choice(days, n), month=1, gain=rng.normal(100, 50, n)))
+    f25 = pd.concat(rows, ignore_index=True)
+    f26 = pd.concat([_X(rng, 2400).assign(ap=a) for a in ("LIRF", "EDDM")], ignore_index=True)
+    k0 = R.run_k0(f25, airports=("LIRF",))
+    assert set(k0) == {"LIRF", "overall"}
+    res = R.run_verdict(f25, f26, ["LIRF"])
+    assert set(res) == {"LIRF"} and res["LIRF"]["decision"] in ("SHIP", "KEEP_F", "INCONCLUSIVE")

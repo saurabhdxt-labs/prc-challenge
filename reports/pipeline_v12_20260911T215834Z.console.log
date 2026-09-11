@@ -1,0 +1,29 @@
+[17:58:35] routed 344,841 scored rows: {'lirf_rules': 383, 'matched': 339551, 'unmatched': 4907}
+[17:58:45] lane unmatched: 4,907 rows
+[17:58:52] lane lirf_rules: 383 rows
+[17:58:58] matched design (339551, 83) float32 in 6s (encodings on 2,062,440 training rows)
+[17:58:59 +      7s] reused booster /Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/lgbm_v6_queue_order_seed0.txt (30,398 trees), best_iter 25,316, n_ref 30,398
+[18:07:43 +    532s] reused booster /Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/lgbm_v6_queue_order_seed1.txt (30,398 trees), best_iter 25,316, n_ref 30,398
+[18:16:28 +   1057s] reused booster /Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/lgbm_v6_queue_order_seed2.txt (30,398 trees), best_iter 25,316, n_ref 30,398
+[18:24:42] matched lane: predicted 339,551 rows in 1544s
+[18:25:07] ADS-B stage: 166,288 of 339,551 matched rows changed ({'EDDF': 14963, 'EDDM': 20785, 'EGLL': 30534, 'EHAM': 27044, 'LEBL': 22358, 'LEMD': 23791, 'LFPG': 4596, 'LIRF': 5252, 'LSZH': 16960, 'LTFM': 5})
+[18:25:07] lane matched: 339,551 rows ({'n_rows': 339551, 'source': 'saved_boosters', 'n_features': 83, 'seeds': [0, 1, 2], 'best_iter': 25316, 'n_ref': 30398, 'n_all': 2062440, 'boosters': ['lgbm_v6_queue_order_seed0.txt', 'lgbm_v6_queue_order_seed1.txt', 'lgbm_v6_queue_order_seed2.txt'], 'adsb_stage': {'n_rows': 339551, 'n_eligible': 166999, 'n_changed': 166288, 'changed_by_airport': {'EDDF': 14963, 'EDDM': 20785, 'EGLL': 30534, 'EHAM': 27044, 'LEBL': 22358, 'LEMD': 23791, 'LFPG': 4596, 'LIRF': 5252, 'LSZH': 16960, 'LTFM': 5}, 'coverage_share_by_airport': {'EDDF': 0.41840316469801647, 'EDDM': 0.8112562189054726, 'EGLL': 0.773918973530006, 'EHAM': 0.7349632193855474, 'LEBL': 0.7579121398205008, 'LEMD': 0.6507517158731888, 'LFPG': 0.11835045224589913, 'LIRF': 0.1989742042540353, 'LSZH': 0.7568360677604375, 'LTFM': 0.00010670081092616304}, 'mean_abs_resid_eligible_s': 83.19912725385038, 'table_meta': {'git_sha': 'a26b1aa19d1fdfbc71dbf13771f54fea11422c38-dirty', 'extractor': 'adsb_fetch.parse_member_v2', 'features_version': 'adsb_features v2 (take-off-anchored join; first-seen-on-ground; LOO stand refs from parked or first-slow samples)', 'record': '/Users/saurabhdxt/Projects/prc-challenge/data/raw/ranking.parquet', 'source': 'adsb.lol globe_history, ODbL 1.0 (attribution: ADSB.lol contributors)'}, 'gate': {'EDDF': True, 'EDDM': True, 'EGLL': True, 'EHAM': True, 'LEBL': True, 'LEMD': True, 'LFPG': True, 'LIRF': True, 'LSZH': True, 'LTFM': True}, 'models_manifest': {'feats': ['joined', 'join_callsign', 'dt_takeoff', 'first_seen_rel_mvt', 'n_ground', 'ground_rate_pm', 'mlat_share', 'first_ground_rel_mvt', 'first_ground_gs', 'first_ground_slow', 'first_move_rel_mvt', 'first_ground_rel_aobt3', 'turn_in_track', 'dwell_end_rel_mvt', 'dwell_s', 'dwell_end_rel_aobt3', 'n_stops', 'stop_s', 'path_m', 'taxi_med_gs', 'sensor_rel_mvt', 'sensor_rel_aobt3', 'dwell_to_centroid_m', 'moving_mvt_m10', 'moving_dwell_end', 'ground_seen_mvt_m10'], 'seeds': [0, 1, 2], 'folds': 5, 'airports': ['EDDF', 'EDDM', 'EGLL', 'EHAM', 'LEBL', 'LEMD', 'LFPG', 'LIRF', 'LSZH', 'LTFM'], 'target_scale': 300.0, 'nn': {'hidden': 128, 'dropout': 0.1, 'batch': 8192}, 'git_sha': 'a26b1aa19d1fdfbc71dbf13771f54fea11422c38-dirty', 'trained': '2026-09-11T11:39:57.835215-04:00', 'n_train_joined_rows': 127736, 'blend': 'B = mean(G, N) residual, seconds', 'gate_evidence': {'transfer_PASS': True, 'transfer_n_pass': 3, 'gate_ratio': 0.7, 'newly_low': 0.2, 'newly_growth': 2.0, 'joined_share_2025': {'EDDF': 0.5151150422661367, 'EDDM': 0.5273166314518564, 'EGLL': 0.2966201360126809, 'EHAM': 0.7216364509848542, 'LEBL': 0.7841875022228545, 'LEMD': 0.13394202898550725, 'LFPG': 0.051988248872101565, 'LIRF': 0.44820361604717934, 'LSZH': 0.6976344285913464, 'LTFM': 0.0}, 'joined_share_2026': {'EDDF': 0.41840316469801647, 'EDDM': 0.8112562189054726, 'EGLL': 0.773918973530006, 'EHAM': 0.7349632193855474, 'LEBL': 0.7579121398205008, 'LEMD': 0.6507517158731888, 'LFPG': 0.11835045224589913, 'LIRF': 0.1989742042540353, 'LSZH': 0.7568360677604375, 'LTFM': 0.00010670081092616304}, 'ks_holds': {}, 'key_feats': ['first_ground_rel_aobt3', 'first_move_rel_mvt', 'first_ground_gs'], 'ks_flag': 0.1, 'ks_rule': 'SHIP-ADN.5: D, per RWC + LIRF per RWC.3 (owner, with v12)', 'coverage_overrides': {'LIRF': 'RWC.3 SHIP'}}}}})
+[18:25:09] wrote data/pipeline_runs/v12_20260911T215834Z/merry-quicksand_v12.parquet (344,841 rows), manifest merry-quicksand_v12.manifest.json digest fbb9a55465b2
+     1595.56 real      6390.10 user       109.70 sys
+          2970697728  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             2141284  page reclaims
+                4504  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                5644  voluntary context switches
+             7238543  involuntary context switches
+       6694978304289  instructions retired
+      27550144886645  cycles elapsed
+          4023177200  peak memory footprint

@@ -713,3 +713,34 @@ Result JSON: status Succeeded, used_pairs 344,841, **score 267.4518**.
 - Board at 17:35 EDT (best per team): 1 youthful-giraffe 245.02 · 2 enthusiastic-daisy 260.93 · 3 quick-boat 262.55 · 4 jovial-uniform 264.25 · 5 upstanding-firefly 266.40 · 6 zesty-puzzle 266.81 · **7 merry-quicksand 267.45** · 8 gentle-lemon 268.37 · 10th 272.33.
 - To 6th −344 MSE, to 5th −562, to 4th −1,704, to 1st −11,496.
 - Uploads used today (UTC 2026-09-11): 1 of 5.
+- **2026-09-11 ~17:52 EDT — RESULT RWC.3 (LIRF, owner "with v12", registered 17:49 before computing):** harness PASS (K0 LIRF AUC 0.52 / ESS 0.98).
+  - LIRF G_w/G 0.77, interval [3,062, 16,565], ESS 0.34 n, so **SHIP**. It is the weakest pass: the 2026 LIRF mix differs most (AUC 0.76).
+  - P_LIRF 189 (≈146 reweighted).
+  - Plan: v12 = v11 + RLD + LIRF in the ADS-B gate (SHIP-ADN amendment by prc-challenge-53).
+  - Needed for 5th: 559 MSE. Expected: RLD 519 if fills + LIRF ~146–256.
+- **2026-09-11 ~18:20 EDT — post-ADN error by coverage code (descriptive, no arm; prc-challenge-70):** of the 13,491 fold units still reachable by ADS-B after ADN,
+  **9,417 (70%) sit on the 67,625 code-2 rows** (joined mid-taxi, pushback unobserved): early-regime code 2 alone is 4,967 at RMSE 733 s vs code 3's 1,867 at 468 s.
+  On early rows code 3 is first seen 803 s BEFORE AOBT_3 (ADN captures 91% of the offset); code 2 is first seen +162 s AFTER, no dwell (72%).
+  Upper bound if code 2 reached code-3 accuracy ≈ 4,900 fold units; 260 needs ≈ 3,300 board from v12. Recorded in `reports/POST_ADN_ERROR_MAP_2026_09_11.md` §6.
+- **v12 built 2026-09-11 18:25 EDT (prc-challenge-70):** `data/pipeline_runs/v12_20260911T215834Z/` (1,596 s, 2.97 GB, exit 0, manifest fbb9a55465b2…).
+  One command on `configs/pipeline_v12.yaml` = SHIP-ADN.5 gate (v11's nine airports + LIRF by RWC.3) + the LIRF rules lane's new last rule `local_day_schedule` (RLD).
+  **Independent diff vs v11:** 5,255 rows differ, ALL at LIRF — 5,252 matched rows marked `+adsb` and the 3 RLD rows at their registered values
+  (202685083 62,215→48,841; 213143669 49,231→48,539; 202687258 53,909→53,520). Every other row byte-equal to v11; 166,291 differ from v10.
+  int32, min 1, no nulls. Manifest: stage n_changed 166,288 (LIRF 5,252), lirf_rules n_local_day_changed 3.
+  **Registered expectation:** RLD −519 if the row is a fill (−4,206 if ordinary) + LIRF ADS-B ≈ −145 [47, 253]; 5th needs −559 from v11.
+  **Pledge carried from RLD's prereg:** v12's board delta reveals those rows' class and is used for nothing else.
+
+## MEASURED 2026-09-11 18:27 EDT — v12 = 266.3738, rank 5 of 120 (from 7th)
+
+`merry-quicksand_v12.parquet` uploaded by prc-challenge-70 on the owner's "upload it" (HTTP 200, 22:26:55Z; sha256 8a63bfb7ff9f2786680d527d…).
+Result: status Succeeded, used_pairs 344,841, **score 266.3738**.
+
+| version | board RMSE | board MSE | Δ MSE vs v11 | levers | registered prediction | delivered |
+|---|---|---|---|---|---|---|
+| **v12** | **266.3738** | 70,955.0 | **−575.5** | RLD (3 LIRF unmatched rows) + LIRF in the ADS-B gate (RWC.3, 5,252 matched rows) | −664 (RLD 519 if fill + LIRF ≈145) | **0.87×** |
+
+- **Reading, under RLD's pledge (used for nothing else):** −575.5 sits far from the "ordinary" branch (−4,206) and close to the fill branch. Consistent with 202685083 being a schedule fill, as the 2025 base rate said (≈94%).
+- The two levers cannot be separated by this one reading; that was the owner's accepted trade when bundling.
+- Board 18:27 EDT: 1 youthful-giraffe 245.02 · 2 enthusiastic-daisy 260.93 · 3 quick-boat 262.55 · 4 jovial-uniform 264.25 · **5 merry-quicksand 266.37** · 6 upstanding-firefly 266.40.
+- To 4th −1,709 MSE, to 3rd −2,602, to 2nd −3,449, to 1st −10,920.
+- Uploads used today (UTC 2026-09-11): 2 of 5. Day's move: 281.5182 (15th) → 267.4518 (7th) → 266.3738 (5th).

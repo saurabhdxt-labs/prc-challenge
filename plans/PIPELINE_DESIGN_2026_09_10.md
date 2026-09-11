@@ -218,3 +218,17 @@ RED at 61.8 s. Still to do: the 2026 coverage report, the ship prereg, owner sig
 - 6e's `scripts/adsb_v11_check.py` is the independent guard set (a)–(e). It takes proxy / hour / ap from the raw ranking file, so its guard (c) also cross-checks the stage's stand-cache join on 2026.
 - BC-8 (shared-tree race in the two-run digest tests) fixed test-side; pipeline tier 206 passed, 3 gated.
 - Next: the real dry run on `pipeline_adn.yaml` once the 2026 table and the gate exist; then the v11 build (the only heavy job, AC power, quality gate), 6e's v11 check, and the owner's upload decision.
+
+### Rome rule RLD in the pipeline · 2026-09-11 17:47:07 EDT
+
+The LIRF rules lane gains a fourth, last rule, `local_day_schedule {lo_s: 24000, hi_s: 86400}`
+(`plans/PREREG_rome_local_day_rule_2026_09_11.md`): rint(sp) on LIRF unmatched rows in band whose take-off is on the
+schedule's Rome LOCAL day.
+- **Implementation:** it calls prc-challenge-53's `scripts/rome_local_day.apply_rld` read-only (`legacy.rome_local_day()`).
+  - `check_pins` re-reads its SP_LO / SP_HI / AIRPORT.
+  - The rule refuses a lane whose sp is not MVT − SCHED.
+  - Provenance marks moved rows `+RLD`.
+- **Tests:** config parse, band pin and order; rule semantics on five crafted rows; the sp guard; the pins; wiring on the
+  synthetic stratum world. 6 of 6 rehearsed mutations RED. Pipeline tier 211 passed.
+- **Real check:** the rules lane alone under `configs/pipeline_v12.yaml` changes exactly the prereg's 3 rows to its values.
+- **v12** = the one-command build on `configs/pipeline_v12.yaml` (= `pipeline_adn.yaml` + that line).
