@@ -1,0 +1,70 @@
+# PRC Data Challenge 2026 -- the one pipeline, raw data -> submission (plans/PIPELINE_DESIGN_2026_09_10.md).
+#
+# Validated at load by prc/pipeline/config.py: an unknown key, a wrong type, an unknown airport, lane or
+# model fails loud with a named error and the dotted path of the offending key. Config is code.
+#
+# P2a (this file's phase) wraps the shipped, tested functions WITHOUT behaviour change. Values those
+# functions hard-code are PINNED: the config may state them (so the file documents what runs) but may not
+# change them -- a different value is refused (PinnedValueError), because changing it is a registered
+# change for a later phase, not a config edit. Pinned here: the LIRF rule constants, the matched lane's
+# LightGBM parameters (scripts/lgbm_submit.py P), the rule order, the seeds' role in every lane.
+#
+# A new airport is one entry under `airports` plus its rows in the data. An airport without training
+# history (`history: false`) is routed to the pooled lanes and flagged as a fallback in the manifest.
+
+schema_version: 1
+team: merry-quicksand
+seeds: [0, 1, 2]
+
+paths:                                   # relative to the repo root
+  scored_file: data/raw/ranking.parquet        # the file whose departures are scored
+  template_file: data/raw/submitting.parquet   # the ids the scorer expects
+  training_dir: data/raw
+  training_glob: "training_2025-*.parquet"     # the 2025 months (the 2025 witness reads them, projected)
+  stand_cache: data/cache_stand                # matched lane: stand_ab caches + ranking cache + boosters
+  rome_cache: data/cache_rome                  # unmatched lanes: unm.parquet + lirf.parquet (stratum_fold.load_real)
+
+folds:                                   # used by the evaluation harness (P3); recorded in the manifest now
+  fold_a_holdout_months: [1, 7]
+  early_stopping_months: [3, 9]
+  lomo_months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+
+lanes:
+  matched:                               # rows with an NM off-block (AOBT_3_flt present)
+    kind: matched
+    model: lightgbm
+    target: delta                        # y_hat = max(proxy - delta_hat, 1), rounded (lgbm_submit)
+    feature_blocks:                      # appended to stand_ab.BASELINE_FEATS in this order
+      queue: data/cache_queue
+      order: data/cache_order
+    source: saved_boosters               # saved_boosters | refit  (refit = the ~2 h, ~5 GB full fit)
+    booster_dir: data/cache_stand
+    boosters:                            # one per seed, in seed order; each has its .fit.json beside it
+      - lgbm_v6_queue_order_seed0.txt
+      - lgbm_v6_queue_order_seed1.txt
+      - lgbm_v6_queue_order_seed2.txt
+  unmatched:                             # rows without an NM off-block, every airport except LIRF (E3C)
+    kind: unmatched
+    model: nonfill_body_congestion
+  lirf_rules:                            # LIRF rows without an NM off-block: R2 + date-slip + schedule floor
+    kind: airport_rules
+    model: nonfill_body
+
+airports:
+  EDDF: {tz: Europe/Berlin,    history: true, lanes: {matched: matched, unmatched: unmatched}}
+  EDDM: {tz: Europe/Berlin,    history: true, lanes: {matched: matched, unmatched: unmatched}}
+  EGLL: {tz: Europe/London,    history: true, lanes: {matched: matched, unmatched: unmatched}}
+  EHAM: {tz: Europe/Amsterdam, history: true, lanes: {matched: matched, unmatched: unmatched}}
+  LEBL: {tz: Europe/Madrid,    history: true, lanes: {matched: matched, unmatched: unmatched}}
+  LEMD: {tz: Europe/Madrid,    history: true, lanes: {matched: matched, unmatched: unmatched}}
+  LFPG: {tz: Europe/Paris,     history: true, lanes: {matched: matched, unmatched: unmatched}}
+  LSZH: {tz: Europe/Zurich,    history: true, lanes: {matched: matched, unmatched: unmatched}}
+  LTFM: {tz: Europe/Istanbul,  history: true, lanes: {matched: matched, unmatched: unmatched}}
+  LIRF:
+    tz: Europe/Rome
+    history: true
+    lanes: {matched: matched, unmatched: lirf_rules}
+    rules:                               # applied in this order (pinned in P2a)
+      fill_classifier: {}                # rome_fill arm R: stake-weighted LightGBM P(fill), mean of the seeds
+      dateslip: {}                       # rome_dateslip DS: two-class expectation inside segment G
+      schedule_floor: {lo_s: 24000, hi_s: 86400}   # rome_bandfloor E1: max(pred, rint(sp)) on lo <= sp < hi

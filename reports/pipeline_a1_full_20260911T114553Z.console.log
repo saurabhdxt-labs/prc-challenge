@@ -1,0 +1,30 @@
+routed 344,841 scored rows: {'lirf_rules': 383, 'matched': 339551, 'unmatched': 4907}
+lane unmatched: 4,907 rows
+lane lirf_rules: 383 rows
+matched design (339551, 83) float32 in 6s (encodings on 2,062,440 training rows)
+[07:46:09 +      7s] reused booster /Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/lgbm_v6_queue_order_seed0.txt (30,398 trees), best_iter 25,316, n_ref 30,398
+[07:53:42 +    459s] reused booster /Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/lgbm_v6_queue_order_seed1.txt (30,398 trees), best_iter 25,316, n_ref 30,398
+[08:01:22 +    920s] reused booster /Users/saurabhdxt/Projects/prc-challenge/data/cache_stand/lgbm_v6_queue_order_seed2.txt (30,398 trees), best_iter 25,316, n_ref 30,398
+matched lane: predicted 339,551 rows in 1396s
+lane matched: 339,551 rows ({'n_rows': 339551, 'source': 'saved_boosters', 'n_features': 83, 'seeds': [0, 1, 2], 'best_iter': 25316, 'n_ref': 30398, 'n_all': 2062440, 'boosters': ['lgbm_v6_queue_order_seed0.txt', 'lgbm_v6_queue_order_seed1.txt', 'lgbm_v6_queue_order_seed2.txt']})
+wrote data/pipeline_runs/a1_full_20260911T114553Z/submission.parquet (344,841 rows), manifest submission.manifest.json digest 9aede4c4ae2a
+.
+1 passed, 2 deselected in 1413.32s (0:23:33)
+     1413.69 real      5573.97 user        12.43 sys
+          4057530368  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             1118402  page reclaims
+                4458  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                2077  voluntary context switches
+             1082372  involuntary context switches
+       4174724768485  instructions retired
+      23823601867967  cycles elapsed
+          3965521712  peak memory footprint

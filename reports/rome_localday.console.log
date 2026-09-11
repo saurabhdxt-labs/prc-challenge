@@ -1,0 +1,99 @@
+[     0s] frames from /Users/saurabhdxt/Projects/prc-challenge/data/cache_rome
+[     3s]   fold  1: test 1,408  train 20,811  routed 1,405 -> nf_fit,    3 -> nf_cells  (3.2s)
+[     9s]   fold  2: test 1,083  train 21,136  routed 1,079 -> nf_fit,    4 -> nf_cells  (6.1s)
+[    23s]   fold  3: test 1,060  train 21,159  routed 1,055 -> nf_fit,    5 -> nf_cells  (13.4s)
+[    40s]   fold  4: test 1,064  train 21,155  routed 1,053 -> nf_fit,   11 -> nf_cells  (17.0s)
+[    49s]   fold  5: test 1,591  train 20,628  routed 1,584 -> nf_fit,    7 -> nf_cells  (9.0s)
+[    60s]   fold  6: test 2,470  train 19,749  routed 2,456 -> nf_fit,   14 -> nf_cells  (11.7s)
+[    69s]   fold  7: test 3,913  train 18,306  routed 3,886 -> nf_fit,   27 -> nf_cells  (8.3s)
+[    73s]   fold  8: test 2,297  train 19,922  routed 2,274 -> nf_fit,   23 -> nf_cells  (3.9s)
+[    84s]   fold  9: test 2,453  train 19,766  routed 2,440 -> nf_fit,   13 -> nf_cells  (11.2s)
+[   102s]   fold 10: test 1,902  train 20,317  routed 1,892 -> nf_fit,   10 -> nf_cells  (18.6s)
+[   118s]   fold 11: test 1,347  train 20,872  routed 1,339 -> nf_fit,    8 -> nf_cells  (15.4s)
+[   132s]   fold 12: test 1,631  train 20,588  routed 1,619 -> nf_fit,   12 -> nf_cells  (14.7s)
+[   147s]   fold A (1, 7): test 5,321  train 16,898  routed 5,290 -> nf_fit,   31 -> nf_cells  (14.6s)
+[   147s] fold lomo 1:
+[   156s]   trained on 149,387 LIRF rows (1,428 unmatched), months [np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(7), np.int32(8), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 60
+[   156s] fold lomo 2:
+[   162s]   trained on 150,001 LIRF rows (1,430 unmatched), months [np.int32(1), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(7), np.int32(8), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 58
+[   162s] fold lomo 3:
+[   168s]   trained on 148,160 LIRF rows (1,429 unmatched), months [np.int32(1), np.int32(2), np.int32(4), np.int32(5), np.int32(6), np.int32(7), np.int32(8), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 59
+[   168s] fold lomo 4:
+[   176s]   trained on 146,676 LIRF rows (1,418 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(5), np.int32(6), np.int32(7), np.int32(8), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 70
+[   176s] fold lomo 5:
+[   184s]   trained on 146,163 LIRF rows (1,389 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(4), np.int32(6), np.int32(7), np.int32(8), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 99
+[   184s] fold lomo 6:
+[   192s]   trained on 146,008 LIRF rows (1,303 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(7), np.int32(8), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 185
+[   192s] fold lomo 7:
+[   200s]   trained on 145,493 LIRF rows (1,151 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(8), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 337
+[   200s] fold lomo 8:
+[   209s]   trained on 145,245 LIRF rows (1,291 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(7), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 197
+[   209s] fold lomo 9:
+[   217s]   trained on 146,037 LIRF rows (1,320 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(7), np.int32(8), np.int32(10), np.int32(11), np.int32(12)]; scored 168
+[   217s] fold lomo 10:
+[   223s]   trained on 146,562 LIRF rows (1,373 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(7), np.int32(8), np.int32(9), np.int32(11), np.int32(12)]; scored 115
+[   223s] fold lomo 11:
+[   228s]   trained on 149,376 LIRF rows (1,436 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(7), np.int32(8), np.int32(9), np.int32(10), np.int32(12)]; scored 52
+[   228s] fold lomo 12:
+[   233s]   trained on 148,636 LIRF rows (1,400 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(7), np.int32(8), np.int32(9), np.int32(10), np.int32(11)]; scored 88
+[   233s] fold A A:
+[   237s]   trained on 134,176 LIRF rows (1,091 unmatched), months [np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(8), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 397
+[   237s] guard: UTC chain reproduces the stored R2 on 1,885 rows (max |Δ| 0.0)
+[   241s]   fold  1: test 1,408  train 20,811  routed 1,402 -> nf_fit,    6 -> nf_cells  (4.0s)
+[   246s]   fold  2: test 1,083  train 21,136  routed 1,079 -> nf_fit,    4 -> nf_cells  (4.3s)
+[   252s]   fold  3: test 1,060  train 21,159  routed 1,054 -> nf_fit,    6 -> nf_cells  (5.8s)
+[   259s]   fold  4: test 1,064  train 21,155  routed 1,053 -> nf_fit,   11 -> nf_cells  (7.0s)
+[   266s]   fold  5: test 1,591  train 20,628  routed 1,579 -> nf_fit,   12 -> nf_cells  (7.0s)
+[   271s]   fold  6: test 2,470  train 19,749  routed 2,456 -> nf_fit,   14 -> nf_cells  (5.2s)
+[   276s]   fold  7: test 3,913  train 18,306  routed 3,875 -> nf_fit,   38 -> nf_cells  (4.8s)
+[   281s]   fold  8: test 2,297  train 19,922  routed 2,270 -> nf_fit,   27 -> nf_cells  (5.7s)
+[   287s]   fold  9: test 2,453  train 19,766  routed 2,437 -> nf_fit,   16 -> nf_cells  (5.5s)
+[   295s]   fold 10: test 1,902  train 20,317  routed 1,891 -> nf_fit,   11 -> nf_cells  (8.3s)
+[   302s]   fold 11: test 1,347  train 20,872  routed 1,341 -> nf_fit,    6 -> nf_cells  (6.9s)
+[   312s]   fold 12: test 1,631  train 20,588  routed 1,618 -> nf_fit,   13 -> nf_cells  (10.2s)
+[   320s]   fold A (1, 7): test 5,321  train 16,898  routed 5,277 -> nf_fit,   44 -> nf_cells  (7.9s)
+[   320s] fold lomo 1:
+[   325s]   trained on 149,387 LIRF rows (1,428 unmatched), months [np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(7), np.int32(8), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 60
+[   325s] fold lomo 2:
+[   330s]   trained on 150,001 LIRF rows (1,430 unmatched), months [np.int32(1), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(7), np.int32(8), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 58
+[   330s] fold lomo 3:
+[   335s]   trained on 148,160 LIRF rows (1,429 unmatched), months [np.int32(1), np.int32(2), np.int32(4), np.int32(5), np.int32(6), np.int32(7), np.int32(8), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 59
+[   335s] fold lomo 4:
+[   340s]   trained on 146,676 LIRF rows (1,418 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(5), np.int32(6), np.int32(7), np.int32(8), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 70
+[   340s] fold lomo 5:
+[   346s]   trained on 146,163 LIRF rows (1,389 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(4), np.int32(6), np.int32(7), np.int32(8), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 99
+[   346s] fold lomo 6:
+[   351s]   trained on 146,008 LIRF rows (1,303 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(7), np.int32(8), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 185
+[   351s] fold lomo 7:
+[   357s]   trained on 145,493 LIRF rows (1,151 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(8), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 337
+[   357s] fold lomo 8:
+[   362s]   trained on 145,245 LIRF rows (1,291 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(7), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 197
+[   362s] fold lomo 9:
+[   368s]   trained on 146,037 LIRF rows (1,320 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(7), np.int32(8), np.int32(10), np.int32(11), np.int32(12)]; scored 168
+[   368s] fold lomo 10:
+[   374s]   trained on 146,562 LIRF rows (1,373 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(7), np.int32(8), np.int32(9), np.int32(11), np.int32(12)]; scored 115
+[   374s] fold lomo 11:
+[   379s]   trained on 149,376 LIRF rows (1,436 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(7), np.int32(8), np.int32(9), np.int32(10), np.int32(12)]; scored 52
+[   379s] fold lomo 12:
+[   384s]   trained on 148,636 LIRF rows (1,400 unmatched), months [np.int32(1), np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(7), np.int32(8), np.int32(9), np.int32(10), np.int32(11)]; scored 88
+[   384s] fold A A:
+[   390s]   trained on 134,176 LIRF rows (1,091 unmatched), months [np.int32(2), np.int32(3), np.int32(4), np.int32(5), np.int32(6), np.int32(8), np.int32(9), np.int32(10), np.int32(11), np.int32(12)]; scored 397
+{"rmse_lomo": {"utc": 3916.615967013426, "local": 4005.544569768663}, "sigma_g": {"lomo": -1048305921.0, "A": -314102811.0}, "price_2026": {"total": -776.916712415665, "by_cell": {"utc0_local0": -34.56636455508547, "utc0_local1": -832.5079147377688, "utc1_local1": 123.7781947414321, "utc1_local0": -33.62062786424275}, "cells_without_2025_rows": []}, "by_cell_lomo": {"utc0_local0": {"n": 1305, "sigma_g": -47570242.0}, "utc0_local1": {"n": 115, "sigma_g": -1064984810.0}, "utc1_local0": {"n": 15, "sigma_g": -43476641.0}, "utc1_local1": {"n": 53, "sigma_g": 107725772.0}}, "clauses": {"C1_month_block_lower_gt_0": false, "C2_2026_price_ge_300": false, "C3_foldA_sign": false}, "verdict": "NOT WORKING"}
+      391.08 real      1249.18 user      1435.46 sys
+           699760640  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              480732  page reclaims
+                 579  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                7482  voluntary context switches
+           105823954  involuntary context switches
+      28848367515248  instructions retired
+      10582262175155  cycles elapsed
+           877676152  peak memory footprint

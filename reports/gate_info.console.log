@@ -1,0 +1,32 @@
+D2 pooled commit {'n_rows': 7824, 'precision': 0.748338445807771, 'early_rows_covered': 5855, 'share_of_early': 0.4590716637917516}
+LTFM: early 0.037 auc 0.959 top5% prec 0.47 commit n 929 prec 0.70 covers 0.38 | oracle 1703 reg -81 | top5 days 0.26
+LFPG: early 0.046 auc 0.917 top5% prec 0.40 commit n 705 prec 0.61 covers 0.24 | oracle 1486 reg -35 | top5 days 0.26
+LIRF: early 0.105 auc 0.916 top5% prec 0.71 commit n 1854 prec 0.66 covers 0.45 | oracle 1185 reg 8 | top5 days 0.24
+LEBL: early 0.035 auc 0.916 top5% prec 0.36 commit n 440 prec 0.74 covers 0.33 | oracle 834 reg -14 | top5 days 0.26
+EDDF: early 0.017 auc 0.967 top5% prec 0.25 commit n 264 prec 0.74 covers 0.31 | oracle 643 reg -28 | top5 days 0.24
+LEMD: early 0.026 auc 0.952 top5% prec 0.35 commit n 466 prec 0.84 covers 0.43 | oracle 549 reg -19 | top5 days 0.21
+EGLL: early 0.034 auc 0.977 top5% prec 0.56 commit n 1022 prec 0.87 covers 0.67 | oracle 543 reg 18 | top5 days 0.23
+LSZH: early 0.028 auc 0.943 top5% prec 0.30 commit n 184 prec 0.60 covers 0.18 | oracle 413 reg 19 | top5 days 0.21
+EDDM: early 0.075 auc 0.987 top5% prec 0.89 commit n 1937 prec 0.83 covers 0.80 | oracle 274 reg -34 | top5 days 0.20
+EHAM: early 0.001 auc 0.941 top5% prec 0.02 commit n 23 prec 0.91 covers 0.50 | oracle 120 reg -56 | top5 days 0.62
+pooled [('aobt_eobt', 0.856), ('aobt_sched', 0.807), ('iobt_p', 0.787), ('eobt_p', 0.781), ('arvt_diff', 0.777), ('lobt_p', 0.772), ('sp', 0.769), ('proxy', 0.394), ('eobt_sched', 0.59), ('f_callsign', 0.411), ('prev_dep_gap', 0.411), ('sched_day', 0.422)]
+LTFM [('aobt_sched', 0.857), ('aobt_eobt', 0.854), ('sp', 0.846), ('iobt_p', 0.83), ('eobt_p', 0.822), ('lobt_p', 0.822), ('arvt_diff', 0.818), ('doy', 0.619), ('sched_day', 0.613), ('airborne3', 0.598), ('arr_dur', 0.597), ('arr_ob60_taxiin', 0.597)]
+LFPG [('aobt_eobt', 0.841), ('eobt_p', 0.814), ('iobt_p', 0.808), ('lobt_p', 0.804), ('arvt_diff', 0.799), ('aobt_sched', 0.798), ('sp', 0.795), ('arr_ob180_cdiff', 0.658), ('dep_dur', 0.656), ('arr_ob60_cdiff', 0.638), ('rwy_dur', 0.637), ('arr_dur', 0.629)]
+        1.70 real         1.68 user         0.32 sys
+           844300288  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               60203  page reclaims
+                 197  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  18  voluntary context switches
+               14800  involuntary context switches
+         30600749946  instructions retired
+          8907644916  cycles elapsed
+           798885064  peak memory footprint

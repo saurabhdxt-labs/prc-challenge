@@ -1,0 +1,327 @@
+{
+ "tag": "REG",
+ "prereg": "plans/PREREG_regime_experts_2026_09_11.md",
+ "mode": "full",
+ "git": {
+  "git_sha": "a26b1aa19d1fdfbc71dbf13771f54fea11422c38",
+  "git_dirty": true
+ },
+ "months": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  11,
+  12
+ ],
+ "params": {
+  "objective": "regression",
+  "metric": "rmse",
+  "learning_rate": 0.05,
+  "num_leaves": 255,
+  "min_data_in_leaf": 40,
+  "feature_fraction": 0.8,
+  "bagging_fraction": 0.8,
+  "bagging_freq": 1,
+  "cat_smooth": 20,
+  "min_data_per_group": 100,
+  "max_cat_threshold": 64,
+  "num_threads": 4,
+  "verbosity": -1,
+  "seed": 0
+ },
+ "wall_s": 1556.5,
+ "peak_rss_gb": 5.5452423095703125,
+ "results": {
+  "n_features": 83,
+  "holdout_regimes": {
+   "agree": 285942,
+   "fill": 30167,
+   "early": 12754,
+   "late": 10152
+  },
+  "BASE": {
+   "best_iter": 4367,
+   "n_ref": 5459,
+   "n_train": 1723425,
+   "floor_binds_holdout": 26
+  },
+  "expert_agree": {
+   "best_iter": 2471,
+   "n_ref": 3089,
+   "n_train": 1455098,
+   "floor_binds_holdout": 164
+  },
+  "expert_early": {
+   "best_iter": 1996,
+   "n_ref": 2472,
+   "n_train": 52956,
+   "floor_binds_holdout": 17
+  },
+  "expert_late": {
+   "best_iter": 347,
+   "n_ref": 446,
+   "n_train": 47349,
+   "floor_binds_holdout": 47285
+  },
+  "fill_correction_s": {
+   "EDDF": -3.016292251099858,
+   "EDDM": -2.6407662639947445,
+   "EGLL": 0.6751350241287014,
+   "EHAM": -3.2222025234660947,
+   "LEBL": -1.7055704264595464,
+   "LEMD": -2.506747628382908,
+   "LFPG": -2.6122747643409077,
+   "LIRF": 3.765632497400142,
+   "LSZH": -3.958500462687275,
+   "LTFM": -1.0220191605744355
+  },
+  "gate": {
+   "best_iter": 443,
+   "n_ref": 553,
+   "auc_one_vs_rest": {
+    "agree": 0.8737926008162646,
+    "fill": 0.8941036233197994,
+    "early": 0.9612621471171439,
+    "late": 0.9759646647789245
+   },
+   "mean_p": {
+    "agree": 0.8479748118425906,
+    "fill": 0.08737545254137406,
+    "early": 0.038164438805051715,
+    "late": 0.026485296810983616
+   },
+   "reliability_early": [
+    {
+     "bin": 0,
+     "n": 33902,
+     "mean_p": 2.3862940973436017e-05,
+     "rate": 5.89935697009026e-05
+    },
+    {
+     "bin": 1,
+     "n": 33901,
+     "mean_p": 6.180370046288602e-05,
+     "rate": 5.8995309872865106e-05
+    },
+    {
+     "bin": 2,
+     "n": 33902,
+     "mean_p": 0.00012166718719989277,
+     "rate": 0.0001474839242522565
+    },
+    {
+     "bin": 3,
+     "n": 33901,
+     "mean_p": 0.0002521870355376808,
+     "rate": 0.00020648358455502787
+    },
+    {
+     "bin": 4,
+     "n": 33901,
+     "mean_p": 0.0005775744377141213,
+     "rate": 0.0006784460635379487
+    },
+    {
+     "bin": 5,
+     "n": 33902,
+     "mean_p": 0.0014235194355994225,
+     "rate": 0.0016813167364757241
+    },
+    {
+     "bin": 6,
+     "n": 33901,
+     "mean_p": 0.003681644501099614,
+     "rate": 0.0043361552756555856
+    },
+    {
+     "bin": 7,
+     "n": 33902,
+     "mean_p": 0.010651281830232942,
+     "rate": 0.01380449531001121
+    },
+    {
+     "bin": 8,
+     "n": 33901,
+     "mean_p": 0.037994033268945016,
+     "rate": 0.04330255744668299
+    },
+    {
+     "bin": 9,
+     "n": 33902,
+     "mean_p": 0.32685244066835695,
+     "rate": 0.3119284997935225
+    }
+   ]
+  },
+  "score_REG_vs_BASE": {
+   "net_weighted_fold_mse": 632.8102075759249,
+   "dayblock95": [
+    251.30080762166676,
+    1006.3612139178572
+   ],
+   "n_dates": 62,
+   "rmse_base": 226.4048930002905,
+   "rmse_reg": 224.9811249133109,
+   "by_regime": {
+    "agree": 263.7341427855114,
+    "fill": 467.522133371384,
+    "early": -221.1074003169869,
+    "late": 122.6613317360164
+   },
+   "by_airport": {
+    "EDDF": -31.5399294482975,
+    "EDDM": -21.42273339191287,
+    "EGLL": 42.55442476722582,
+    "EHAM": -68.39038843397823,
+    "LEBL": 55.4401522320089,
+    "LEMD": 9.088919674575706,
+    "LFPG": 31.720264503646884,
+    "LIRF": 494.76235830521074,
+    "LSZH": 44.17661754773194,
+    "LTFM": 76.42052181971344
+   },
+   "by_month": {
+    "1": 258.4809509468777,
+    "7": 374.32925662904717
+   },
+   "airports_improving": 7,
+   "clauses": {
+    "C1_dayblock_lower_gt_0": true,
+    "C2_net_ge_1000": false,
+    "C3_agree_net_ge_minus_300": true,
+    "C4_airports_ge_7": true
+   },
+   "verdict": "NOT SHORTLISTED"
+  },
+  "oracle_gate_NOT_A_RESULT": {
+   "net_weighted_fold_mse": 22959.46069880045,
+   "dayblock95": [
+    21412.16976264313,
+    24679.648275964108
+   ],
+   "n_dates": 62,
+   "rmse_base": 226.4048930002905,
+   "rmse_reg": 167.15866830126959,
+   "by_regime": {
+    "agree": 5605.41963433698,
+    "fill": 7262.972877118795,
+    "early": 7750.588576440985,
+    "late": 2340.479610903689
+   },
+   "by_airport": {
+    "EDDF": 1004.4090179037261,
+    "EDDM": 564.0215233219657,
+    "EGLL": 1981.157587557264,
+    "EHAM": 1142.7085191466329,
+    "LEBL": 2215.556864016763,
+    "LEMD": 970.8056739548608,
+    "LFPG": 2996.1782405923595,
+    "LIRF": 7972.655559905497,
+    "LSZH": 675.6182734071236,
+    "LTFM": 3436.3494389942553
+   },
+   "by_month": {
+    "1": 7650.791758729232,
+    "7": 15308.668940071217
+   },
+   "airports_improving": 10,
+   "clauses": {
+    "C1_dayblock_lower_gt_0": true,
+    "C2_net_ge_1000": true,
+    "C3_agree_net_ge_minus_300": true,
+    "C4_airports_ge_7": true
+   },
+   "verdict": "SHORTLIST"
+  },
+  "context_vs_F": {
+   "REG_vs_F": {
+    "net_weighted_fold_mse": -1065.5447170118591,
+    "dayblock95": [
+     -1491.623478294225,
+     -648.0525841954253
+    ],
+    "n_dates": 62,
+    "rmse_base": 222.56316251601282,
+    "rmse_reg": 224.9811249133109,
+    "by_regime": {
+     "agree": -921.7815352601533,
+     "fill": 237.33693186540333,
+     "early": -439.0119185798576,
+     "late": 57.91180496274842
+    },
+    "by_airport": {
+     "EDDF": -107.97627016233707,
+     "EDDM": -125.5817269360955,
+     "EGLL": -169.47980825988643,
+     "EHAM": -258.5965115620773,
+     "LEBL": -39.59135031454365,
+     "LEMD": -70.95636637613194,
+     "LFPG": -203.27939269296928,
+     "LIRF": 5.431898303735163,
+     "LSZH": -23.116889198685175,
+     "LTFM": -72.39829981286793
+    },
+    "by_month": {
+     "1": -425.1470795956657,
+     "7": -640.3976374161933
+    },
+    "airports_improving": 1,
+    "clauses": {
+     "C1_dayblock_lower_gt_0": false,
+     "C2_net_ge_1000": false,
+     "C3_agree_net_ge_minus_300": false,
+     "C4_airports_ge_7": false
+    },
+    "verdict": "NOT SHORTLISTED"
+   },
+   "BASE_vs_F": {
+    "net_weighted_fold_mse": -1698.3549245877841,
+    "dayblock95": [
+     -1982.673791484035,
+     -1453.3434721149833
+    ],
+    "n_dates": 62,
+    "rmse_base": 222.56316251601282,
+    "rmse_reg": 226.4048930002905,
+    "by_regime": {
+     "agree": -1185.5156780456646,
+     "fill": -230.18520150598073,
+     "early": -217.9045182628707,
+     "late": -64.74952677326795
+    },
+    "by_airport": {
+     "EDDF": -76.4363407140396,
+     "EDDM": -104.15899354418264,
+     "EGLL": -212.03423302711226,
+     "EHAM": -190.20612312809916,
+     "LEBL": -95.03150254655253,
+     "LEMD": -80.04528605070766,
+     "LFPG": -234.99965719661617,
+     "LIRF": -489.3304600014757,
+     "LSZH": -67.29350674641712,
+     "LTFM": -148.81882163258132
+    },
+    "by_month": {
+     "1": -683.6280305425435,
+     "7": -1014.7268940452404
+    },
+    "airports_improving": 0,
+    "clauses": {
+     "C1_dayblock_lower_gt_0": false,
+     "C2_net_ge_1000": false,
+     "C3_agree_net_ge_minus_300": false,
+     "C4_airports_ge_7": false
+    },
+    "verdict": "NOT SHORTLISTED"
+   }
+  }
+ },
+ "note": "SCREEN tier: one seed, one fold"
+}

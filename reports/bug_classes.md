@@ -102,6 +102,11 @@ not a guard, and it will decay as new records are written. The structural fix is
 key in the parquet metadata plus a reader that refuses a record without one — not attempted here
 because `scripts/lgbm_fold.py` is shared with a concurrent session.
 
+**Partly repaired 2026-09-11 (prc-challenge-c4):** new fold records written through `prc/pipeline/scoring.py`
+(`write_record` / `read_record`) carry `convention`, `tag` and `prereg` in the parquet metadata, and the reader
+refuses an unstamped file or one on another scale (`tests/pipeline/test_pipeline_scoring.py`, 7 mutants killed);
+`scripts/regime_experts.py` and `scripts/unm_physics.py` stamp theirs. The older writers above still do not.
+
 ---
 
 ## BC-3 · A provider's placeholder ingested as a measurement (`sentinel-ingested-as-measurement`)
@@ -241,3 +246,100 @@ Before comparing any value from an external source against a threshold, recover 
 resolution the source REPORTED, and put at least one test value exactly ON the threshold through the
 real parse path. An "equivalent mutant" at a boundary is a claim that no real value lands there —
 verify that against the source's own grid before recording it.
+
+---
+
+## BC-6 · A test whose check is satisfied by construction (`closed-loop-test`)
+
+**Surfaced:** 2026-09-11 06:40, independent review of P2a + E5 (four tests); fixed and rehearsed 2026-09-11 07:20–07:40 by
+prc-challenge-c4. Each test was green, and each would have stayed green with the defect it named present.
+
+| # | test | why it could not fail | fixed by | proof |
+|---|---|---|---|---|
+| 1 | `tests/pipeline/test_pipeline_lanes.py` routing loop | summed the three lane masks of rows whose lane is one of the three: 1 by construction; `route()`'s partition guard never ran | `test_routing_refuses_a_row_whose_lane_is_not_a_configured_lane` (a config built around parse_config) | guard deleted → RED |
+| 2 | `test_every_registered_model_conforms_to_the_plugin_protocol` | `isinstance(m, ModelPlugin)` on a `runtime_checkable` Protocol checks method NAMES; a `predict` returning None, a list, a column vector or one value (silent broadcast) passed | `models.check_prediction` at both lane boundaries + behavioural conformance on real fits | 7 mutants killed |
+| 3 | `test_holdout_labels_never_reach_any_arm` (E5) | perturbed only `y`; the label also lives in `TAXITIME_SEC_mvt` and `BLOCK_TIME_UTC_mvt` (the fill flag reads BLOCK) | every label-bearing column perturbed, separately and together | a fill oracle on holdout BLOCK: RED now, SURVIVED before |
+| 4 | `test_planted_deicing_signal…` (E5) | the plant was defined on the harness's OWN joined column, so a wrong join planted and recovered the same wrong value | plant on an independent test-side as-of join; assert the harness equals it and the world separates backward / forward joins | take-off + 1 h join and a one-row shift: RED now, SURVIVED before |
+
+**Root cause.** The expected value was computed by (or through) the code under test, or the check's inputs could only
+take values that pass. **Why no test caught it:** these are the tests; mutation rehearsal caught none of them because
+the rehearsals broke other lines than the ones each test was blind to.
+
+### Tripwire
+
+For every new test ask: *what production change would turn this red?* — then make that change (Part 1 rule 22). A
+planted signal must be planted on a truth computed independently of the harness; a "no leak" test perturbs every
+column that carries the label; a protocol test exercises behaviour, not attribute names; a partition test builds an
+input that violates the partition.
+
+---
+
+## BC-7 · A run record that cannot say what ran (`provenance-not-reproducible`)
+
+**Surfaced:** 2026-09-11 (two instances, same class: a run's record does not pin its own inputs deterministically).
+
+| # | instance | effect | fixed by |
+|---|---|---|---|
+| 1 | P2a manifest: a lane's `predict_s` / `design_s` inside `lanes` (the digested part) | two identical runs' digests differed whenever the rounding did (A2 flaky) | timing values kept out of `info`; `write.volatile_leaks` + `test_regression_a_wall_clock_value_outside_timings_is_refused_by_the_manifest_check` (P2a builder, 2026-09-11) |
+| 2 | manifests / E5 record stamped HEAD sha 151d7ae (dirty), which does not contain the untracked code that ran; `write.py` hashed no source file | the record could not identify its own code | manifest v2 `code` block: sha256 of every loaded `prc/` / `scripts/` file + `differs_from_head` (prc-challenge-c4, 07:30) |
+| 2b | the first version of that block walked `sys.modules` only | `stand_ab.py` / `build_submission.py` (loaded by importlib specs, held as module globals, never registered) were MISSING | the walk follows module objects held in in-repo modules' globals; `test_the_manifest_hashes_the_source_files_that_ran` (run in isolation — the order-dependent first version passed only after another test had loaded lgbm_submit) |
+
+### Sibling list
+
+| site | status |
+|---|---|
+| `prc/pipeline/write.py` manifest | fixed (both) |
+| `scripts/unm_physics.py` / E5 JSON, `scripts/nm_param_diag.py`, `scripts/bundle_stage0.py`, `scripts/unm_diag.py`, `scripts/regime_experts.py` records | stamp `git rev-parse HEAD` only — **open**: provenance is the committed file until each carries a code hash |
+| `scripts/lgbm_fold.py`, `lgbm_submit.py`, `capacity_f.py`, `catboost_native.py` records | git sha + dirty flag only — **open** (shared files) |
+
+### Tripwire
+
+A record's digest holds only values that are equal across identical runs; wall-clock lives under a volatile key. A
+record that claims what produced it must hash the code, not name a commit that may not hold it.
+
+## BC-8 · A determinism check that assumes nobody else edits the tree between its two runs (`shared-tree-race`)
+
+**Surfaced:** 2026-09-11. The full suite (12:05–12:20 EDT) failed
+`tests/pipeline/test_pipeline_cli.py::test_the_whole_pipeline_runs_end_to_end_on_eleven_airports_and_two_runs_share_one_digest`;
+the test passes alone, after the ADS-B stage tests, and under the full collection with only itself selected.
+
+**Root cause:** the manifest's `code` block (BC-7 #2) hashes EVERY repo module loaded in the process. In a pytest process that
+includes modules unrelated tests imported, e.g. `scripts/adsb_features.py`. prc-challenge-6e saved that file at **12:05:26**, about
+10–20 s into the suite, which is when this test's two ~9 s runs happened (`tests/pipeline/` is collected first). The second run's
+digest differed, and correctly so: the code on disk had changed. The fault was the test's unstated premise that the tree is still
+between the runs. The product code is right; the check was wrong for a working tree shared by several sessions.
+
+**Fix (test side, `tests/pipeline/pipeline_world.py::assert_same_run`):**
+- the two runs must load the same code files;
+- a code hash may differ ONLY for a file modified on disk at or after the first run's start;
+- the manifest minus the code block must hash identically;
+- with no code change, the full digests must be equal.
+
+Tests:
+- `test_regression_bug_8_a_code_file_saved_between_the_two_runs_is_an_edit_not_nondeterminism`
+- `test_same_run_holds_when_nothing_changed_and_refuses_a_digest_that_differs_anyway`
+
+Rehearsed, each RED:
+- mtime check removed;
+- code-less digest removed;
+- strict digest removed;
+- `out_dir` digested (end to end).
+
+**Known boundary (documented, not changed):** an IN-PROCESS run (pytest, including the A1 evidence run) records every repo module the
+host process loaded, not only what the pipeline imported. That over-records, which is conservative. The CLI's fresh process records
+only the pipeline's own imports.
+
+### Sibling list
+
+| site | status |
+|---|---|
+| `test_pipeline_cli.py` end-to-end two-run digest | fixed (assert_same_run) |
+| `test_pipeline_assemble.py::test_the_manifest_has_every_required_field_and_a_digest_that_ignores_only_wall_clock` (two builds ms apart, both hash the live repo) | fixed (assert_same_run; its "digest hashes timings" rehearsal still RED) |
+| `test_pipeline_assemble.py` digest-inequality tests (input byte changed) | not affected: they assert a difference the change itself causes |
+| `prc/pipeline/evaluate.py` records `code_state` | not affected: no cross-run comparison |
+| acceptance A2 (same manifest digest twice, open) | must use `assert_same_run` when built |
+
+### Tripwire
+
+Any check that compares two runs' records, when those records hash live files, must either tolerate (and prove) an on-disk edit
+between the runs or run on a private copy of the tree. Several sessions write this tree at once.

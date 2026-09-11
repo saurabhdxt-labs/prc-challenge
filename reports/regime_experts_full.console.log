@@ -1,0 +1,57 @@
+[09:30:08 +       0s] mode full; lr 0.05; seed 0; months [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+[09:30:09 +      1s] queue block: 12 columns joined POSITIONALLY onto 12 months from /Users/saurabhdxt/Projects/prc-challenge/data/cache_queue (row counts asserted per month; the order is the v6 builder's, proven on March both ways)
+[09:30:09 +      1s] order block: 3 columns joined POSITIONALLY onto 12 months from /Users/saurabhdxt/Projects/prc-challenge/data/cache_order (row counts asserted per month; the order is build_features's, tests/test_order_features.py)
+[09:30:09 +       1s] loaded 12 months (2,062,440 rows): holdout 339,015; training 1,723,425; fit 1,378,585; early-stop 344,840
+[09:30:30 +      22s] design 2,062,440 x 83; training regimes {'agree': 1455098, 'fill': 168022, 'early': 52956, 'late': 47349}; holdout {'agree': 285942, 'fill': 30167, 'early': 12754, 'late': 10152}
+[09:30:30 +     22s] early-stopping run (seed 0, target delta): fit 1,378,585 rows, stop on 344,840 rows (months (3, 9)), lr 0.05, max 60,000 rounds, patience 400
+[09:30:31 +     23s]     iter      0  valid_0 rmse (delta) 366.259
+[09:31:30 +     82s]     iter  1,000  valid_0 rmse (delta) 203.703
+[09:32:12 +    124s]     iter  2,000  valid_0 rmse (delta) 202.826
+[09:32:52 +    164s]     iter  3,000  valid_0 rmse (delta) 202.612
+[09:33:32 +    204s]     iter  4,000  valid_0 rmse (delta) 202.526
+[09:34:42 +    274s] best_iter 4,367   stopping-set RMSE (taxi-time) 202.04   proxy-only on the 344,840 rows with a proxy 366.25   ratio 0.552   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 5.55 GB
+[09:34:42 +    274s] n_ref 5,459: refit on all 1,723,425 training rows (best_iter 4,367 x 1.250), no early stopping
+[09:40:12 +    604s] refit seed 0 done: 5,459 trees on 1,723,425 rows in 330s   peak RSS 5.55 GB
+[09:41:04 +     656s] [BASE all rows] rows 1,723,425; best_iter 4,367 -> n_ref 5,459; floor binds on 26 holdout rows
+[09:41:04 +    656s] early-stopping run (seed 0, target delta): fit 1,163,755 rows, stop on 291,343 rows (months (3, 9)), lr 0.05, max 60,000 rounds, patience 400
+[09:41:05 +    657s]     iter      0  valid_0 rmse (delta) 225.395
+[09:42:07 +    719s]     iter  1,000  valid_0 rmse (delta) 150.644
+[09:42:46 +    758s]     iter  2,000  valid_0 rmse (delta) 150.302
+[09:43:33 +    805s] best_iter 2,471   stopping-set RMSE (taxi-time) 150.25   proxy-only on the 291,343 rows with a proxy 230.24   ratio 0.653   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 5.55 GB
+[09:43:33 +    805s] n_ref 3,089: refit on all 1,455,098 training rows (best_iter 2,471 x 1.250), no early stopping
+[09:45:58 +    950s] refit seed 0 done: 3,089 trees on 1,455,098 rows in 144s   peak RSS 5.55 GB
+[09:46:21 +     973s] [expert agree] rows 1,455,098; best_iter 2,471 -> n_ref 3,089; floor binds on 164 holdout rows
+[09:46:21 +    973s] early-stopping run (seed 0, target delta): fit 42,754 rows, stop on 10,202 rows (months (3, 9)), lr 0.05, max 60,000 rounds, patience 400
+[09:46:21 +    973s]     iter      0  valid_0 rmse (delta) 702.815
+[09:46:39 +    991s]     iter  1,000  valid_0 rmse (delta) 369.462
+[09:46:56 +   1007s]     iter  2,000  valid_0 rmse (delta) 368.808
+[09:47:04 +   1016s] best_iter 1,996   stopping-set RMSE (taxi-time) 363.64   proxy-only on the 10,202 rows with a proxy 595.39   ratio 0.611   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 5.55 GB
+[09:47:04 +   1016s] n_ref 2,472: refit on all 52,956 training rows (best_iter 1,996 x 1.239), no early stopping
+[09:47:44 +   1056s] refit seed 0 done: 2,472 trees on 52,956 rows in 39s   peak RSS 5.55 GB
+[09:48:42 +    1114s] [expert early] rows 52,956; best_iter 1,996 -> n_ref 2,472; floor binds on 17 holdout rows
+[09:48:42 +   1114s] early-stopping run (seed 0, target delta): fit 36,810 rows, stop on 10,539 rows (months (3, 9)), lr 0.05, max 60,000 rounds, patience 400
+[09:48:42 +   1114s]     iter      0  valid_0 rmse (delta) 448.247
+[09:48:54 +   1126s] best_iter 347   stopping-set RMSE (taxi-time) 154.80   proxy-only on the 10,539 rows with a proxy 468.20   ratio 0.331   [stopping set, optimistic by construction; NOT a fold result]   peak RSS 5.55 GB
+[09:48:54 +   1126s] n_ref 446: refit on all 47,349 training rows (best_iter 347 x 1.286), no early stopping
+[09:49:01 +   1133s] refit seed 0 done: 446 trees on 47,349 rows in 7s   peak RSS 5.55 GB
+[09:49:09 +    1140s] [expert late] rows 47,349; best_iter 347 -> n_ref 446; floor binds on 47,285 holdout rows
+[09:56:04 +    1555s] gate AUC one-vs-rest {'agree': 0.8737926008162646, 'fill': 0.8941036233197994, 'early': 0.9612621471171439, 'late': 0.9759646647789245}; mean p {'agree': 0.8479748118425906, 'fill': 0.08737545254137406, 'early': 0.038164438805051715, 'late': 0.026485296810983616}
+[09:56:05 +    1557s] REG vs BASE: net +632.8 [251.30080762166676, 1006.3612139178572] regimes {'agree': 264, 'fill': 468, 'early': -221, 'late': 123} -> NOT SHORTLISTED; json /Users/saurabhdxt/Projects/prc-challenge/reports/regime_experts_full.json
+     1558.05 real      4131.43 user       438.00 sys
+          5954158592  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             2091440  page reclaims
+                4004  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                2072  voluntary context switches
+           132328578  involuntary context switches
+      51392780809534  instructions retired
+      17969766591030  cycles elapsed
+          5775299648  peak memory footprint

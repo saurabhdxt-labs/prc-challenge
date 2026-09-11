@@ -1,0 +1,20 @@
+{"guards": {"S1C fold-A months": 1566.5011321007635, "S1C other months": 914.4572368517347, "R2 LOMO": 4098.64421135806}, "rmse_2025_lomo": 1471.7463357182587, "learnable_expectation_2026": 10808.889442387755, "lane_top20_share_2025": 0.6445989277162679, "inferred_board_unmatched_mse": 30477.515607097434}
+2026 expectation by class: {'fill': 7825, 'dateslip': 12971, 'familyB': 2665, 'monster_other': 0, 'ordinary': 8578} total 32038
+        1.35 real         1.05 user         0.22 sys
+           625491968  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               96873  page reclaims
+                1548  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                1036  voluntary context switches
+                2909  involuntary context switches
+         19849081311  instructions retired
+          5586068261  cycles elapsed
+           562512952  peak memory footprint

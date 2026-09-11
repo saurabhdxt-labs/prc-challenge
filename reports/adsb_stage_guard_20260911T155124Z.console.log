@@ -1,0 +1,22 @@
+guard: max |resid - (B - F)| = 1.592e-12 s over 339,015 rows; eligible 129,440; changed 127,095
+guard: scored rows 334,132, RMSE 210.41984768 vs RESULT ADN arm B 210.41984768
+.
+1 passed, 3 deselected in 30.02s
+       30.36 real       163.85 user         3.98 sys
+          2415689728  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             1042322  page reclaims
+                4773  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                3241  voluntary context switches
+              149300  involuntary context switches
+        538333049455  instructions retired
+        636439361259  cycles elapsed
+          2385054288  peak memory footprint

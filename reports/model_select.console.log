@@ -1,0 +1,24 @@
+{"rmse": {"F": 222.563, "CAP": 221.985, "CB": 225.784, "Y": 260.651, "W": 223.533, "D": 224.312, "PA": 225.388, "REG": 224.981, "mu_agree": 309.209, "mu_early": 907.879, "mu_late": 768.254, "mu_fill": 2459.313, "S0_CAP": 221.985, "S1_global_stack": 221.47, "S2_per_airport_stack": 221.405, "S3_lgbm_stacker": 272.275, "S4_classifier_selector": 226.485}, "oracle": 35633, "decision": {"best": "S2_per_airport_stack", "net": 253.18808297302172, "lower": -15.896448881278888, "BUILD": false, "per_airport_matters": false}}
+S1_global_stack          vs CAP net   +224.8 [-275.7, +650.6]  cuts {'LIRF': -179, 'tail_|delta|>600': -562, 'clock_agree': 786}
+S2_per_airport_stack     vs CAP net   +253.2 [-15.9, +529.0]  cuts {'LIRF': 226, 'tail_|delta|>600': -384, 'clock_agree': 637}
+S3_lgbm_stacker          vs CAP net -24475.1 [-65035.1, -3762.0]  cuts {'LIRF': -21104, 'tail_|delta|>600': -3211, 'clock_agree': -21264}
+S4_classifier_selector   vs CAP net  -1987.3 [-2605.6, -1464.2]  cuts {'LIRF': -589, 'tail_|delta|>600': -369, 'clock_agree': -1618}
+S2 per-airport vs S1 global: +28.4 [-289.8, +420.8]
+       61.57 real       295.26 user        25.50 sys
+           994344960  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              133014  page reclaims
+                 215  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  94  voluntary context switches
+             9739169  involuntary context switches
+       1875717585074  instructions retired
+       1362366476510  cycles elapsed
+           858850744  peak memory footprint

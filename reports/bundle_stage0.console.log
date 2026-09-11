@@ -1,0 +1,21 @@
+{"rmse": {"F": 222.56316251601282, "CAP": 221.98497240998833, "C_delta": 225.78363270539037, "B0": 221.28917954739003}, "G0": {"net_bar": 300.0, "net": 303.69559769189135, "lower": 97.45404893590248, "pass": true}, "diagnostic_holdout_optimal_w_NOT_USED": 0.3165351505623109}
+B0_vs_CAP: net +303.7 [+97.5, +510.1] months {1: 116.44873126225771, 7: 187.24686642963366} fill +2.82s tail +3.32s
+B0_vs_F: net +556.8 [+319.9, +793.1] months {1: 139.50843652424572, 7: 417.2775002878605} fill +4.16s tail +5.66s
+        1.09 real         1.03 user         0.10 sys
+           350437376  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               40733  page reclaims
+                 112  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  19  voluntary context switches
+                1080  involuntary context switches
+         22979902468  instructions retired
+          4676701760  cycles elapsed
+           304939848  peak memory footprint

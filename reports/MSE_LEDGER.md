@@ -568,3 +568,148 @@ Today: v7 285.8013 → v9 282.6790 (E3C −1,775) → **v10 281.5182** (E1 −65
 - **2026-09-10 21:15:57 — CAP (127,20,0.6 on arm F's design): ESTABLISHED, net +253 weighted fold MSE, NOT shipped** (ship bar +500).
   Day-block [+0.32, +0.82] s; all three seeds beat F's; fill and tail improve. A real, small, spread gain — worth ≈ +250 on the
   board at the matched lane's 1:1 transfer if a ship is separately registered.
+- **2026-09-10 22:11 — leakage hazard removed:** a research sub-agent had downloaded EUROCONTROL's 2026 taxi-out aggregates (PRU CSV,
+  airport dashboards) to the session scratchpad. They are aggregates of the hidden target; no script read them, the
+  research report lists them only as refused sources, and both files were deleted. Recorded as permanently refused.
+- **2026-09-11 06:05:50 — E5 (physics-informed unmatched body, weather v2.0.1 as-of take-off): INCONCLUSIVE** (`reports/unm_physics.json`):
+  C1 [+2.1e8, +8.2e8], 12/12 months, 8/9 airports, calm and ex-monster improve, seeds clear — but the event-excluded 2026 price is
+  +208 (< 300; full +308). Weather is 8.6% of the gain; the physics block the rest. Not shipped. A robust small lever — a
+  candidate component for the consolidated pipeline build, not a stand-alone ship.
+- **Correction (2026-09-11 06:41:41) to the E5 line:** not "robust / broad" — LTFM-02 carries 41% of Σg and the NaN-witness bin 30%; the
+  predicted weather / de-icing shape did not appear. Verdict INCONCLUSIVE unchanged.
+- **2026-09-11 07:16:06 — NMD (the four-airport "planned AOBT_3" lead, LEBL / LEMD / EDDM / LTFM, 16,965 board MSE of arm F's
+  fold error): FALSE — no room** (`reports/NM_PARAMETER_DIAGNOSTIC_2026_09_11.md`, `reports/nm_param_diag.json`; light, on arm F's
+  stored record). Cross-fitted NM-axis corrections lose (K2 −586 board MSE, 95% [−682, −489]; negative controls the same). The
+  pre-written FALSE look appeared: F's within-pair slope on the proxy's deviation from the table equals y's (LEBL −27.7 vs −28.2 s/min,
+  LEMD +1.5 vs −2.7, EDDM +1.4 vs −0.9, LTFM 14.6 vs 18.5), at-mode rows are not F's worst rows. Post-hoc in-sample oracle
+  (non-decisional): the NM-specific structure is ≈ 90–140 above the permutation null. The error there is missing per-flight
+  information, not mishandling of the proxy; no arm registered, step 2(b) not run. Only EDDM has a possible outside clock (ADS-B,
+  prc-challenge-6e's lane).
+- **2026-09-11 07:52:35 — BND Stage 0 (CAP + C_delta blend, zero compute; `plans/PREREG_bundle_cap_catboost_2026_09_11.md`,
+  `reports/bundle_stage0.json`): G0 PASSES at the margin** — B0 = 0.5·C_delta + 0.5·CAP beats CAP by +303.7 weighted fold MSE
+  (date-block [+97.5, +510.1]; bar +300) and F by +556.8 [+319.9, +793.1]; LIRF carries 59%, TRUE shape at its low edge. Post-hoc
+  (compute allocation only): the best scalar weight on this holdout reaches +710 vs F, below Stage 1's +800 ship bar — Stage 1's
+  ≈ 8 h not recommended under that bar; a smaller matched ship (≈ +550 board, ≈ −1.0 RMSE, ≈ 4.5 h refits) is the owner's call
+  under its own registration. E5 stays outside the bundle (its own C2 failed).
+- **2026-09-11 08:19:56 — pipeline A1 MET:** the one-command pipeline reproduces v10 on all 344,841 rows (matched from the saved v6 boosters,
+  unmatched and LIRF refit from data; max |diff| 0 s; `data/pipeline_runs/a1_full_20260911T114553Z/a1_compare.json`). v10 is
+  now regenerable without a splice chain. No score changes.
+- **2026-09-11 08:27:20 — UMD (where the unmatched error is; `reports/UNMATCHED_DIAGNOSTIC_2026_09_11.md`, `reports/unm_diag.json`):
+  AMBIGUOUS by a defect in its own rule → no arm.** 2026 expectation 32,038 board MSE (board-inferred ≈ 30,478). 58% of 2025 SSE sits in
+  22 rows (14 date-slips, 8 Family B; Kish ESS 2–3); the learnable pool (ordinary + fills sp < 10,800) is 10,809 expected, spread
+  (top-10 13%), LIRF 6,731. **Bound: a perfect model of every learnable row + the matched ship reaches ≈ 260.6, not 245**; recovering
+  10–30% of the pool with the measured levers gives ≈ 278–274.
+- **2026-09-11 09:57:27 — REG (regime-gated multi-model matched lane, screen; `plans/PREREG_regime_experts_2026_09_11.md`): NOT SHORTLISTED**
+  — +632.8 [+251, +1,006] vs its same-settings single model (C2 < +1,000). Gate AUC early 0.961 but calibrated p never > ≈ 0.33
+  (precision ≤ 31% in its top decile); early rows −221. **Oracle gate (true regime × the same experts) +22,959** — the experts
+  carry more than the gap to 245; the gate's INPUTS are the limit. Next lever: information that identifies the regime.
+- **2026-09-11 10:03:03 — GID (after REG; `reports/GATE_INFORMATION_2026_09_11.md`):** the gate commits (p ≥ 0.5 on 7,824 rows, 75% precision, 46%
+  of early rows) — correcting REG's "never commits" (a decile-binning artefact). Where it commits, the single model already
+  prices the regime (+696 left for an oracle); the value sits in early rows that look ordinary to every input (BASE +532 s,
+  oracle +7,054). The next lever is NEW information on those flights (their actual off-block), not a gate on today's inputs.
+- **2026-09-11 10:29:03 — Rome date-slip mechanism re-checked on LOCAL (Europe/Rome) dates (descriptive, no arm):** all 12 of 2025's
+  24 h date-slips have take-off and schedule on different Rome dates, and date(BLOCK) = date(SCHED) locally on 12/12 (one has UTC
+  dayoff 0 — the UTC defect). Same Rome day and sp ≥ 24,000: 14/14 fills. Next Rome day, sp < 50,000: 23/23 fills; sp ≥ 50,000: 10
+  slips / 5 fills, no airline / stand / clock separator (ITY680 is both). 2026: the UTC dayoff is wrong on 35 of 383 LIRF unmatched
+  rows; v10 already predicts sp on 6 of the 9 same-Rome-day large-sp rows (the 3 others ≈ 520 MSE if fills, mostly MVT 202685083) and
+  hedges the 5 next-day sp ≥ 50k rows at ≈ 2:1 — v10 is at 2025's expected-value optimum there; ≈ 1,600 MSE of that bet is irreducible
+  from 2025. Also checked: no top-7 team publishes code (best public elegant-alligator 271); the competition bucket holds no
+  trajectory / surveillance data.
+- **2026-09-11 10:36:23 — OPDI feasibility (`reports/OPDI_FEASIBILITY_2026_09_11.md`, descriptive):** 81% of our January departures join an OPDI flight,
+  but OPDI sees the taxi itself only at LSZH (taxiway entry on 93% of flights, ≈ 30 s from the label after a −78 s offset) and partly
+  LEBL; 0% ground at LIRF / LTFM, ≈ 0% at EGLL / EDDF / LFPG / LEMD / EHAM. Ceiling of a same-flight OPDI feature ≈ LSZH's ≈ 1,900 board
+  MSE, and same-flight use is an organiser question. Not a route to 245.
+- **2026-09-11 10:49:06 — SEL (learned model selector over 12 stored fold-A experts, cross-fitted by month; `plans/PREREG_model_selector_2026_09_11.md`):
+  NOT WORTH BUILDING** — best per-airport linear stack +253 [−16, +529] over CAP; global +225; per-airport vs global +28 (does not
+  matter); LightGBM stacker −24,475 and classifier selector −1,987 (they learn chance). The experts are too alike (one design, one
+  learner family): multi-model selection needs experts with different information.
+- **2026-09-11 11:01:23 — LD (dayoff on the Rome local date, fixed at its origin; `plans/PREREG_local_dayoff_2026_09_11.md`): NOT WORKING** — guard exact
+  (the UTC chain reproduces R2 on 1,885 rows); local dayoff worsens Rome LOMO 3,916.6 → 4,005.5, 2026 price −777, fold A worse. The FALSE
+  shape as written: ordinary just-after-midnight departures pay for the fills. Handoff defect D1 closed for this lane.
+- **2026-09-11 11:22:17 — independent re-pricing of prc-challenge-6e's ADN (ADS-B stacker; its record `reports/adsb_nn.json`, OOF `data/adsb/v2/adn_fold_preds.parquet`),
+  read-only by prc-challenge-c4:** B (blend) vs arm F **+5,146.5 weighted fold MSE, day-block [+4,720, +5,618]**; matched RMSE 222.563 → 210.494;
+  G +4,836, N +4,905. All gain on ADS-B-covered rows (uncovered exactly 0); early-off-block rows +1,431. ADN's F column reproduces arm F
+  (222.5632). **This supersedes c4's earlier estimate that ADS-B is worth "a few hundred to ~1,000"** (that measured only the regime-gate
+  use). Open before any ship: the stacker's OOF split (by day?), 2026 ADS-B coverage (fetch ≈ 4 h), and the organiser question on
+  same-flight surveillance for scored flights.
+- **2026-09-11 11:23:26 — ADN validity (a) CLOSED:** the stacker's out-of-fold folds are by CALENDAR DAY (fold = day index mod 5 within each month, both
+  months in every fold, 2025-01-09 excluded, early stopping on whole days) — verified in `tests/test_adsb_stack.py::test_day_folds_hold_both_months_exclude_the_spent_day_and_are_deterministic`
+  (day-keyed `day_folds`) plus a fold-label scramble test (line ~109). Remaining before a ship: 2026 ADS-B coverage (6e's fetch) and the
+  organiser question on same-flight surveillance.
+- **2026-09-11 11:53:08 — pipeline ADS-B stage: 2025 reproduction guard PASSED (prc-challenge-c4; no new price, a wiring check):** the pipeline's stage
+  (frame built from the pipeline's own stand caches + `adsb_stage.read_table`, 6e's `predict_residual(oof=True)` through a models copy with
+  every airport allowed, `apply_stage`) reproduces 6e's `adn_fold_preds.parquet` on fold A's 339,015 matched rows: max |resid − (B − F)|
+  **1.592e-12 s**; eligible 129,440, changed 127,095; scored rows 334,132, RMSE **210.41984768** = `reports/adsb_nn.json` arm B. Test
+  `tests/pipeline/test_pipeline_real_files.py::test_the_adsb_stage_reproduces_6es_evaluated_arm_b_on_the_2025_fold` (PRC_ADSB_GUARD=1; 30 s,
+  2.42 GB peak — measured above my 1–2 GB estimate, and 6e's `adsb_features build-unmatched` started inside those 30 s: two ≥ 2 GB jobs
+  overlapped briefly, no harm). Log `reports/adsb_stage_guard_20260911T155124Z.console.log` (the first launch stopped at its own month-count
+  assertion — seven months assumed, the fold uses all twelve; the log of that setup failure was replaced by the corrected run).
+  2025 movable coverage (≥ 2) by airport, the base for guard (3): EHAM .72, LEBL .79, LSZH .70, EDDM .53, EDDF .51, LIRF .44, EGLL .30,
+  LEMD .13, LFPG .05, LTFM .00. The 2026 side waits on 6e's fetch (8 of 62 day files at 11:53).
+- **2026-09-11 13:50:33 — post-ADN error map (descriptive, no arm; prc-challenge-70):** `reports/POST_ADN_ERROR_MAP_2026_09_11.md`.
+  On fold A's matched lane after ADN (42,969 units):
+  - 69% sits on rows ADS-B cannot move;
+  - the early regime (4.4% of rows) carries 42%;
+  - the largest cells are LTFM uncovered 7,687, LFPG uncovered 6,255, and LIRF covered 6,139 (early RMSE 826 s after ADN; 30% of LIRF early rows are schedule fills, a class closed by RESULT 8).
+  The next lever after ADN hinges on the 2026 ADS-B coverage at LTFM / LFPG (SHIP-ADN's gate report), not on another model on current inputs.
+- **2026-09-11 14:02 EDT — organiser question SENT by the owner (email):**
+  - **Recipients:** enrico.spinielli@eurocontrol.int and challenge@opensky-network.org.
+  - **Subject:** "Team merry-quicksand: which inputs are permitted for the ranking predictions?"
+  - **It asks (1)** whether `AOBT_3_flt` on ranking rows may be a model input, e.g. MVT − AOBT_3.
+  - **It asks (2)** whether openly licensed ADS-B of the scored flights themselves may be used (adsb.lol globe_history, ODbL; OPDI flight events).
+  - It states that no EUROCONTROL/PRU 2026 taxi-time statistics are used, and that a refused input will be removed.
+  - **Until an answer is recorded here: the v11 (SHIP-ADN) upload is HELD** by owner direction; building and checking v11 continue (no board cost).
+  - A "no" on (1) affects every submission since v2.
+- **2026-09-11 14:25 EDT — organiser reply (Enrico Spinielli, email, cc challenge@):** no ruling. Quote: "If I am not mistaken, I already
+  replied to similar questions on Discord. Would you mind checking there and eventually ask the question(s) without an answer on
+  Discord so that all other teams would benefit from the reply?"
+  Next: the owner searches OSN Discord `#prc-data-competition` for his earlier replies (AOBT_3 on ranking rows; external / ADS-B / OPDI
+  data for the scored flights) and posts on Discord whatever is unanswered. **v11 upload stays HELD (SHIP-ADN.2)** — a redirect is not an answer.
+- **v11 built (SHIP-ADN, as registered) by prc-challenge-53 through the pipeline:** `data/pipeline_runs/adn_v11_20260911T194009Z/`
+  (1,720 s, 4.14 GB, manifest digest 0f683f3d58aa62d6…). 53's independent `adsb_v11_check`: 0 forbidden moves; agreement 0.99822 within 2 s
+  on 107,217 reconstructed rows; contract ok (`reports/adsb_v11_check.json`).
+  **Re-checked independently by prc-challenge-70** (v11 vs v10 + provenance):
+  - 106,755 rows differ, exactly the provenance `+adsb` rows. None elsewhere; unmatched and LIRF-rule rows byte-equal to v10.
+  - Only at the gated airports: EGLL 30,534, EHAM 27,044, LEMD 23,791, EDDM 20,785, LFPG 4,596, LTFM 5. Equal to the manifest's `changed_by_airport`.
+  - int32, min 1, finite.
+  - Change: mean −4.5 s, median −16 s, p5 −170 s, p95 +198 s.
+  - The manifest hashes 17 working-tree files that differ from HEAD (uncommitted code); commit later for a clean sha.
+  **No board number. Upload HELD** (SHIP-ADN.2: organiser via Discord; owner's decision on the KS-hold defect, which may mean a rebuild).
+- **Owner decision 2026-09-11 (after 16:10): fix SHIP-ADN's KS hold rule, then rebuild v11** ("then rule fixed").
+  - The replacement is calibrated on 2025 alone: hold an airport only if its 2026-vs-2025 KS exceeds its own Jan-vs-Jul-2025 KS, per key feature × coverage stratum.
+  - Relayed to prc-challenge-53, who registers it as SHIP-ADN.3 before computing the gate. It is recorded as a post-hoc correction whose justification is 2025-only evidence.
+  - Stakes at full transfer: registered gate −3,623 (~275.0); the three KS-held airports add EDDF 614 + LEBL 736 + LSZH 706 = 2,056 (~271.2).
+  - First v11 kept as evidence. Upload hold (SHIP-ADN.2): questioned by the owner, not yet explicitly lifted; confirmed at the upload prompt.
+- **2026-09-11 16:26 EDT — RESULT RWC** (`plans/PREREG_reweight_check_2026_09_11.md`, amendments RWC.0–.2 all before any real number; `reports/rwc.json`):
+  - **Harness PASS:** K0 null AUC ≈ 0.50, ESS ≈ 0.98; K+ recovered 90% of a planted shift.
+  - **At the four airports the KS rules disputed, ADN's 2025 gain reweighted to the 2026 feature mix is 1.05–1.25× the unweighted gain,** with every interval far above 0 and ESS 0.63–0.95. EDDM, EDDF, LEBL and LSZH all SHIP: the TRUE shape.
+  - Final gate: EDDF, EDDM, EGLL, EHAM, LEBL, LEMD, LFPG, LSZH, LTFM (LIRF keeps F), projection P ≈ 5,680 (~271.2 at full transfer, ~277.5 at 0.4×).
+  - Rebuild to follow via SHIP-ADN.4. Upload still HELD for the owner (SHIP-ADN.2).
+  - RWC.2 context: the registered classifier (300 rounds) was replaced BEFORE the real run by a less overfit one (100 rounds, min_leaf 1000). The reason was a synthetic null that failed ESS; the thresholds were unchanged.
+- **v11 (gate 4, SHIP-ADN.4 "D, per RWC") built by prc-challenge-53:** `data/pipeline_runs/adn_v11_gate4_20260911T202839Z/` (16:28–16:53, 4.12 GB,
+  manifest 2131ee6d1ac2…). 53's `adsb_v11_check`: 0 forbidden, agreement 0.99830 within 2 s on 161,720 rows, contract ok.
+  **Re-diffed independently by prc-challenge-70:**
+  - 161,036 rows differ from v10, exactly the `+adsb` rows. Matched lane only, gated airports only: EGLL 30,534 · EHAM 27,044 · LEMD 23,791 · LEBL 22,358 · EDDM 20,785 · LSZH 16,960 · EDDF 14,963 · LFPG 4,596 · LTFM 5.
+  - vs the first v11: differs only at EDDF / LEBL / LSZH (54,281 rows); the first build's 106,755 moved rows are bit-identical.
+  - int32, min 1, no nulls. Change median −17 s, p5 −162, p95 +199.
+  **This is the v11 candidate.** P = 5,680; the board bar is Δ ≥ 2,272 (WORKING), 0 < Δ < 2,272 PARTIAL, Δ ≤ 0 NOT WORKING.
+  **Upload HELD for the owner** (SHIP-ADN.2).
+- **Correction (2026-09-11 ~17:00, prc-challenge-70):** in chat I stated that matched-lane gains "historically transferred at ~0.4×". That is WRONG. The ledger's board tables show 0.96–1.17× (v3, v5, v6).
+  - 0.4× is SHIP-ADN's conservative pass bar.
+  - 0.15× was the Rome extreme-row lane.
+  - The base expectation for v11 is ≈ full transfer: P 5,680 → ~271.2. New-data risk: the 2026 ADS-B table is the first external input on the matched lane.
+
+## MEASURED 2026-09-11 17:34 EDT — v11 = 267.4518, rank 7 of 119 (from 15th)
+
+`merry-quicksand_v11.parquet` was uploaded by prc-challenge-70 on the owner's direct "upload" (HTTP 200, 21:34:22Z). This is the gate-4 build (SHIP-ADN.4, "D, per RWC"), sha256 6a5dfac1b7dd547dc6b6ebcb….
+Result JSON: status Succeeded, used_pairs 344,841, **score 267.4518**.
+
+| version | board RMSE | board MSE | Δ MSE vs v10 | lane | fold projection | transfer |
+|---|---|---|---|---|---|---|
+| **v11** | **267.4518** | 71,530.5 | **−7,722.0** | ADN ADS-B stack stage on 161,036 matched rows at 9 airports | −5,680 (P) | **1.36×** |
+
+- **SHIP-ADN verdict: WORKING** (Δ 7,722 ≥ bar 2,272; 1.36× the projection).
+- The matched-lane rule holds a fifth time, above 1:1. The reweighting check's 1.05–1.25× at the four disputed airports pointed the same way.
+- Board at 17:35 EDT (best per team): 1 youthful-giraffe 245.02 · 2 enthusiastic-daisy 260.93 · 3 quick-boat 262.55 · 4 jovial-uniform 264.25 · 5 upstanding-firefly 266.40 · 6 zesty-puzzle 266.81 · **7 merry-quicksand 267.45** · 8 gentle-lemon 268.37 · 10th 272.33.
+- To 6th −344 MSE, to 5th −562, to 4th −1,704, to 1st −11,496.
+- Uploads used today (UTC 2026-09-11): 1 of 5.

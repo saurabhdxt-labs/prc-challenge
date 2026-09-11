@@ -1,0 +1,5 @@
+2026-09-11 16:20:02 EDT  RWC prereg sha256=9aede8b481a1df8e5a9ca55bba929b5a8850a69c50772ce7f7a52e818584c797  event=registered before any reweighted number (prc-challenge-70)
+2026-09-11 16:20:38 EDT  RWC prereg sha256=fd63a87354b0d659336c3b14d5064a07fca7b507b8ac8114f4fa6ce70c87823c  event=RWC.0 K+ per-airport clarification, before any number
+2026-09-11 16:20:56 EDT  RWC prereg sha256=6f8ed59ff253011cb6be76505a3e3c0617c491e1d553b8a003ade0ae17df74fc  event=RWC.1 reporting note + named limits, before any number
+2026-09-11 16:24:04 EDT  RWC prereg sha256=0eff638418dd765f641ead58511be5a153c8f2f5d629581c7b0622a944b91ea7  event=RWC.2 classifier 100 rounds / min_leaf 1000 (synthetic calibration), before any real number
+2026-09-11 16:26:24 EDT  RWC prereg sha256=76cbc8bf5163c577ed12e8226b1337c1e30fb3d389da8be393c158da8d104df1  event=RESULT RWC recorded (harness PASS; EDDM/EDDF/LEBL/LSZH SHIP)

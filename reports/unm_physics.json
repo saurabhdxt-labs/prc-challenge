@@ -1,0 +1,3293 @@
+{
+  "mode": "unm_physics_score",
+  "prereg": "plans/PREREG_unm_physics_2026_09_11.md",
+  "parent_prereg": "plans/PREREG_unm_congestion_2026_09_10.md",
+  "tag": "E5",
+  "smoke": false,
+  "git_sha": "151d7ae2b0622a4f73253fd6372fcdb75b9e112b",
+  "git_dirty": true,
+  "started_utc": "2026-09-11T10:05:22.203475+00:00",
+  "commands": {
+    "lomo": "cd ~/Projects/prc-challenge && PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 nice -n 19 /opt/homebrew/bin/python3.11 -B -u scripts/unm_physics.py lomo > reports/unm_physics_lomo.console.log 2>&1; echo \"exit $?\"",
+    "score": "cd ~/Projects/prc-challenge && PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 nice -n 19 /opt/homebrew/bin/python3.11 -B -u scripts/unm_physics.py score > reports/unm_physics_score.console.log 2>&1; echo \"exit $?\"",
+    "ship": "cd ~/Projects/prc-challenge && PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 nice -n 19 /opt/homebrew/bin/python3.11 -B -u scripts/unm_physics.py ship --base submissions/merry-quicksand_v10.parquet --version N > reports/unm_physics_ship.console.log 2>&1; echo \"exit $?\""
+  },
+  "lomo_metadata": {
+    "prereg": "plans/PREREG_unm_physics_2026_09_11.md",
+    "parent_prereg": "plans/PREREG_unm_congestion_2026_09_10.md",
+    "tag": "E5",
+    "smoke": false,
+    "git_sha": "151d7ae2b0622a4f73253fd6372fcdb75b9e112b",
+    "git_dirty": true,
+    "started_utc": "2026-09-11T10:03:43.985055+00:00",
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "reproduction": {
+      "status": "reproduced",
+      "n_rows": 22219,
+      "max_abs_diff_s": {
+        "S1C": 0.0,
+        "S1": 0.0,
+        "S1C_seed0": 0.0,
+        "S1C_seed1": 0.0,
+        "S1C_seed2": 0.0,
+        "p_hat": 0.0,
+        "nf_cells": 0.0,
+        "nf_fit_c": 0.0
+      },
+      "tolerance_s": 1e-06,
+      "columns": [
+        "S1C",
+        "S1",
+        "S1C_seed0",
+        "S1C_seed1",
+        "S1C_seed2",
+        "p_hat",
+        "nf_cells",
+        "nf_fit_c"
+      ],
+      "reference": "data/cache_stand/unm_congestion_lomo.parquet"
+    },
+    "weather": {
+      "version": "2.0.1",
+      "sha256": "cb05439b6b9a57c159fd78049821821c6ac828087d2380c12d1c6f7f718022a8",
+      "max_age_s": 10800.0,
+      "deice_airports": [
+        "EDDF",
+        "EDDM",
+        "EHAM",
+        "LSZH"
+      ],
+      "variants": [
+        "fog15",
+        "lt3"
+      ]
+    },
+    "physics": {
+      "files": {
+        "training_2025-01-01_2025-02-01.parquet": {
+          "n_rows": 1408,
+          "n_prev_dep_gap_negative": 65,
+          "cache": {
+            "status": "equal",
+            "n_rows": 1408,
+            "n_differ": {
+              "q_dep_tko_sym15": 0,
+              "q_rwy_tko_sym10": 0,
+              "q_arr_taxiin_sym30_tko": 0,
+              "q_rwy_ambient_proxy": 0,
+              "prev_arr_gap": 0,
+              "prev_arr_taxiin": 0,
+              "prev_dep_gap": 0
+            }
+          }
+        },
+        "training_2025-02-01_2025-03-01.parquet": {
+          "n_rows": 1082,
+          "n_prev_dep_gap_negative": 52,
+          "cache": {
+            "status": "equal",
+            "n_rows": 1082,
+            "n_differ": {
+              "q_dep_tko_sym15": 0,
+              "q_rwy_tko_sym10": 0,
+              "q_arr_taxiin_sym30_tko": 0,
+              "q_rwy_ambient_proxy": 0,
+              "prev_arr_gap": 0,
+              "prev_arr_taxiin": 0,
+              "prev_dep_gap": 0
+            }
+          }
+        },
+        "training_2025-03-01_2025-04-01.parquet": {
+          "n_rows": 1061,
+          "n_prev_dep_gap_negative": 99,
+          "cache": {
+            "status": "equal",
+            "n_rows": 1061,
+            "n_differ": {
+              "q_dep_tko_sym15": 0,
+              "q_rwy_tko_sym10": 0,
+              "q_arr_taxiin_sym30_tko": 0,
+              "q_rwy_ambient_proxy": 0,
+              "prev_arr_gap": 0,
+              "prev_arr_taxiin": 0,
+              "prev_dep_gap": 0
+            }
+          }
+        },
+        "training_2025-04-01_2025-05-01.parquet": {
+          "n_rows": 1064,
+          "n_prev_dep_gap_negative": 55,
+          "cache": {
+            "status": "equal",
+            "n_rows": 1064,
+            "n_differ": {
+              "q_dep_tko_sym15": 0,
+              "q_rwy_tko_sym10": 0,
+              "q_arr_taxiin_sym30_tko": 0,
+              "q_rwy_ambient_proxy": 0,
+              "prev_arr_gap": 0,
+              "prev_arr_taxiin": 0,
+              "prev_dep_gap": 0
+            }
+          }
+        },
+        "training_2025-05-01_2025-06-01.parquet": {
+          "n_rows": 1591,
+          "n_prev_dep_gap_negative": 37,
+          "cache": {
+            "status": "equal",
+            "n_rows": 1591,
+            "n_differ": {
+              "q_dep_tko_sym15": 0,
+              "q_rwy_tko_sym10": 0,
+              "q_arr_taxiin_sym30_tko": 0,
+              "q_rwy_ambient_proxy": 0,
+              "prev_arr_gap": 0,
+              "prev_arr_taxiin": 0,
+              "prev_dep_gap": 0
+            }
+          }
+        },
+        "training_2025-06-01_2025-07-01.parquet": {
+          "n_rows": 2470,
+          "n_prev_dep_gap_negative": 78,
+          "cache": {
+            "status": "equal",
+            "n_rows": 2470,
+            "n_differ": {
+              "q_dep_tko_sym15": 0,
+              "q_rwy_tko_sym10": 0,
+              "q_arr_taxiin_sym30_tko": 0,
+              "q_rwy_ambient_proxy": 0,
+              "prev_arr_gap": 0,
+              "prev_arr_taxiin": 0,
+              "prev_dep_gap": 0
+            }
+          }
+        },
+        "training_2025-07-01_2025-08-01.parquet": {
+          "n_rows": 3913,
+          "n_prev_dep_gap_negative": 55,
+          "cache": {
+            "status": "equal",
+            "n_rows": 3913,
+            "n_differ": {
+              "q_dep_tko_sym15": 0,
+              "q_rwy_tko_sym10": 0,
+              "q_arr_taxiin_sym30_tko": 0,
+              "q_rwy_ambient_proxy": 0,
+              "prev_arr_gap": 0,
+              "prev_arr_taxiin": 0,
+              "prev_dep_gap": 0
+            }
+          }
+        },
+        "training_2025-08-01_2025-09-01.parquet": {
+          "n_rows": 2296,
+          "n_prev_dep_gap_negative": 54,
+          "cache": {
+            "status": "equal",
+            "n_rows": 2296,
+            "n_differ": {
+              "q_dep_tko_sym15": 0,
+              "q_rwy_tko_sym10": 0,
+              "q_arr_taxiin_sym30_tko": 0,
+              "q_rwy_ambient_proxy": 0,
+              "prev_arr_gap": 0,
+              "prev_arr_taxiin": 0,
+              "prev_dep_gap": 0
+            }
+          }
+        },
+        "training_2025-09-01_2025-10-01.parquet": {
+          "n_rows": 2454,
+          "n_prev_dep_gap_negative": 92,
+          "cache": {
+            "status": "equal",
+            "n_rows": 2454,
+            "n_differ": {
+              "q_dep_tko_sym15": 0,
+              "q_rwy_tko_sym10": 0,
+              "q_arr_taxiin_sym30_tko": 0,
+              "q_rwy_ambient_proxy": 0,
+              "prev_arr_gap": 0,
+              "prev_arr_taxiin": 0,
+              "prev_dep_gap": 0
+            }
+          }
+        },
+        "training_2025-10-01_2025-11-01.parquet": {
+          "n_rows": 1902,
+          "n_prev_dep_gap_negative": 60,
+          "cache": {
+            "status": "equal",
+            "n_rows": 1902,
+            "n_differ": {
+              "q_dep_tko_sym15": 0,
+              "q_rwy_tko_sym10": 0,
+              "q_arr_taxiin_sym30_tko": 0,
+              "q_rwy_ambient_proxy": 0,
+              "prev_arr_gap": 0,
+              "prev_arr_taxiin": 0,
+              "prev_dep_gap": 0
+            }
+          }
+        },
+        "training_2025-11-01_2025-12-01.parquet": {
+          "n_rows": 1347,
+          "n_prev_dep_gap_negative": 63,
+          "cache": {
+            "status": "equal",
+            "n_rows": 1347,
+            "n_differ": {
+              "q_dep_tko_sym15": 0,
+              "q_rwy_tko_sym10": 0,
+              "q_arr_taxiin_sym30_tko": 0,
+              "q_rwy_ambient_proxy": 0,
+              "prev_arr_gap": 0,
+              "prev_arr_taxiin": 0,
+              "prev_dep_gap": 0
+            }
+          }
+        },
+        "training_2025-12-01_2026-01-01.parquet": {
+          "n_rows": 1631,
+          "n_prev_dep_gap_negative": 109,
+          "cache": {
+            "status": "equal",
+            "n_rows": 1631,
+            "n_differ": {
+              "q_dep_tko_sym15": 0,
+              "q_rwy_tko_sym10": 0,
+              "q_arr_taxiin_sym30_tko": 0,
+              "q_rwy_ambient_proxy": 0,
+              "prev_arr_gap": 0,
+              "prev_arr_taxiin": 0,
+              "prev_dep_gap": 0
+            }
+          }
+        }
+      },
+      "n_prev_dep_gap_negative_to_nan": 819,
+      "weather_table": {
+        "path": "data/weather_obs/weather_obs_v2.0.1.parquet",
+        "version": "2.0.1",
+        "sha256": "cb05439b6b9a57c159fd78049821821c6ac828087d2380c12d1c6f7f718022a8",
+        "findings": {
+          "n_obs": 205417,
+          "temp_plus3_not_exact": 4969,
+          "temp_plus3_stored_below_3": 4969,
+          "spread3_stored_above_3": 5504,
+          "dc_frost_lost_to_float_spread": 289,
+          "deicing_condition_lost_to_float_spread": 283,
+          "deicing_condition_counts": {
+            "0.0": 191571,
+            "1.0": 13836,
+            "nan": 10
+          },
+          "variant_differs_from_default": {
+            "fog15": 295,
+            "lt3": 1156
+          }
+        }
+      }
+    },
+    "witness": {
+      "columns": [
+        "hprox_med",
+        "hprox_n"
+      ],
+      "min_n": 5,
+      "n_airport_hours": 74651,
+      "n_matched_rows": 2062440,
+      "unmatched_nan_share": 0.021648138980152123,
+      "unmatched_bin_counts": {
+        "<900": 9633,
+        "900-1100": 5363,
+        "1100-1300": 3699,
+        "1300-1500": 1915,
+        "1500-2000": 827,
+        "NaN": 481,
+        "2000-2400": 203,
+        ">=2400": 98
+      }
+    },
+    "audit": {
+      "temp_c": {
+        "group": "weather",
+        "n_rows": 22219,
+        "n_finite": 22217,
+        "n_nonzero": 21854,
+        "status": "built",
+        "reason": null
+      },
+      "dewspread_c": {
+        "group": "weather",
+        "n_rows": 22219,
+        "n_finite": 22217,
+        "n_nonzero": 21285,
+        "status": "built",
+        "reason": null
+      },
+      "vis_km": {
+        "group": "weather",
+        "n_rows": 22219,
+        "n_finite": 22216,
+        "n_nonzero": 22216,
+        "status": "built",
+        "reason": null
+      },
+      "wind_kt": {
+        "group": "weather",
+        "n_rows": 22219,
+        "n_finite": 22217,
+        "n_nonzero": 22160,
+        "status": "built",
+        "reason": null
+      },
+      "gust_kt": {
+        "group": "weather",
+        "n_rows": 22219,
+        "n_finite": 22217,
+        "n_nonzero": 585,
+        "status": "built",
+        "reason": null
+      },
+      "wx_precip": {
+        "group": "weather",
+        "n_rows": 22219,
+        "n_finite": 22217,
+        "n_nonzero": 2620,
+        "status": "built",
+        "reason": null
+      },
+      "wx_frozen": {
+        "group": "weather",
+        "n_rows": 22219,
+        "n_finite": 22217,
+        "n_nonzero": 342,
+        "status": "built",
+        "reason": null
+      },
+      "wx_sn": {
+        "group": "weather",
+        "n_rows": 22219,
+        "n_finite": 22217,
+        "n_nonzero": 240,
+        "status": "built",
+        "reason": null
+      },
+      "wx_fzra": {
+        "group": "weather",
+        "n_rows": 22219,
+        "n_finite": 22217,
+        "n_nonzero": 4,
+        "status": "built",
+        "reason": null
+      },
+      "wx_fzdz": {
+        "group": "weather",
+        "n_rows": 22219,
+        "n_finite": 22217,
+        "n_nonzero": 2,
+        "status": "built",
+        "reason": null
+      },
+      "wx_fzfg": {
+        "group": "weather",
+        "n_rows": 22219,
+        "n_finite": 22217,
+        "n_nonzero": 84,
+        "status": "built",
+        "reason": null
+      },
+      "wx_fg": {
+        "group": "weather",
+        "n_rows": 22219,
+        "n_finite": 22217,
+        "n_nonzero": 388,
+        "status": "built",
+        "reason": null
+      },
+      "wx_br": {
+        "group": "weather",
+        "n_rows": 22219,
+        "n_finite": 22217,
+        "n_nonzero": 525,
+        "status": "built",
+        "reason": null
+      },
+      "wx_intensity": {
+        "group": "weather",
+        "n_rows": 22219,
+        "n_finite": 2620,
+        "n_nonzero": 2109,
+        "status": "built",
+        "reason": null
+      },
+      "deicing_condition": {
+        "group": "weather",
+        "n_rows": 22219,
+        "n_finite": 22217,
+        "n_nonzero": 1064,
+        "status": "built",
+        "reason": null
+      },
+      "deice_x_airport": {
+        "group": "weather",
+        "n_rows": 22219,
+        "n_finite": 22219,
+        "n_nonzero": 563,
+        "status": "built",
+        "reason": null
+      },
+      "q_dep_tko_sym15": {
+        "group": "queue",
+        "n_rows": 22219,
+        "n_finite": 22219,
+        "n_nonzero": 22007,
+        "status": "built",
+        "reason": null
+      },
+      "q_rwy_tko_sym10": {
+        "group": "queue",
+        "n_rows": 22219,
+        "n_finite": 22009,
+        "n_nonzero": 20015,
+        "status": "built",
+        "reason": null
+      },
+      "q_arr_taxiin_sym30_tko": {
+        "group": "queue",
+        "n_rows": 22219,
+        "n_finite": 22176,
+        "n_nonzero": 22176,
+        "status": "built",
+        "reason": null
+      },
+      "q_rwy_ambient_proxy": {
+        "group": "queue",
+        "n_rows": 22219,
+        "n_finite": 21478,
+        "n_nonzero": 21478,
+        "status": "built",
+        "reason": null
+      },
+      "prev_arr_gap": {
+        "group": "stand_history",
+        "n_rows": 22219,
+        "n_finite": 21865,
+        "n_nonzero": 21858,
+        "status": "built",
+        "reason": null
+      },
+      "prev_arr_taxiin": {
+        "group": "stand_history",
+        "n_rows": 22219,
+        "n_finite": 21865,
+        "n_nonzero": 21862,
+        "status": "built",
+        "reason": null
+      },
+      "prev_dep_gap": {
+        "group": "stand_history",
+        "n_rows": 22219,
+        "n_finite": 21001,
+        "n_nonzero": 21001,
+        "status": "built",
+        "reason": null
+      },
+      "AIRCRAFT_TYPE_mvt": {
+        "group": "encoded",
+        "n_rows": 22219,
+        "n_nonnull": 20715,
+        "n_levels": 192,
+        "status": "built",
+        "reason": null
+      },
+      "airline_adep": {
+        "group": "encoded",
+        "n_rows": 22219,
+        "n_nonnull": 22154,
+        "n_levels": 1676,
+        "status": "built",
+        "reason": null
+      }
+    },
+    "dropped_inputs": [],
+    "arms": {
+      "E5w": {
+        "numeric": [
+          "sp",
+          "dayoff",
+          "hr",
+          "hprox_med",
+          "hprox_n",
+          "temp_c",
+          "dewspread_c",
+          "vis_km",
+          "wind_kt",
+          "gust_kt",
+          "wx_precip",
+          "wx_frozen",
+          "wx_sn",
+          "wx_fzra",
+          "wx_fzdz",
+          "wx_fzfg",
+          "wx_fg",
+          "wx_br",
+          "wx_intensity",
+          "deicing_condition",
+          "deice_x_airport"
+        ],
+        "extra": []
+      },
+      "E5": {
+        "numeric": [
+          "sp",
+          "dayoff",
+          "hr",
+          "hprox_med",
+          "hprox_n",
+          "temp_c",
+          "dewspread_c",
+          "vis_km",
+          "wind_kt",
+          "gust_kt",
+          "wx_precip",
+          "wx_frozen",
+          "wx_sn",
+          "wx_fzra",
+          "wx_fzdz",
+          "wx_fzfg",
+          "wx_fg",
+          "wx_br",
+          "wx_intensity",
+          "deicing_condition",
+          "deice_x_airport",
+          "q_dep_tko_sym15",
+          "q_rwy_tko_sym10",
+          "q_arr_taxiin_sym30_tko",
+          "q_rwy_ambient_proxy",
+          "prev_arr_gap",
+          "prev_arr_taxiin",
+          "prev_dep_gap"
+        ],
+        "extra": [
+          "AIRCRAFT_TYPE_mvt",
+          "airline_adep"
+        ]
+      },
+      "E5_fog15": {
+        "numeric": [
+          "sp",
+          "dayoff",
+          "hr",
+          "hprox_med",
+          "hprox_n",
+          "temp_c",
+          "dewspread_c",
+          "vis_km",
+          "wind_kt",
+          "gust_kt",
+          "wx_precip",
+          "wx_frozen",
+          "wx_sn",
+          "wx_fzra",
+          "wx_fzdz",
+          "wx_fzfg",
+          "wx_fg",
+          "wx_br",
+          "wx_intensity",
+          "deicing_condition__fog15",
+          "deice_x_airport__fog15",
+          "q_dep_tko_sym15",
+          "q_rwy_tko_sym10",
+          "q_arr_taxiin_sym30_tko",
+          "q_rwy_ambient_proxy",
+          "prev_arr_gap",
+          "prev_arr_taxiin",
+          "prev_dep_gap"
+        ],
+        "extra": [
+          "AIRCRAFT_TYPE_mvt",
+          "airline_adep"
+        ]
+      },
+      "E5_lt3": {
+        "numeric": [
+          "sp",
+          "dayoff",
+          "hr",
+          "hprox_med",
+          "hprox_n",
+          "temp_c",
+          "dewspread_c",
+          "vis_km",
+          "wind_kt",
+          "gust_kt",
+          "wx_precip",
+          "wx_frozen",
+          "wx_sn",
+          "wx_fzra",
+          "wx_fzdz",
+          "wx_fzfg",
+          "wx_fg",
+          "wx_br",
+          "wx_intensity",
+          "deicing_condition__lt3",
+          "deice_x_airport__lt3",
+          "q_dep_tko_sym15",
+          "q_rwy_tko_sym10",
+          "q_arr_taxiin_sym30_tko",
+          "q_rwy_ambient_proxy",
+          "prev_arr_gap",
+          "prev_arr_taxiin",
+          "prev_dep_gap"
+        ],
+        "extra": [
+          "AIRCRAFT_TYPE_mvt",
+          "airline_adep"
+        ]
+      }
+    },
+    "regressor": {
+      "params": {
+        "max_leaf_nodes": 15,
+        "max_iter": 200,
+        "min_samples_leaf": 100
+      },
+      "encoded": [
+        "ADEP_mvt",
+        "RUNWAY_mvt",
+        "stand_pref",
+        "airline",
+        "AIRCRAFT_OPERATOR_flt"
+      ],
+      "winsor_s": 3000.0,
+      "T_tail_s": 3000.0,
+      "smooth": 50.0,
+      "sklearn": "1.8.0"
+    },
+    "judgement_calls": [
+      "prev_dep_gap is INCLUDED: on an unmatched row it is take-off minus the latest NM off-block of ANOTHER (matched) departure from the same stand; the row's own AOBT_3 (null) is never read -- read as 'computed without [the row's] AOBT_3', the way the registered queue block and the witness read their neighbours' AOBT_3. (On a MATCHED row the same name is ~ its own proxy; only unmatched rows are used here, in training and at serve time.)",
+      "prev_dep_gap < 0 is the builder's 'no earlier matched off-block at this stand in the month' case (it indexes the first LATER off-block); the input does not exist there and is set to NaN (counts in the metadata); nothing else is altered",
+      "the queue and stand-history inputs are built FRESH by stand_ab.build_unmatched_month / build_unmatched_ranking (the current code, the same builder for 2025 and 2026) and cross-checked against data/cache_unmatched (reported, not used)",
+      "weather as-of: pd.merge_asof backward per station, exact matches allowed (valid == MVT_TIME counts), tolerance 3 h inclusive (an observation exactly 3 h old is used, older is NaN); a row with no MVT_TIME or an unknown station reads NaN",
+      "deice_x_airport is the Kleene AND of deicing_condition and the de-icing-airport flag (prc/weather.py's three-valued logic): 0 at the other airports even where the condition is unknown, NaN only at a de-icing airport with an unknown condition",
+      "the two de-icing sensitivities are recomputed from the table's own fields with temperatures compared at 1e-6 C: the F->C conversion stores a reported +3 C as 2.999999999999999, so a literal `< 3` would equal `<= 3` on all such observations; the default rule recomputed this way equals the table's dc_moist_cold and deicing_condition on every observation (a guard); dc_frost is the table's in every variant",
+      "fog15: fog counts as visible moisture only with vis_km <= 1.5 (so it adds nothing beyond the visibility clause); mist kept",
+      "the two NEW encodings (AIRCRAFT_TYPE_mvt, airline|ADEP) and their prior are fitted on the fold's non-fill rows minus the regressor's own early-stopping rows (the split replicated from sklearn 1.8.0 and verified equal in the tests; the release is pinned); an unseen or missing level reads that prior. S1C's five encodings are left exactly as S1C computes them",
+      "E5w is S1C + the whole registered WEATHER block, the de-icing-airport interaction included",
+      "the sensitivity arms are E5 with the variant de-icing condition and the variant interaction; nothing else differs",
+      "the reproduction guard holds S1C (registered) and S1, the per-seed S1C arms, p_hat, nf_cells, nf_fit_c to 1e-6 s",
+      "an input is DROPPED iff it is absent or has no finite (non-null) value on the 2025 unmatched rows, decided once on the full label-free 2025 frame before any fold; ship refuses a 2026 frame where a kept input is NaN on every scored row",
+      "the 2026 witness bin counts are recomputed from data/raw/ranking.parquet and must equal E3C's stored 2026 witness rows",
+      "ship refuses any base but the registered v10 (an amendment would be needed to ship E5 on another base)"
+    ],
+    "n_rows": 22219,
+    "n_non_lirf": 20731,
+    "wall_s": 88.5,
+    "peak_rss_gb": 3.4
+  },
+  "config": {
+    "control": "S1C",
+    "treatment": "E5",
+    "reported_arms": [
+      "E5w",
+      "E5_fog15",
+      "E5_lt3"
+    ],
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "n_boot": 2000,
+    "boot_seed": 0,
+    "blocks": "calendar dates (UTC) of MVT_TIME",
+    "bins": [
+      "NaN",
+      "<900",
+      "900-1100",
+      "1100-1300",
+      "1300-1500",
+      "1500-2000",
+      "2000-2400",
+      ">=2400"
+    ],
+    "bin_edges": [
+      -Infinity,
+      900.0,
+      1100.0,
+      1300.0,
+      1500.0,
+      2000.0,
+      2400.0,
+      Infinity
+    ],
+    "thin_bin": 30,
+    "n_scored_2026": 344841,
+    "c2_min_mse": 300.0,
+    "c2_rule": "drop the ONE airport-month with the largest |sum g|, re-bin, re-price; the full price is reported only",
+    "min_months": 8,
+    "min_airports": 6,
+    "calm_s": 1100.0,
+    "calm_tolerance": 0.1,
+    "monster_s": 10800.0,
+    "deice_airports": [
+      "EDDF",
+      "EDDM",
+      "EHAM",
+      "LSZH"
+    ],
+    "max_obs_age_s": 10800.0
+  },
+  "data": {
+    "n_lomo_rows": 22219,
+    "n_non_lirf": 20731,
+    "n_lirf": 1488,
+    "n_2026_scored_non_lirf_unmatched": 4907,
+    "bins_2026": {
+      "NaN": 117,
+      "<900": 1692,
+      "900-1100": 1207,
+      "1100-1300": 937,
+      "1300-1500": 443,
+      "1500-2000": 279,
+      "2000-2400": 47,
+      ">=2400": 185
+    },
+    "bins_2026_check": "equal to data/cache_stand/unm_congestion_2026_witness.parquet",
+    "non_lirf_weather_nan": 2,
+    "non_lirf_deicing_condition": {
+      "0.0": 19666,
+      "1.0": 1063,
+      "nan": 2
+    },
+    "non_lirf_rows_on_a_float_defect_observation": 4
+  },
+  "dropped_inputs": [],
+  "arms": {
+    "E5w": {
+      "numeric": [
+        "sp",
+        "dayoff",
+        "hr",
+        "hprox_med",
+        "hprox_n",
+        "temp_c",
+        "dewspread_c",
+        "vis_km",
+        "wind_kt",
+        "gust_kt",
+        "wx_precip",
+        "wx_frozen",
+        "wx_sn",
+        "wx_fzra",
+        "wx_fzdz",
+        "wx_fzfg",
+        "wx_fg",
+        "wx_br",
+        "wx_intensity",
+        "deicing_condition",
+        "deice_x_airport"
+      ],
+      "extra": []
+    },
+    "E5": {
+      "numeric": [
+        "sp",
+        "dayoff",
+        "hr",
+        "hprox_med",
+        "hprox_n",
+        "temp_c",
+        "dewspread_c",
+        "vis_km",
+        "wind_kt",
+        "gust_kt",
+        "wx_precip",
+        "wx_frozen",
+        "wx_sn",
+        "wx_fzra",
+        "wx_fzdz",
+        "wx_fzfg",
+        "wx_fg",
+        "wx_br",
+        "wx_intensity",
+        "deicing_condition",
+        "deice_x_airport",
+        "q_dep_tko_sym15",
+        "q_rwy_tko_sym10",
+        "q_arr_taxiin_sym30_tko",
+        "q_rwy_ambient_proxy",
+        "prev_arr_gap",
+        "prev_arr_taxiin",
+        "prev_dep_gap"
+      ],
+      "extra": [
+        "AIRCRAFT_TYPE_mvt",
+        "airline_adep"
+      ]
+    },
+    "E5_fog15": {
+      "numeric": [
+        "sp",
+        "dayoff",
+        "hr",
+        "hprox_med",
+        "hprox_n",
+        "temp_c",
+        "dewspread_c",
+        "vis_km",
+        "wind_kt",
+        "gust_kt",
+        "wx_precip",
+        "wx_frozen",
+        "wx_sn",
+        "wx_fzra",
+        "wx_fzdz",
+        "wx_fzfg",
+        "wx_fg",
+        "wx_br",
+        "wx_intensity",
+        "deicing_condition__fog15",
+        "deice_x_airport__fog15",
+        "q_dep_tko_sym15",
+        "q_rwy_tko_sym10",
+        "q_arr_taxiin_sym30_tko",
+        "q_rwy_ambient_proxy",
+        "prev_arr_gap",
+        "prev_arr_taxiin",
+        "prev_dep_gap"
+      ],
+      "extra": [
+        "AIRCRAFT_TYPE_mvt",
+        "airline_adep"
+      ]
+    },
+    "E5_lt3": {
+      "numeric": [
+        "sp",
+        "dayoff",
+        "hr",
+        "hprox_med",
+        "hprox_n",
+        "temp_c",
+        "dewspread_c",
+        "vis_km",
+        "wind_kt",
+        "gust_kt",
+        "wx_precip",
+        "wx_frozen",
+        "wx_sn",
+        "wx_fzra",
+        "wx_fzdz",
+        "wx_fzfg",
+        "wx_fg",
+        "wx_br",
+        "wx_intensity",
+        "deicing_condition__lt3",
+        "deice_x_airport__lt3",
+        "q_dep_tko_sym15",
+        "q_rwy_tko_sym10",
+        "q_arr_taxiin_sym30_tko",
+        "q_rwy_ambient_proxy",
+        "prev_arr_gap",
+        "prev_arr_taxiin",
+        "prev_dep_gap"
+      ],
+      "extra": [
+        "AIRCRAFT_TYPE_mvt",
+        "airline_adep"
+      ]
+    }
+  },
+  "clauses": {
+    "C1_date_block_bootstrap": {
+      "sum_g": 450205168.91033405,
+      "ci95": [
+        209824996.53638107,
+        822896863.5995071
+      ],
+      "n_blocks": 365,
+      "n_draws": 2000,
+      "seed": 0,
+      "passes": true
+    },
+    "C2_priced_2026": {
+      "priced_mse": 207.82923720692816,
+      "n_scored_2026": 344841,
+      "thin_threshold": 30,
+      "bins": {
+        "NaN": {
+          "n_2025": 313,
+          "sum_g": 2875446.351359656,
+          "per_row_gain": 9186.729557059603,
+          "n_2026": 117,
+          "per_row_gain_used": 9186.729557059603,
+          "borrowed_from": "NaN",
+          "thin": false,
+          "priced_mse": 3.1169360898964267
+        },
+        "<900": {
+          "n_2025": 8843,
+          "sum_g": 140129352.87048447,
+          "per_row_gain": 15846.35902640331,
+          "n_2026": 1692,
+          "per_row_gain_used": 15846.35902640331,
+          "borrowed_from": "<900",
+          "thin": false,
+          "priced_mse": 77.75188992223778
+        },
+        "900-1100": {
+          "n_2025": 4879,
+          "sum_g": 62414761.898136124,
+          "per_row_gain": 12792.531645447043,
+          "n_2026": 1207,
+          "per_row_gain_used": 12792.531645447043,
+          "borrowed_from": "900-1100",
+          "thin": false,
+          "priced_mse": 44.77595673384134
+        },
+        "1100-1300": {
+          "n_2025": 3582,
+          "sum_g": 20755259.28609831,
+          "per_row_gain": 5794.321408737663,
+          "n_2026": 937,
+          "per_row_gain_used": 5794.321408737663,
+          "borrowed_from": "1100-1300",
+          "thin": false,
+          "priced_mse": 15.74429711080524
+        },
+        "1300-1500": {
+          "n_2025": 1829,
+          "sum_g": 25734339.136731833,
+          "per_row_gain": 14070.169019536268,
+          "n_2026": 443,
+          "per_row_gain_used": 14070.169019536268,
+          "borrowed_from": "1300-1500",
+          "thin": false,
+          "priced_mse": 18.07524301244506
+        },
+        "1500-2000": {
+          "n_2025": 793,
+          "sum_g": 6765145.602848552,
+          "per_row_gain": 8531.07894432352,
+          "n_2026": 279,
+          "per_row_gain_used": 8531.07894432352,
+          "borrowed_from": "1500-2000",
+          "thin": false,
+          "priced_mse": 6.902227477203297
+        },
+        "2000-2400": {
+          "n_2025": 95,
+          "sum_g": 5178709.78365869,
+          "per_row_gain": 54512.734564828315,
+          "n_2026": 47,
+          "per_row_gain_used": 54512.734564828315,
+          "borrowed_from": "2000-2400",
+          "thin": false,
+          "priced_mse": 7.4297967020943885
+        },
+        ">=2400": {
+          "n_2025": 33,
+          "sum_g": 2093437.2101555427,
+          "per_row_gain": 63437.49121683463,
+          "n_2026": 185,
+          "per_row_gain_used": 63437.49121683463,
+          "borrowed_from": ">=2400",
+          "thin": false,
+          "priced_mse": 34.03289015840461
+        }
+      },
+      "passes": false,
+      "c2_min_mse": 300.0,
+      "rule": "event-excluded (decisional)",
+      "excluded_airport_month": {
+        "ADEP_mvt": "LTFM",
+        "month": 2,
+        "sum_g": 184258716.77086085,
+        "n": 364,
+        "n_rows_kept": 20367,
+        "n_rows_dropped": 364,
+        "sum_g_kept": 265946452.1394732
+      }
+    },
+    "C3_months": {
+      "months_positive": 12,
+      "n_months": 12,
+      "per_month": {
+        "1": {
+          "sum_g": 81350563.42483945,
+          "n": 1348
+        },
+        "10": {
+          "sum_g": 12737167.719023205,
+          "n": 1787
+        },
+        "11": {
+          "sum_g": 25955392.202844664,
+          "n": 1295
+        },
+        "12": {
+          "sum_g": 46420641.49155475,
+          "n": 1543
+        },
+        "2": {
+          "sum_g": 192936683.82836315,
+          "n": 1025
+        },
+        "3": {
+          "sum_g": 12114165.859187927,
+          "n": 1001
+        },
+        "4": {
+          "sum_g": 103600.76214005484,
+          "n": 994
+        },
+        "5": {
+          "sum_g": 12010827.15045708,
+          "n": 1492
+        },
+        "6": {
+          "sum_g": 20043516.805018485,
+          "n": 2285
+        },
+        "7": {
+          "sum_g": 19357954.337580264,
+          "n": 3576
+        },
+        "8": {
+          "sum_g": 11703197.397606824,
+          "n": 2100
+        },
+        "9": {
+          "sum_g": 15471457.931718133,
+          "n": 2285
+        }
+      },
+      "passes": true
+    },
+    "C4_airports": {
+      "airports_positive": 8,
+      "n_airports": 9,
+      "per_airport": {
+        "EDDF": {
+          "sum_g": 21829306.212863326,
+          "n": 1956
+        },
+        "EDDM": {
+          "sum_g": 38707846.650503166,
+          "n": 1010
+        },
+        "EGLL": {
+          "sum_g": -1703121.9911269173,
+          "n": 1414
+        },
+        "EHAM": {
+          "sum_g": 28332064.8216658,
+          "n": 4083
+        },
+        "LEBL": {
+          "sum_g": 19334595.02315616,
+          "n": 1862
+        },
+        "LEMD": {
+          "sum_g": 14688689.26693825,
+          "n": 947
+        },
+        "LFPG": {
+          "sum_g": 112117733.23657465,
+          "n": 3762
+        },
+        "LSZH": {
+          "sum_g": 15789586.225477329,
+          "n": 2054
+        },
+        "LTFM": {
+          "sum_g": 201108469.4642823,
+          "n": 3643
+        }
+      },
+      "passes": true
+    },
+    "C5_calm_control": {
+      "calm_sum_g": 202569426.62730655,
+      "n_calm": 13729,
+      "pooled_sum_g": 450205168.91033405,
+      "bound": -45020516.89103341,
+      "passes": true
+    },
+    "C6_not_the_monsters": {
+      "exmonster_sum_g": 406452350.03444856,
+      "n_exmonster": 20725,
+      "passes": true
+    },
+    "C7_seeds": {
+      "pooled_sum_g": 450205168.91033405,
+      "per_seed_sum_g": {
+        "0": 358490242.354956,
+        "1": 477739681.5672828,
+        "2": 482543937.74501777
+      },
+      "seed_sd": 70276630.74095823,
+      "passes": true
+    },
+    "pooled_sum_g": 450205168.91033405,
+    "n_rows": 20731,
+    "verdict": "INCONCLUSIVE",
+    "C2_full_price_not_decisional": {
+      "priced_mse": 307.70239926176777,
+      "n_scored_2026": 344841,
+      "thin_threshold": 30,
+      "bins": {
+        "NaN": {
+          "n_2025": 333,
+          "sum_g": 134882903.0493863,
+          "per_row_gain": 405053.76291106996,
+          "n_2026": 117,
+          "per_row_gain_used": 405053.76291106996,
+          "borrowed_from": "NaN",
+          "thin": false,
+          "priced_mse": 137.42939575223127
+        },
+        "<900": {
+          "n_2025": 8843,
+          "sum_g": 140129352.87048447,
+          "per_row_gain": 15846.35902640331,
+          "n_2026": 1692,
+          "per_row_gain_used": 15846.35902640331,
+          "borrowed_from": "<900",
+          "thin": false,
+          "priced_mse": 77.75188992223778
+        },
+        "900-1100": {
+          "n_2025": 4886,
+          "sum_g": 62440073.756822065,
+          "per_row_gain": 12779.384723049952,
+          "n_2026": 1207,
+          "per_row_gain_used": 12779.384723049952,
+          "borrowed_from": "900-1100",
+          "thin": false,
+          "priced_mse": 44.729940351412075
+        },
+        "1100-1300": {
+          "n_2025": 3663,
+          "sum_g": 21786508.489312515,
+          "per_row_gain": 5947.722765305082,
+          "n_2026": 937,
+          "per_row_gain_used": 5947.722765305082,
+          "borrowed_from": "1100-1300",
+          "thin": false,
+          "priced_mse": 16.16111840265764
+        },
+        "1300-1500": {
+          "n_2025": 1886,
+          "sum_g": 26707755.627206914,
+          "per_row_gain": 14161.058126832935,
+          "n_2026": 443,
+          "per_row_gain_used": 14161.058126832935,
+          "borrowed_from": "1300-1500",
+          "thin": false,
+          "priced_mse": 18.192003706598083
+        },
+        "1500-2000": {
+          "n_2025": 819,
+          "sum_g": 6074293.858208047,
+          "per_row_gain": 7416.720217592243,
+          "n_2026": 279,
+          "per_row_gain_used": 7416.720217592243,
+          "borrowed_from": "1500-2000",
+          "thin": false,
+          "priced_mse": 6.0006349033561435
+        },
+        "2000-2400": {
+          "n_2025": 203,
+          "sum_g": 64769432.234136716,
+          "per_row_gain": 319061.2425326932,
+          "n_2026": 47,
+          "per_row_gain_used": 319061.2425326932,
+          "borrowed_from": "2000-2400",
+          "thin": false,
+          "priced_mse": 43.48635573796788
+        },
+        ">=2400": {
+          "n_2025": 98,
+          "sum_g": -6585150.97522301,
+          "per_row_gain": -67195.41811452051,
+          "n_2026": 185,
+          "per_row_gain_used": -67195.41811452051,
+          "borrowed_from": ">=2400",
+          "thin": false,
+          "priced_mse": -36.04893951469313
+        }
+      },
+      "rule": "full price (reported, not decisional)"
+    },
+    "airport_month_top": [
+      {
+        "ADEP_mvt": "LTFM",
+        "month": 2,
+        "sum_g": 184258716.77086085,
+        "n": 364,
+        "abs_sum_g": 184258716.77086085
+      },
+      {
+        "ADEP_mvt": "LFPG",
+        "month": 1,
+        "sum_g": 44131903.564279385,
+        "n": 215,
+        "abs_sum_g": 44131903.564279385
+      },
+      {
+        "ADEP_mvt": "EDDM",
+        "month": 12,
+        "sum_g": 30167443.85539024,
+        "n": 130,
+        "abs_sum_g": 30167443.85539024
+      },
+      {
+        "ADEP_mvt": "LFPG",
+        "month": 11,
+        "sum_g": 22580845.624395162,
+        "n": 372,
+        "abs_sum_g": 22580845.624395162
+      },
+      {
+        "ADEP_mvt": "EHAM",
+        "month": 1,
+        "sum_g": 22485427.73309553,
+        "n": 293,
+        "abs_sum_g": 22485427.73309553
+      },
+      {
+        "ADEP_mvt": "LFPG",
+        "month": 12,
+        "sum_g": 13338203.854996908,
+        "n": 313,
+        "abs_sum_g": 13338203.854996908
+      },
+      {
+        "ADEP_mvt": "LFPG",
+        "month": 6,
+        "sum_g": 11677631.733010776,
+        "n": 452,
+        "abs_sum_g": 11677631.733010776
+      },
+      {
+        "ADEP_mvt": "EGLL",
+        "month": 7,
+        "sum_g": -11080253.500916174,
+        "n": 338,
+        "abs_sum_g": 11080253.500916174
+      },
+      {
+        "ADEP_mvt": "LFPG",
+        "month": 7,
+        "sum_g": 10089371.219323147,
+        "n": 661,
+        "abs_sum_g": 10089371.219323147
+      },
+      {
+        "ADEP_mvt": "LSZH",
+        "month": 1,
+        "sum_g": 9610579.144198515,
+        "n": 153,
+        "abs_sum_g": 9610579.144198515
+      },
+      {
+        "ADEP_mvt": "LSZH",
+        "month": 5,
+        "sum_g": 7503248.812758999,
+        "n": 213,
+        "abs_sum_g": 7503248.812758999
+      },
+      {
+        "ADEP_mvt": "EDDF",
+        "month": 7,
+        "sum_g": 7168132.310288612,
+        "n": 435,
+        "abs_sum_g": 7168132.310288612
+      }
+    ],
+    "treatment": "E5",
+    "control": "S1C"
+  },
+  "verdict": "INCONCLUSIVE",
+  "reported_not_decisional": {
+    "clauses": {
+      "E5w": {
+        "C1_date_block_bootstrap": {
+          "sum_g": 38598587.14986637,
+          "ci95": [
+            -26083757.15903436,
+            107447881.66112854
+          ],
+          "n_blocks": 365,
+          "n_draws": 2000,
+          "seed": 0,
+          "passes": false
+        },
+        "C2_priced_2026": {
+          "priced_mse": -162.12201284929287,
+          "n_scored_2026": 344841,
+          "thin_threshold": 30,
+          "bins": {
+            "NaN": {
+              "n_2025": 330,
+              "sum_g": 69719910.08701338,
+              "per_row_gain": 211272.45480913145,
+              "n_2026": 117,
+              "per_row_gain_used": 211272.45480913145,
+              "borrowed_from": "NaN",
+              "thin": false,
+              "priced_mse": 71.68195548866979
+            },
+            "<900": {
+              "n_2025": 8697,
+              "sum_g": 15227524.764757134,
+              "per_row_gain": 1750.8939593833659,
+              "n_2026": 1692,
+              "per_row_gain_used": 1750.8939593833659,
+              "borrowed_from": "<900",
+              "thin": false,
+              "priced_mse": 8.590952291858146
+            },
+            "900-1100": {
+              "n_2025": 4795,
+              "sum_g": 11026046.002718689,
+              "per_row_gain": 2299.4882174595805,
+              "n_2026": 1207,
+              "per_row_gain_used": 2299.4882174595805,
+              "borrowed_from": "900-1100",
+              "thin": false,
+              "priced_mse": 8.048585517597134
+            },
+            "1100-1300": {
+              "n_2025": 3648,
+              "sum_g": 5423203.743104861,
+              "per_row_gain": 1486.6238330879553,
+              "n_2026": 937,
+              "per_row_gain_used": 1486.6238330879553,
+              "borrowed_from": "1100-1300",
+              "thin": false,
+              "priced_mse": 4.039445807208001
+            },
+            "1300-1500": {
+              "n_2025": 1874,
+              "sum_g": -7858995.317396004,
+              "per_row_gain": -4193.700809709714,
+              "n_2026": 443,
+              "per_row_gain_used": -4193.700809709714,
+              "borrowed_from": "1300-1500",
+              "thin": false,
+              "priced_mse": -5.387437858901358
+            },
+            "1500-2000": {
+              "n_2025": 802,
+              "sum_g": -10415482.918659642,
+              "per_row_gain": -12986.886432243942,
+              "n_2026": 279,
+              "per_row_gain_used": -12986.886432243942,
+              "borrowed_from": "1500-2000",
+              "thin": false,
+              "priced_mse": -10.507281079094597
+            },
+            "2000-2400": {
+              "n_2025": 203,
+              "sum_g": -27892409.83041869,
+              "per_row_gain": -137401.03364738272,
+              "n_2026": 47,
+              "per_row_gain_used": -137401.03364738272,
+              "borrowed_from": "2000-2400",
+              "thin": false,
+              "priced_mse": -18.727032404577727
+            },
+            ">=2400": {
+              "n_2025": 89,
+              "sum_g": -36474199.5078011,
+              "per_row_gain": -409822.46637978766,
+              "n_2026": 185,
+              "per_row_gain_used": -409822.46637978766,
+              "borrowed_from": ">=2400",
+              "thin": false,
+              "priced_mse": -219.86120061205224
+            }
+          },
+          "passes": false,
+          "c2_min_mse": 300.0,
+          "rule": "event-excluded (decisional)",
+          "excluded_airport_month": {
+            "ADEP_mvt": "EHAM",
+            "month": 1,
+            "sum_g": 19842990.126547758,
+            "n": 293,
+            "n_rows_kept": 20438,
+            "n_rows_dropped": 293,
+            "sum_g_kept": 18755597.023318626
+          }
+        },
+        "C3_months": {
+          "months_positive": 7,
+          "n_months": 12,
+          "per_month": {
+            "1": {
+              "sum_g": 3678669.543493472,
+              "n": 1348
+            },
+            "10": {
+              "sum_g": -1520107.1569543318,
+              "n": 1787
+            },
+            "11": {
+              "sum_g": -683056.8327227766,
+              "n": 1295
+            },
+            "12": {
+              "sum_g": 28039253.082112998,
+              "n": 1543
+            },
+            "2": {
+              "sum_g": 11947086.305109581,
+              "n": 1025
+            },
+            "3": {
+              "sum_g": 3244893.630479493,
+              "n": 1001
+            },
+            "4": {
+              "sum_g": 175634.8394186804,
+              "n": 994
+            },
+            "5": {
+              "sum_g": 11921437.41441875,
+              "n": 1492
+            },
+            "6": {
+              "sum_g": -3185754.8085175604,
+              "n": 2285
+            },
+            "7": {
+              "sum_g": -18101183.467543557,
+              "n": 3576
+            },
+            "8": {
+              "sum_g": -1382006.153630916,
+              "n": 2100
+            },
+            "9": {
+              "sum_g": 4463720.754202537,
+              "n": 2285
+            }
+          },
+          "passes": false
+        },
+        "C4_airports": {
+          "airports_positive": 7,
+          "n_airports": 9,
+          "per_airport": {
+            "EDDF": {
+              "sum_g": 299703.981643802,
+              "n": 1956
+            },
+            "EDDM": {
+              "sum_g": 21922429.62705451,
+              "n": 1010
+            },
+            "EGLL": {
+              "sum_g": -18758772.742974263,
+              "n": 1414
+            },
+            "EHAM": {
+              "sum_g": 24153095.06878193,
+              "n": 4083
+            },
+            "LEBL": {
+              "sum_g": 820883.2871536523,
+              "n": 1862
+            },
+            "LEMD": {
+              "sum_g": 847619.9726619149,
+              "n": 947
+            },
+            "LFPG": {
+              "sum_g": -7239778.231940865,
+              "n": 3762
+            },
+            "LSZH": {
+              "sum_g": 14486137.841564452,
+              "n": 2054
+            },
+            "LTFM": {
+              "sum_g": 2067268.3459212398,
+              "n": 3643
+            }
+          },
+          "passes": true
+        },
+        "C5_calm_control": {
+          "calm_sum_g": 35936641.39853862,
+          "n_calm": 13729,
+          "pooled_sum_g": 38598587.14986637,
+          "bound": -3859858.7149866372,
+          "passes": true
+        },
+        "C6_not_the_monsters": {
+          "exmonster_sum_g": 41620490.04662119,
+          "n_exmonster": 20725,
+          "passes": true
+        },
+        "C7_seeds": {
+          "pooled_sum_g": 38598587.14986637,
+          "per_seed_sum_g": {
+            "0": 26641646.695639372,
+            "1": -49667269.55121605,
+            "2": 131713680.19509143
+          },
+          "seed_sd": 91069782.63338512,
+          "passes": false
+        },
+        "pooled_sum_g": 38598587.14986637,
+        "n_rows": 20731,
+        "verdict": "NOT WORKING",
+        "C2_full_price_not_decisional": {
+          "priced_mse": -121.11977861605257,
+          "n_scored_2026": 344841,
+          "thin_threshold": 30,
+          "bins": {
+            "NaN": {
+              "n_2025": 333,
+              "sum_g": 69656838.6603006,
+              "per_row_gain": 209179.69567657838,
+              "n_2026": 117,
+              "per_row_gain_used": 209179.69567657838,
+              "borrowed_from": "NaN",
+              "thin": false,
+              "priced_mse": 70.97190993576655
+            },
+            "<900": {
+              "n_2025": 8843,
+              "sum_g": 14472798.789845658,
+              "per_row_gain": 1636.6390127610152,
+              "n_2026": 1692,
+              "per_row_gain_used": 1636.6390127610152,
+              "borrowed_from": "<900",
+              "thin": false,
+              "priced_mse": 8.030347927281378
+            },
+            "900-1100": {
+              "n_2025": 4886,
+              "sum_g": 21463842.608692963,
+              "per_row_gain": 4392.927263342808,
+              "n_2026": 1207,
+              "per_row_gain_used": 4392.927263342808,
+              "borrowed_from": "900-1100",
+              "thin": false,
+              "priced_mse": 15.37596517483353
+            },
+            "1100-1300": {
+              "n_2025": 3663,
+              "sum_g": 5182609.978844003,
+              "per_row_gain": 1414.853939078352,
+              "n_2026": 937,
+              "per_row_gain_used": 1414.853939078352,
+              "borrowed_from": "1100-1300",
+              "thin": false,
+              "priced_mse": 3.8444330602115633
+            },
+            "1300-1500": {
+              "n_2025": 1886,
+              "sum_g": -1088009.4747625666,
+              "per_row_gain": -576.8873142961647,
+              "n_2026": 443,
+              "per_row_gain_used": -576.8873142961647,
+              "borrowed_from": "1300-1500",
+              "thin": false,
+              "priced_mse": -0.7410983039522591
+            },
+            "1500-2000": {
+              "n_2025": 819,
+              "sum_g": -8157646.329231618,
+              "per_row_gain": -9960.496128487934,
+              "n_2026": 279,
+              "per_row_gain_used": -9960.496128487934,
+              "borrowed_from": "1500-2000",
+              "thin": false,
+              "priced_mse": -8.058723933198586
+            },
+            "2000-2400": {
+              "n_2025": 203,
+              "sum_g": -27892409.83041869,
+              "per_row_gain": -137401.03364738272,
+              "n_2026": 47,
+              "per_row_gain_used": -137401.03364738272,
+              "borrowed_from": "2000-2400",
+              "thin": false,
+              "priced_mse": -18.727032404577727
+            },
+            ">=2400": {
+              "n_2025": 98,
+              "sum_g": -35039437.253403954,
+              "per_row_gain": -357545.2780959587,
+              "n_2026": 185,
+              "per_row_gain_used": -357545.2780959587,
+              "borrowed_from": ">=2400",
+              "thin": false,
+              "priced_mse": -191.81558007241702
+            }
+          },
+          "rule": "full price (reported, not decisional)"
+        },
+        "airport_month_top": [
+          {
+            "ADEP_mvt": "EHAM",
+            "month": 1,
+            "sum_g": 19842990.126547758,
+            "n": 293,
+            "abs_sum_g": 19842990.126547758
+          },
+          {
+            "ADEP_mvt": "EGLL",
+            "month": 7,
+            "sum_g": -18552480.561067622,
+            "n": 338,
+            "abs_sum_g": 18552480.561067622
+          },
+          {
+            "ADEP_mvt": "EDDM",
+            "month": 12,
+            "sum_g": 18047458.368093193,
+            "n": 130,
+            "abs_sum_g": 18047458.368093193
+          },
+          {
+            "ADEP_mvt": "LFPG",
+            "month": 1,
+            "sum_g": -12596203.386866031,
+            "n": 215,
+            "abs_sum_g": 12596203.386866031
+          },
+          {
+            "ADEP_mvt": "LSZH",
+            "month": 5,
+            "sum_g": 11302651.096860712,
+            "n": 213,
+            "abs_sum_g": 11302651.096860712
+          },
+          {
+            "ADEP_mvt": "LFPG",
+            "month": 12,
+            "sum_g": 8341419.209520401,
+            "n": 313,
+            "abs_sum_g": 8341419.209520401
+          },
+          {
+            "ADEP_mvt": "LTFM",
+            "month": 2,
+            "sum_g": 7554768.190008369,
+            "n": 364,
+            "abs_sum_g": 7554768.190008369
+          },
+          {
+            "ADEP_mvt": "LFPG",
+            "month": 6,
+            "sum_g": -4686778.246286714,
+            "n": 452,
+            "abs_sum_g": 4686778.246286714
+          },
+          {
+            "ADEP_mvt": "EGLL",
+            "month": 1,
+            "sum_g": -3311375.2756732674,
+            "n": 128,
+            "abs_sum_g": 3311375.2756732674
+          },
+          {
+            "ADEP_mvt": "LSZH",
+            "month": 2,
+            "sum_g": 3082486.104111437,
+            "n": 85,
+            "abs_sum_g": 3082486.104111437
+          },
+          {
+            "ADEP_mvt": "LTFM",
+            "month": 1,
+            "sum_g": -2317594.140255985,
+            "n": 232,
+            "abs_sum_g": 2317594.140255985
+          },
+          {
+            "ADEP_mvt": "LFPG",
+            "month": 7,
+            "sum_g": 2220712.2773030815,
+            "n": 661,
+            "abs_sum_g": 2220712.2773030815
+          }
+        ],
+        "treatment": "E5w",
+        "control": "S1C",
+        "decisional": false
+      },
+      "E5_fog15": {
+        "C1_date_block_bootstrap": {
+          "sum_g": 444195412.38306266,
+          "ci95": [
+            210520392.04757574,
+            793174759.8814788
+          ],
+          "n_blocks": 365,
+          "n_draws": 2000,
+          "seed": 0,
+          "passes": true
+        },
+        "C2_priced_2026": {
+          "priced_mse": 159.78183207809465,
+          "n_scored_2026": 344841,
+          "thin_threshold": 30,
+          "bins": {
+            "NaN": {
+              "n_2025": 313,
+              "sum_g": 3197932.1041180817,
+              "per_row_gain": 10217.035476415596,
+              "n_2026": 117,
+              "per_row_gain_used": 10217.035476415596,
+              "borrowed_from": "NaN",
+              "thin": false,
+              "priced_mse": 3.4665052900920275
+            },
+            "<900": {
+              "n_2025": 8843,
+              "sum_g": 142831363.02665144,
+              "per_row_gain": 16151.91258924024,
+              "n_2026": 1692,
+              "per_row_gain_used": 16151.91258924024,
+              "borrowed_from": "<900",
+              "thin": false,
+              "priced_mse": 79.25112182424505
+            },
+            "900-1100": {
+              "n_2025": 4879,
+              "sum_g": 63676852.11715968,
+              "per_row_gain": 13051.2096981266,
+              "n_2026": 1207,
+              "per_row_gain_used": 13051.2096981266,
+              "borrowed_from": "900-1100",
+              "thin": false,
+              "priced_mse": 45.68137230097003
+            },
+            "1100-1300": {
+              "n_2025": 3582,
+              "sum_g": 21033315.244319305,
+              "per_row_gain": 5871.947304388415,
+              "n_2026": 937,
+              "per_row_gain_used": 5871.947304388415,
+              "borrowed_from": "1100-1300",
+              "thin": false,
+              "priced_mse": 15.955221752088486
+            },
+            "1300-1500": {
+              "n_2025": 1829,
+              "sum_g": 25052338.539395593,
+              "per_row_gain": 13697.287337012353,
+              "n_2026": 443,
+              "per_row_gain_used": 13697.287337012353,
+              "borrowed_from": "1300-1500",
+              "thin": false,
+              "priced_mse": 17.59622054888042
+            },
+            "1500-2000": {
+              "n_2025": 793,
+              "sum_g": 1405287.4435167592,
+              "per_row_gain": 1772.1153133880948,
+              "n_2026": 279,
+              "per_row_gain_used": 1772.1153133880948,
+              "borrowed_from": "1500-2000",
+              "thin": false,
+              "priced_mse": 1.4337627266922393
+            },
+            "2000-2400": {
+              "n_2025": 95,
+              "sum_g": 2881760.2152501973,
+              "per_row_gain": 30334.318055265234,
+              "n_2026": 47,
+              "per_row_gain_used": 30334.318055265234,
+              "borrowed_from": "2000-2400",
+              "thin": false,
+              "priced_mse": 4.134406722511146
+            },
+            ">=2400": {
+              "n_2025": 33,
+              "sum_g": -475906.1352973182,
+              "per_row_gain": -14421.398039312673,
+              "n_2026": 185,
+              "per_row_gain_used": -14421.398039312673,
+              "borrowed_from": ">=2400",
+              "thin": false,
+              "priced_mse": -7.7367790873847495
+            }
+          },
+          "passes": false,
+          "c2_min_mse": 300.0,
+          "rule": "event-excluded (decisional)",
+          "excluded_airport_month": {
+            "ADEP_mvt": "LTFM",
+            "month": 2,
+            "sum_g": 184592469.82794896,
+            "n": 364,
+            "n_rows_kept": 20367,
+            "n_rows_dropped": 364,
+            "sum_g_kept": 259602942.55511373
+          }
+        },
+        "C3_months": {
+          "months_positive": 12,
+          "n_months": 12,
+          "per_month": {
+            "1": {
+              "sum_g": 81079986.55362642,
+              "n": 1348
+            },
+            "10": {
+              "sum_g": 12047178.13181496,
+              "n": 1787
+            },
+            "11": {
+              "sum_g": 25481997.558792584,
+              "n": 1295
+            },
+            "12": {
+              "sum_g": 43597124.97533953,
+              "n": 1543
+            },
+            "2": {
+              "sum_g": 190857706.97266245,
+              "n": 1025
+            },
+            "3": {
+              "sum_g": 9324456.64374762,
+              "n": 1001
+            },
+            "4": {
+              "sum_g": 26579.662850684952,
+              "n": 994
+            },
+            "5": {
+              "sum_g": 17114208.556962598,
+              "n": 1492
+            },
+            "6": {
+              "sum_g": 20851952.37589107,
+              "n": 2285
+            },
+            "7": {
+              "sum_g": 16171551.837847028,
+              "n": 3576
+            },
+            "8": {
+              "sum_g": 12913752.984315164,
+              "n": 2100
+            },
+            "9": {
+              "sum_g": 14728916.12921257,
+              "n": 2285
+            }
+          },
+          "passes": true
+        },
+        "C4_airports": {
+          "airports_positive": 8,
+          "n_airports": 9,
+          "per_airport": {
+            "EDDF": {
+              "sum_g": 22432746.252539203,
+              "n": 1956
+            },
+            "EDDM": {
+              "sum_g": 34355073.072573826,
+              "n": 1010
+            },
+            "EGLL": {
+              "sum_g": -7228555.981961761,
+              "n": 1414
+            },
+            "EHAM": {
+              "sum_g": 24969963.783688277,
+              "n": 4083
+            },
+            "LEBL": {
+              "sum_g": 20284737.974226266,
+              "n": 1862
+            },
+            "LEMD": {
+              "sum_g": 14820968.497398604,
+              "n": 947
+            },
+            "LFPG": {
+              "sum_g": 111109638.9254212,
+              "n": 3762
+            },
+            "LSZH": {
+              "sum_g": 22979065.335359078,
+              "n": 2054
+            },
+            "LTFM": {
+              "sum_g": 200471774.52381805,
+              "n": 3643
+            }
+          },
+          "passes": true
+        },
+        "C5_calm_control": {
+          "calm_sum_g": 206509831.15944752,
+          "n_calm": 13729,
+          "pooled_sum_g": 444195412.38306266,
+          "bound": -44419541.23830627,
+          "passes": true
+        },
+        "C6_not_the_monsters": {
+          "exmonster_sum_g": 396207745.4130158,
+          "n_exmonster": 20725,
+          "passes": true
+        },
+        "C7_seeds": {
+          "pooled_sum_g": 444195412.38306266,
+          "per_seed_sum_g": {
+            "0": 380568560.19824266,
+            "1": 438914380.1795057,
+            "2": 485898705.14328295
+          },
+          "seed_sd": 52767099.81249518,
+          "passes": true
+        },
+        "pooled_sum_g": 444195412.38306266,
+        "n_rows": 20731,
+        "verdict": "INCONCLUSIVE",
+        "C2_full_price_not_decisional": {
+          "priced_mse": 332.9519749961679,
+          "n_scored_2026": 344841,
+          "thin_threshold": 30,
+          "bins": {
+            "NaN": {
+              "n_2025": 333,
+              "sum_g": 129397879.45018949,
+              "per_row_gain": 388582.2205711396,
+              "n_2026": 117,
+              "per_row_gain_used": 388582.2205711396,
+              "borrowed_from": "NaN",
+              "thin": false,
+              "priced_mse": 131.8408188319351
+            },
+            "<900": {
+              "n_2025": 8843,
+              "sum_g": 142831363.02665144,
+              "per_row_gain": 16151.91258924024,
+              "n_2026": 1692,
+              "per_row_gain_used": 16151.91258924024,
+              "borrowed_from": "<900",
+              "thin": false,
+              "priced_mse": 79.25112182424505
+            },
+            "900-1100": {
+              "n_2025": 4886,
+              "sum_g": 63678468.13279606,
+              "per_row_gain": 13032.842434055681,
+              "n_2026": 1207,
+              "per_row_gain_used": 13032.842434055681,
+              "borrowed_from": "900-1100",
+              "thin": false,
+              "priced_mse": 45.617083867362666
+            },
+            "1100-1300": {
+              "n_2025": 3663,
+              "sum_g": 22078525.81236486,
+              "per_row_gain": 6027.443574219182,
+              "n_2026": 937,
+              "per_row_gain_used": 6027.443574219182,
+              "borrowed_from": "1100-1300",
+              "thin": false,
+              "priced_mse": 16.377735330321432
+            },
+            "1300-1500": {
+              "n_2025": 1886,
+              "sum_g": 25971745.15642976,
+              "per_row_gain": 13770.808672550244,
+              "n_2026": 443,
+              "per_row_gain_used": 13770.808672550244,
+              "borrowed_from": "1300-1500",
+              "thin": false,
+              "priced_mse": 17.690669734572623
+            },
+            "1500-2000": {
+              "n_2025": 819,
+              "sum_g": 972227.1161706559,
+              "per_row_gain": 1187.0904959348668,
+              "n_2026": 279,
+              "per_row_gain_used": 1187.0904959348668,
+              "borrowed_from": "1500-2000",
+              "thin": false,
+              "priced_mse": 0.9604375592398463
+            },
+            "2000-2400": {
+              "n_2025": 203,
+              "sum_g": 58968859.34413631,
+              "per_row_gain": 290486.991843036,
+              "n_2026": 47,
+              "per_row_gain_used": 290486.991843036,
+              "borrowed_from": "2000-2400",
+              "thin": false,
+              "priced_mse": 39.59183686575174
+            },
+            ">=2400": {
+              "n_2025": 98,
+              "sum_g": 296344.34432413965,
+              "per_row_gain": 3023.921880858568,
+              "n_2026": 185,
+              "per_row_gain_used": 3023.921880858568,
+              "borrowed_from": ">=2400",
+              "thin": false,
+              "priced_mse": 1.622270982739393
+            }
+          },
+          "rule": "full price (reported, not decisional)"
+        },
+        "airport_month_top": [
+          {
+            "ADEP_mvt": "LTFM",
+            "month": 2,
+            "sum_g": 184592469.82794896,
+            "n": 364,
+            "abs_sum_g": 184592469.82794896
+          },
+          {
+            "ADEP_mvt": "LFPG",
+            "month": 1,
+            "sum_g": 43532400.29868586,
+            "n": 215,
+            "abs_sum_g": 43532400.29868586
+          },
+          {
+            "ADEP_mvt": "EDDM",
+            "month": 12,
+            "sum_g": 26834302.812937506,
+            "n": 130,
+            "abs_sum_g": 26834302.812937506
+          },
+          {
+            "ADEP_mvt": "LFPG",
+            "month": 11,
+            "sum_g": 22400890.503541686,
+            "n": 372,
+            "abs_sum_g": 22400890.503541686
+          },
+          {
+            "ADEP_mvt": "EHAM",
+            "month": 1,
+            "sum_g": 21101513.548699256,
+            "n": 293,
+            "abs_sum_g": 21101513.548699256
+          },
+          {
+            "ADEP_mvt": "LFPG",
+            "month": 12,
+            "sum_g": 14385390.272090117,
+            "n": 313,
+            "abs_sum_g": 14385390.272090117
+          },
+          {
+            "ADEP_mvt": "EGLL",
+            "month": 7,
+            "sum_g": -13401563.081591891,
+            "n": 338,
+            "abs_sum_g": 13401563.081591891
+          },
+          {
+            "ADEP_mvt": "LSZH",
+            "month": 5,
+            "sum_g": 12051081.140087454,
+            "n": 213,
+            "abs_sum_g": 12051081.140087454
+          },
+          {
+            "ADEP_mvt": "LFPG",
+            "month": 6,
+            "sum_g": 11906256.073021287,
+            "n": 452,
+            "abs_sum_g": 11906256.073021287
+          },
+          {
+            "ADEP_mvt": "LSZH",
+            "month": 1,
+            "sum_g": 10116858.650312029,
+            "n": 153,
+            "abs_sum_g": 10116858.650312029
+          },
+          {
+            "ADEP_mvt": "LFPG",
+            "month": 7,
+            "sum_g": 10113174.346345348,
+            "n": 661,
+            "abs_sum_g": 10113174.346345348
+          },
+          {
+            "ADEP_mvt": "EDDF",
+            "month": 7,
+            "sum_g": 6631271.531725719,
+            "n": 435,
+            "abs_sum_g": 6631271.531725719
+          }
+        ],
+        "treatment": "E5_fog15",
+        "control": "S1C",
+        "decisional": false
+      },
+      "E5_lt3": {
+        "C1_date_block_bootstrap": {
+          "sum_g": 410818897.2952505,
+          "ci95": [
+            186699749.65451604,
+            757158682.91749
+          ],
+          "n_blocks": 365,
+          "n_draws": 2000,
+          "seed": 0,
+          "passes": true
+        },
+        "C2_priced_2026": {
+          "priced_mse": 183.91824615964853,
+          "n_scored_2026": 344841,
+          "thin_threshold": 30,
+          "bins": {
+            "NaN": {
+              "n_2025": 313,
+              "sum_g": 3148326.1900339914,
+              "per_row_gain": 10058.550127904125,
+              "n_2026": 117,
+              "per_row_gain_used": 10058.550127904125,
+              "borrowed_from": "NaN",
+              "thin": false,
+              "priced_mse": 3.4127333030723803
+            },
+            "<900": {
+              "n_2025": 8843,
+              "sum_g": 149611133.8694105,
+              "per_row_gain": 16918.59480599463,
+              "n_2026": 1692,
+              "per_row_gain_used": 16918.59480599463,
+              "borrowed_from": "<900",
+              "thin": false,
+              "priced_mse": 83.01293179100779
+            },
+            "900-1100": {
+              "n_2025": 4879,
+              "sum_g": 61880438.55765062,
+              "per_row_gain": 12683.016716058746,
+              "n_2026": 1207,
+              "per_row_gain_used": 12683.016716058746,
+              "borrowed_from": "900-1100",
+              "thin": false,
+              "priced_mse": 44.392636537659115
+            },
+            "1100-1300": {
+              "n_2025": 3582,
+              "sum_g": 21007017.081977263,
+              "per_row_gain": 5864.605550524082,
+              "n_2026": 937,
+              "per_row_gain_used": 5864.605550524082,
+              "borrowed_from": "1100-1300",
+              "thin": false,
+              "priced_mse": 15.935272780327933
+            },
+            "1300-1500": {
+              "n_2025": 1829,
+              "sum_g": 17654752.65974796,
+              "per_row_gain": 9652.680513804242,
+              "n_2026": 443,
+              "per_row_gain_used": 9652.680513804242,
+              "borrowed_from": "1300-1500",
+              "thin": false,
+              "priced_mse": 12.400316283780871
+            },
+            "1500-2000": {
+              "n_2025": 793,
+              "sum_g": 9618965.090037776,
+              "per_row_gain": 12129.84248428471,
+              "n_2026": 279,
+              "per_row_gain_used": 12129.84248428471,
+              "borrowed_from": "1500-2000",
+              "thin": false,
+              "priced_mse": 9.81387379434416
+            },
+            "2000-2400": {
+              "n_2025": 95,
+              "sum_g": 4438762.050727831,
+              "per_row_gain": 46723.81106029296,
+              "n_2026": 47,
+              "per_row_gain_used": 46723.81106029296,
+              "borrowed_from": "2000-2400",
+              "thin": false,
+              "priced_mse": 6.368207724237458
+            },
+            ">=2400": {
+              "n_2025": 33,
+              "sum_g": 527914.3658104085,
+              "per_row_gain": 15997.405024557833,
+              "n_2026": 185,
+              "per_row_gain_used": 15997.405024557833,
+              "borrowed_from": ">=2400",
+              "thin": false,
+              "priced_mse": 8.582273945218809
+            }
+          },
+          "passes": false,
+          "c2_min_mse": 300.0,
+          "rule": "event-excluded (decisional)",
+          "excluded_airport_month": {
+            "ADEP_mvt": "LTFM",
+            "month": 2,
+            "sum_g": 142931587.42985415,
+            "n": 364,
+            "n_rows_kept": 20367,
+            "n_rows_dropped": 364,
+            "sum_g_kept": 267887309.86539632
+          }
+        },
+        "C3_months": {
+          "months_positive": 11,
+          "n_months": 12,
+          "per_month": {
+            "1": {
+              "sum_g": 91867963.21490397,
+              "n": 1348
+            },
+            "10": {
+              "sum_g": 12101436.704811588,
+              "n": 1787
+            },
+            "11": {
+              "sum_g": 30824447.622959517,
+              "n": 1295
+            },
+            "12": {
+              "sum_g": 36023813.357898965,
+              "n": 1543
+            },
+            "2": {
+              "sum_g": 152150840.91427553,
+              "n": 1025
+            },
+            "3": {
+              "sum_g": 11294142.595923897,
+              "n": 1001
+            },
+            "4": {
+              "sum_g": -498066.0162688263,
+              "n": 994
+            },
+            "5": {
+              "sum_g": 12036108.95971647,
+              "n": 1492
+            },
+            "6": {
+              "sum_g": 20334713.1668345,
+              "n": 2285
+            },
+            "7": {
+              "sum_g": 15920241.354906641,
+              "n": 3576
+            },
+            "8": {
+              "sum_g": 12627466.758640872,
+              "n": 2100
+            },
+            "9": {
+              "sum_g": 16135788.660647413,
+              "n": 2285
+            }
+          },
+          "passes": true
+        },
+        "C4_airports": {
+          "airports_positive": 8,
+          "n_airports": 9,
+          "per_airport": {
+            "EDDF": {
+              "sum_g": 20219208.54846681,
+              "n": 1956
+            },
+            "EDDM": {
+              "sum_g": 38303189.775613666,
+              "n": 1010
+            },
+            "EGLL": {
+              "sum_g": -3975648.227868134,
+              "n": 1414
+            },
+            "EHAM": {
+              "sum_g": 27757766.75846358,
+              "n": 4083
+            },
+            "LEBL": {
+              "sum_g": 19403356.898928966,
+              "n": 1862
+            },
+            "LEMD": {
+              "sum_g": 15544488.434156977,
+              "n": 947
+            },
+            "LFPG": {
+              "sum_g": 115073100.5959265,
+              "n": 3762
+            },
+            "LSZH": {
+              "sum_g": 18497285.409744184,
+              "n": 2054
+            },
+            "LTFM": {
+              "sum_g": 159996149.101818,
+              "n": 3643
+            }
+          },
+          "passes": true
+        },
+        "C5_calm_control": {
+          "calm_sum_g": 211514469.43572682,
+          "n_calm": 13729,
+          "pooled_sum_g": 410818897.2952505,
+          "bound": -41081889.72952505,
+          "passes": true
+        },
+        "C6_not_the_monsters": {
+          "exmonster_sum_g": 356328595.7801689,
+          "n_exmonster": 20725,
+          "passes": true
+        },
+        "C7_seeds": {
+          "pooled_sum_g": 410818897.2952505,
+          "per_seed_sum_g": {
+            "0": 332028693.4789344,
+            "1": 460514638.96015704,
+            "2": 411008161.67161214
+          },
+          "seed_sd": 64803916.90286825,
+          "passes": true
+        },
+        "pooled_sum_g": 410818897.2952505,
+        "n_rows": 20731,
+        "verdict": "INCONCLUSIVE",
+        "C2_full_price_not_decisional": {
+          "priced_mse": 187.2410774752163,
+          "n_scored_2026": 344841,
+          "thin_threshold": 30,
+          "bins": {
+            "NaN": {
+              "n_2025": 333,
+              "sum_g": 132327849.43145338,
+              "per_row_gain": 397380.9292235837,
+              "n_2026": 117,
+              "per_row_gain_used": 397380.9292235837,
+              "borrowed_from": "NaN",
+              "thin": false,
+              "priced_mse": 134.82610455009495
+            },
+            "<900": {
+              "n_2025": 8843,
+              "sum_g": 149611133.8694105,
+              "per_row_gain": 16918.59480599463,
+              "n_2026": 1692,
+              "per_row_gain_used": 16918.59480599463,
+              "borrowed_from": "<900",
+              "thin": false,
+              "priced_mse": 83.01293179100779
+            },
+            "900-1100": {
+              "n_2025": 4886,
+              "sum_g": 61903335.5663163,
+              "per_row_gain": 12669.532453196132,
+              "n_2026": 1207,
+              "per_row_gain_used": 12669.532453196132,
+              "borrowed_from": "900-1100",
+              "thin": false,
+              "priced_mse": 44.34543940832944
+            },
+            "1100-1300": {
+              "n_2025": 3663,
+              "sum_g": 22123093.635460697,
+              "per_row_gain": 6039.610602091372,
+              "n_2026": 937,
+              "per_row_gain_used": 6039.610602091372,
+              "borrowed_from": "1100-1300",
+              "thin": false,
+              "priced_mse": 16.41079550911758
+            },
+            "1300-1500": {
+              "n_2025": 1886,
+              "sum_g": 18566503.202335633,
+              "per_row_gain": 9844.381337399593,
+              "n_2026": 443,
+              "per_row_gain_used": 9844.381337399593,
+              "borrowed_from": "1300-1500",
+              "thin": false,
+              "priced_mse": 12.646584752010403
+            },
+            "1500-2000": {
+              "n_2025": 819,
+              "sum_g": 4414775.037279861,
+              "per_row_gain": 5390.445710964421,
+              "n_2026": 279,
+              "per_row_gain_used": 5390.445710964421,
+              "borrowed_from": "1500-2000",
+              "thin": false,
+              "priced_mse": 4.361239972506382
+            },
+            "2000-2400": {
+              "n_2025": 203,
+              "sum_g": 47491671.39821039,
+              "per_row_gain": 233949.12018822852,
+              "n_2026": 47,
+              "per_row_gain_used": 233949.12018822852,
+              "borrowed_from": "2000-2400",
+              "thin": false,
+              "priced_mse": 31.88602471529412
+            },
+            ">=2400": {
+              "n_2025": 98,
+              "sum_g": -25619464.845216263,
+              "per_row_gain": -261423.11066547208,
+              "n_2026": 185,
+              "per_row_gain_used": -261423.11066547208,
+              "borrowed_from": ">=2400",
+              "thin": false,
+              "priced_mse": -140.2480432231444
+            }
+          },
+          "rule": "full price (reported, not decisional)"
+        },
+        "airport_month_top": [
+          {
+            "ADEP_mvt": "LTFM",
+            "month": 2,
+            "sum_g": 142931587.42985415,
+            "n": 364,
+            "abs_sum_g": 142931587.42985415
+          },
+          {
+            "ADEP_mvt": "LFPG",
+            "month": 1,
+            "sum_g": 53663563.21557362,
+            "n": 215,
+            "abs_sum_g": 53663563.21557362
+          },
+          {
+            "ADEP_mvt": "EDDM",
+            "month": 12,
+            "sum_g": 29296418.763152655,
+            "n": 130,
+            "abs_sum_g": 29296418.763152655
+          },
+          {
+            "ADEP_mvt": "LFPG",
+            "month": 11,
+            "sum_g": 27088921.908695783,
+            "n": 372,
+            "abs_sum_g": 27088921.908695783
+          },
+          {
+            "ADEP_mvt": "EHAM",
+            "month": 1,
+            "sum_g": 20789429.64929076,
+            "n": 293,
+            "abs_sum_g": 20789429.64929076
+          },
+          {
+            "ADEP_mvt": "LFPG",
+            "month": 6,
+            "sum_g": 11595384.42583909,
+            "n": 452,
+            "abs_sum_g": 11595384.42583909
+          },
+          {
+            "ADEP_mvt": "EGLL",
+            "month": 7,
+            "sum_g": -11444883.870438058,
+            "n": 338,
+            "abs_sum_g": 11444883.870438058
+          },
+          {
+            "ADEP_mvt": "LSZH",
+            "month": 1,
+            "sum_g": 10510153.463327972,
+            "n": 153,
+            "abs_sum_g": 10510153.463327972
+          },
+          {
+            "ADEP_mvt": "LFPG",
+            "month": 7,
+            "sum_g": 8535473.669848194,
+            "n": 661,
+            "abs_sum_g": 8535473.669848194
+          },
+          {
+            "ADEP_mvt": "LSZH",
+            "month": 5,
+            "sum_g": 7591560.3199184025,
+            "n": 213,
+            "abs_sum_g": 7591560.3199184025
+          },
+          {
+            "ADEP_mvt": "EDDF",
+            "month": 7,
+            "sum_g": 6312432.215708431,
+            "n": 435,
+            "abs_sum_g": 6312432.215708431
+          },
+          {
+            "ADEP_mvt": "LTFM",
+            "month": 7,
+            "sum_g": 5731062.62476385,
+            "n": 425,
+            "abs_sum_g": 5731062.62476385
+          }
+        ],
+        "treatment": "E5_lt3",
+        "control": "S1C",
+        "decisional": false
+      }
+    },
+    "attribution_E5w_vs_E5": {
+      "sum_g_E5": 450205168.91033405,
+      "sum_g_E5w": 38598587.14986637,
+      "sum_physics_increment": 411606581.76046765,
+      "weather_share": 0.08573554862395179,
+      "per_month": {
+        "1": {
+          "n": 1348,
+          "mean_y": 1150.746290801187,
+          "sum_g_E5": 81350563.42483945,
+          "sum_g_E5w": 3678669.543493472,
+          "sum_physics_increment": 77671893.88134597,
+          "rmse_S1C": 2837.6601079124202,
+          "rmse_E5w": 2837.1792161752237,
+          "rmse_E5": 2827.006509610148
+        },
+        "10": {
+          "n": 1787,
+          "mean_y": 978.3245663122552,
+          "sum_g_E5": 12737167.719023205,
+          "sum_g_E5w": -1520107.1569543318,
+          "sum_physics_increment": 14257274.875977537,
+          "rmse_S1C": 458.67274746813524,
+          "rmse_E5w": 459.59910445042453,
+          "rmse_E5": 450.8358983913646
+        },
+        "11": {
+          "n": 1295,
+          "mean_y": 1072.2355212355212,
+          "sum_g_E5": 25955392.202844664,
+          "sum_g_E5w": -683056.8327227766,
+          "sum_physics_increment": 26638449.035567444,
+          "rmse_S1C": 495.6426324624546,
+          "rmse_E5w": 496.17444122808,
+          "rmse_E5": 474.99352123213356
+        },
+        "12": {
+          "n": 1543,
+          "mean_y": 1068.5904082955283,
+          "sum_g_E5": 46420641.49155475,
+          "sum_g_E5w": 28039253.082112998,
+          "sum_physics_increment": 18381388.409441754,
+          "rmse_S1C": 567.0037682093784,
+          "rmse_E5w": 550.7461899886572,
+          "rmse_E5": 539.8227542095347
+        },
+        "2": {
+          "n": 1025,
+          "mean_y": 1744.208780487805,
+          "sum_g_E5": 192936683.82836315,
+          "sum_g_E5w": 11947086.305109581,
+          "sum_physics_increment": 180989597.5232536,
+          "rmse_S1C": 1653.0735333186842,
+          "rmse_E5w": 1649.5443045285308,
+          "rmse_E5": 1595.1241943832013
+        },
+        "3": {
+          "n": 1001,
+          "mean_y": 894.077922077922,
+          "sum_g_E5": 12114165.859187927,
+          "sum_g_E5w": 3244893.630479493,
+          "sum_physics_increment": 8869272.228708433,
+          "rmse_S1C": 489.22427614072086,
+          "rmse_E5w": 485.8999283668514,
+          "rmse_E5": 476.6952155938003
+        },
+        "4": {
+          "n": 994,
+          "mean_y": 824.3742454728371,
+          "sum_g_E5": 103600.76214005484,
+          "sum_g_E5w": 175634.8394186804,
+          "sum_physics_increment": -72034.07727862487,
+          "rmse_S1C": 388.5688486901239,
+          "rmse_E5w": 388.34141571932923,
+          "rmse_E5": 388.4347101554073
+        },
+        "5": {
+          "n": 1492,
+          "mean_y": 993.6963806970509,
+          "sum_g_E5": 12010827.15045708,
+          "sum_g_E5w": 11921437.41441875,
+          "sum_physics_increment": 89389.73603833234,
+          "rmse_S1C": 2275.9373365196934,
+          "rmse_E5w": 2274.18128569612,
+          "rmse_E5": 2274.168113293022
+        },
+        "6": {
+          "n": 2285,
+          "mean_y": 921.1045951859957,
+          "sum_g_E5": 20043516.805018485,
+          "sum_g_E5w": -3185754.8085175604,
+          "sum_physics_increment": 23229271.61353605,
+          "rmse_S1C": 439.96427924337047,
+          "rmse_E5w": 441.54588711416255,
+          "rmse_E5": 429.8799683943886
+        },
+        "7": {
+          "n": 3576,
+          "mean_y": 1058.851230425056,
+          "sum_g_E5": 19357954.337580264,
+          "sum_g_E5w": -18101183.467543557,
+          "sum_physics_increment": 37459137.80512382,
+          "rmse_S1C": 586.1493601047533,
+          "rmse_E5w": 590.4514582514873,
+          "rmse_E5": 581.5133482202933
+        },
+        "8": {
+          "n": 2100,
+          "mean_y": 938.5680952380952,
+          "sum_g_E5": 11703197.397606824,
+          "sum_g_E5w": -1382006.153630916,
+          "sum_physics_increment": 13085203.551237738,
+          "rmse_S1C": 397.2614653819709,
+          "rmse_E5w": 398.0888971647244,
+          "rmse_E5": 390.18421384739963
+        },
+        "9": {
+          "n": 2285,
+          "mean_y": 966.1045951859957,
+          "sum_g_E5": 15471457.931718133,
+          "sum_g_E5w": 4463720.754202537,
+          "sum_physics_increment": 11007737.177515592,
+          "rmse_S1C": 383.13999155391025,
+          "rmse_E5w": 380.5821394034073,
+          "rmse_E5": 374.1996450869455
+        }
+      },
+      "per_airport": {
+        "EDDF": {
+          "n": 1956,
+          "mean_y": 974.7658486707567,
+          "sum_g_E5": 21829306.212863326,
+          "sum_g_E5w": 299703.981643802,
+          "sum_physics_increment": 21529602.231219526,
+          "rmse_S1C": 356.7892674453313,
+          "rmse_E5w": 356.5744781524264,
+          "rmse_E5": 340.7908513498195
+        },
+        "EDDM": {
+          "n": 1010,
+          "mean_y": 1035.6079207920793,
+          "sum_g_E5": 38707846.650503166,
+          "sum_g_E5w": 21922429.62705451,
+          "sum_physics_increment": 16785417.023448654,
+          "rmse_S1C": 622.2083079327863,
+          "rmse_E5w": 604.5145180987882,
+          "rmse_E5": 590.6086503062062
+        },
+        "EGLL": {
+          "n": 1414,
+          "mean_y": 1568.171145685997,
+          "sum_g_E5": -1703121.9911269173,
+          "sum_g_E5w": -18758772.742974263,
+          "sum_physics_increment": 17055650.75184734,
+          "rmse_S1C": 898.8571964841753,
+          "rmse_E5w": 906.2067746774086,
+          "rmse_E5": 899.5269482730127
+        },
+        "EHAM": {
+          "n": 4083,
+          "mean_y": 600.3208425177565,
+          "sum_g_E5": 28332064.8216658,
+          "sum_g_E5w": 24153095.06878193,
+          "sum_physics_increment": 4178969.7528838655,
+          "rmse_S1C": 350.5368116320033,
+          "rmse_E5w": 341.9949264516753,
+          "rmse_E5": 340.49526428910866
+        },
+        "LEBL": {
+          "n": 1862,
+          "mean_y": 1043.4414607948443,
+          "sum_g_E5": 19334595.02315616,
+          "sum_g_E5w": 820883.2871536523,
+          "sum_physics_increment": 18513711.736002505,
+          "rmse_S1C": 330.3194133527937,
+          "rmse_E5w": 329.6514125273245,
+          "rmse_E5": 314.2087469021333
+        },
+        "LEMD": {
+          "n": 947,
+          "mean_y": 1116.0950369588172,
+          "sum_g_E5": 14688689.26693825,
+          "sum_g_E5w": 847619.9726619149,
+          "sum_physics_increment": 13841069.294276334,
+          "rmse_S1C": 322.4701830027848,
+          "rmse_E5w": 321.0793685003384,
+          "rmse_E5": 297.44959136678506
+        },
+        "LFPG": {
+          "n": 3762,
+          "mean_y": 1187.2567783094098,
+          "sum_g_E5": 112117733.23657465,
+          "sum_g_E5w": -7239778.231940865,
+          "sum_physics_increment": 119357511.4685155,
+          "rmse_S1C": 1738.7478294813654,
+          "rmse_E5w": 1739.3011423606167,
+          "rmse_E5": 1730.1564440677573
+        },
+        "LSZH": {
+          "n": 2054,
+          "mean_y": 759.4722492697176,
+          "sum_g_E5": 15789586.225477329,
+          "sum_g_E5w": 14486137.841564452,
+          "sum_physics_increment": 1303448.3839128718,
+          "rmse_S1C": 1993.1475336939889,
+          "rmse_E5w": 1991.3775241351218,
+          "rmse_E5": 1991.2181832675842
+        },
+        "LTFM": {
+          "n": 3643,
+          "mean_y": 1302.2297556958551,
+          "sum_g_E5": 201108469.4642823,
+          "sum_g_E5w": 2067268.3459212398,
+          "sum_physics_increment": 199041201.11836106,
+          "rmse_S1C": 934.6507513584044,
+          "rmse_E5w": 934.3471324085045,
+          "rmse_E5": 904.6369135521554
+        }
+      }
+    },
+    "sensitivities": {
+      "E5_fog15": {
+        "sum_g_vs_S1C": 444195412.38306266,
+        "sum_se_E5_minus_variant": -6009756.52727133,
+        "n_rows_condition_differs": 20,
+        "sum_se_E5_minus_variant_on_those_rows": 366003.4508614886,
+        "rmse": 1095.0058977003896
+      },
+      "E5_lt3": {
+        "sum_g_vs_S1C": 410818897.2952505,
+        "sum_se_E5_minus_variant": -39386271.61508353,
+        "n_rows_condition_differs": 98,
+        "sum_se_E5_minus_variant_on_those_rows": -13862048.447114922,
+        "rmse": 1095.7407982498783
+      }
+    },
+    "cuts": {
+      "per_month": {
+        "1": {
+          "n": 1348,
+          "mean_y": 1150.746290801187,
+          "sum_g_E5": 81350563.42483945,
+          "sum_g_E5w": 3678669.543493472,
+          "sum_physics_increment": 77671893.88134597,
+          "rmse_S1C": 2837.6601079124202,
+          "rmse_E5w": 2837.1792161752237,
+          "rmse_E5": 2827.006509610148
+        },
+        "10": {
+          "n": 1787,
+          "mean_y": 978.3245663122552,
+          "sum_g_E5": 12737167.719023205,
+          "sum_g_E5w": -1520107.1569543318,
+          "sum_physics_increment": 14257274.875977537,
+          "rmse_S1C": 458.67274746813524,
+          "rmse_E5w": 459.59910445042453,
+          "rmse_E5": 450.8358983913646
+        },
+        "11": {
+          "n": 1295,
+          "mean_y": 1072.2355212355212,
+          "sum_g_E5": 25955392.202844664,
+          "sum_g_E5w": -683056.8327227766,
+          "sum_physics_increment": 26638449.035567444,
+          "rmse_S1C": 495.6426324624546,
+          "rmse_E5w": 496.17444122808,
+          "rmse_E5": 474.99352123213356
+        },
+        "12": {
+          "n": 1543,
+          "mean_y": 1068.5904082955283,
+          "sum_g_E5": 46420641.49155475,
+          "sum_g_E5w": 28039253.082112998,
+          "sum_physics_increment": 18381388.409441754,
+          "rmse_S1C": 567.0037682093784,
+          "rmse_E5w": 550.7461899886572,
+          "rmse_E5": 539.8227542095347
+        },
+        "2": {
+          "n": 1025,
+          "mean_y": 1744.208780487805,
+          "sum_g_E5": 192936683.82836315,
+          "sum_g_E5w": 11947086.305109581,
+          "sum_physics_increment": 180989597.5232536,
+          "rmse_S1C": 1653.0735333186842,
+          "rmse_E5w": 1649.5443045285308,
+          "rmse_E5": 1595.1241943832013
+        },
+        "3": {
+          "n": 1001,
+          "mean_y": 894.077922077922,
+          "sum_g_E5": 12114165.859187927,
+          "sum_g_E5w": 3244893.630479493,
+          "sum_physics_increment": 8869272.228708433,
+          "rmse_S1C": 489.22427614072086,
+          "rmse_E5w": 485.8999283668514,
+          "rmse_E5": 476.6952155938003
+        },
+        "4": {
+          "n": 994,
+          "mean_y": 824.3742454728371,
+          "sum_g_E5": 103600.76214005484,
+          "sum_g_E5w": 175634.8394186804,
+          "sum_physics_increment": -72034.07727862487,
+          "rmse_S1C": 388.5688486901239,
+          "rmse_E5w": 388.34141571932923,
+          "rmse_E5": 388.4347101554073
+        },
+        "5": {
+          "n": 1492,
+          "mean_y": 993.6963806970509,
+          "sum_g_E5": 12010827.15045708,
+          "sum_g_E5w": 11921437.41441875,
+          "sum_physics_increment": 89389.73603833234,
+          "rmse_S1C": 2275.9373365196934,
+          "rmse_E5w": 2274.18128569612,
+          "rmse_E5": 2274.168113293022
+        },
+        "6": {
+          "n": 2285,
+          "mean_y": 921.1045951859957,
+          "sum_g_E5": 20043516.805018485,
+          "sum_g_E5w": -3185754.8085175604,
+          "sum_physics_increment": 23229271.61353605,
+          "rmse_S1C": 439.96427924337047,
+          "rmse_E5w": 441.54588711416255,
+          "rmse_E5": 429.8799683943886
+        },
+        "7": {
+          "n": 3576,
+          "mean_y": 1058.851230425056,
+          "sum_g_E5": 19357954.337580264,
+          "sum_g_E5w": -18101183.467543557,
+          "sum_physics_increment": 37459137.80512382,
+          "rmse_S1C": 586.1493601047533,
+          "rmse_E5w": 590.4514582514873,
+          "rmse_E5": 581.5133482202933
+        },
+        "8": {
+          "n": 2100,
+          "mean_y": 938.5680952380952,
+          "sum_g_E5": 11703197.397606824,
+          "sum_g_E5w": -1382006.153630916,
+          "sum_physics_increment": 13085203.551237738,
+          "rmse_S1C": 397.2614653819709,
+          "rmse_E5w": 398.0888971647244,
+          "rmse_E5": 390.18421384739963
+        },
+        "9": {
+          "n": 2285,
+          "mean_y": 966.1045951859957,
+          "sum_g_E5": 15471457.931718133,
+          "sum_g_E5w": 4463720.754202537,
+          "sum_physics_increment": 11007737.177515592,
+          "rmse_S1C": 383.13999155391025,
+          "rmse_E5w": 380.5821394034073,
+          "rmse_E5": 374.1996450869455
+        }
+      },
+      "per_airport": {
+        "EDDF": {
+          "n": 1956,
+          "mean_y": 974.7658486707567,
+          "sum_g_E5": 21829306.212863326,
+          "sum_g_E5w": 299703.981643802,
+          "sum_physics_increment": 21529602.231219526,
+          "rmse_S1C": 356.7892674453313,
+          "rmse_E5w": 356.5744781524264,
+          "rmse_E5": 340.7908513498195
+        },
+        "EDDM": {
+          "n": 1010,
+          "mean_y": 1035.6079207920793,
+          "sum_g_E5": 38707846.650503166,
+          "sum_g_E5w": 21922429.62705451,
+          "sum_physics_increment": 16785417.023448654,
+          "rmse_S1C": 622.2083079327863,
+          "rmse_E5w": 604.5145180987882,
+          "rmse_E5": 590.6086503062062
+        },
+        "EGLL": {
+          "n": 1414,
+          "mean_y": 1568.171145685997,
+          "sum_g_E5": -1703121.9911269173,
+          "sum_g_E5w": -18758772.742974263,
+          "sum_physics_increment": 17055650.75184734,
+          "rmse_S1C": 898.8571964841753,
+          "rmse_E5w": 906.2067746774086,
+          "rmse_E5": 899.5269482730127
+        },
+        "EHAM": {
+          "n": 4083,
+          "mean_y": 600.3208425177565,
+          "sum_g_E5": 28332064.8216658,
+          "sum_g_E5w": 24153095.06878193,
+          "sum_physics_increment": 4178969.7528838655,
+          "rmse_S1C": 350.5368116320033,
+          "rmse_E5w": 341.9949264516753,
+          "rmse_E5": 340.49526428910866
+        },
+        "LEBL": {
+          "n": 1862,
+          "mean_y": 1043.4414607948443,
+          "sum_g_E5": 19334595.02315616,
+          "sum_g_E5w": 820883.2871536523,
+          "sum_physics_increment": 18513711.736002505,
+          "rmse_S1C": 330.3194133527937,
+          "rmse_E5w": 329.6514125273245,
+          "rmse_E5": 314.2087469021333
+        },
+        "LEMD": {
+          "n": 947,
+          "mean_y": 1116.0950369588172,
+          "sum_g_E5": 14688689.26693825,
+          "sum_g_E5w": 847619.9726619149,
+          "sum_physics_increment": 13841069.294276334,
+          "rmse_S1C": 322.4701830027848,
+          "rmse_E5w": 321.0793685003384,
+          "rmse_E5": 297.44959136678506
+        },
+        "LFPG": {
+          "n": 3762,
+          "mean_y": 1187.2567783094098,
+          "sum_g_E5": 112117733.23657465,
+          "sum_g_E5w": -7239778.231940865,
+          "sum_physics_increment": 119357511.4685155,
+          "rmse_S1C": 1738.7478294813654,
+          "rmse_E5w": 1739.3011423606167,
+          "rmse_E5": 1730.1564440677573
+        },
+        "LSZH": {
+          "n": 2054,
+          "mean_y": 759.4722492697176,
+          "sum_g_E5": 15789586.225477329,
+          "sum_g_E5w": 14486137.841564452,
+          "sum_physics_increment": 1303448.3839128718,
+          "rmse_S1C": 1993.1475336939889,
+          "rmse_E5w": 1991.3775241351218,
+          "rmse_E5": 1991.2181832675842
+        },
+        "LTFM": {
+          "n": 3643,
+          "mean_y": 1302.2297556958551,
+          "sum_g_E5": 201108469.4642823,
+          "sum_g_E5w": 2067268.3459212398,
+          "sum_physics_increment": 199041201.11836106,
+          "rmse_S1C": 934.6507513584044,
+          "rmse_E5w": 934.3471324085045,
+          "rmse_E5": 904.6369135521554
+        }
+      },
+      "per_witness_bin": {
+        "1100-1300": {
+          "n": 3663,
+          "mean_y": 1015.4105924105924,
+          "sum_g_E5": 21786508.489312515,
+          "sum_g_E5w": 5182609.978844003,
+          "sum_physics_increment": 16603898.510468515,
+          "rmse_S1C": 439.244635720603,
+          "rmse_E5w": 437.63111871786134,
+          "rmse_E5": 432.4212381972238
+        },
+        "1300-1500": {
+          "n": 1886,
+          "mean_y": 1300.8351007423119,
+          "sum_g_E5": 26707755.627206914,
+          "sum_g_E5w": -1088009.4747625666,
+          "sum_physics_increment": 27795765.10196948,
+          "rmse_S1C": 618.9885635335003,
+          "rmse_E5w": 619.454380160123,
+          "rmse_E5": 607.442000242355
+        },
+        "1500-2000": {
+          "n": 819,
+          "mean_y": 1784.178266178266,
+          "sum_g_E5": 6074293.858208047,
+          "sum_g_E5w": -8157646.329231618,
+          "sum_physics_increment": 14231940.187439667,
+          "rmse_S1C": 1063.5629780645097,
+          "rmse_E5w": 1068.2353225942009,
+          "rmse_E5": 1060.0705109056926
+        },
+        "2000-2400": {
+          "n": 203,
+          "mean_y": 3779.5467980295566,
+          "sum_g_E5": 64769432.234136716,
+          "sum_g_E5w": -27892409.83041869,
+          "sum_physics_increment": 92661842.0645554,
+          "rmse_S1C": 2508.194696692578,
+          "rmse_E5w": 2535.4371753534256,
+          "rmse_E5": 2443.7633670190085
+        },
+        "900-1100": {
+          "n": 4886,
+          "mean_y": 958.7146950470733,
+          "sum_g_E5": 62440073.756822065,
+          "sum_g_E5w": 21463842.608692963,
+          "sum_physics_increment": 40976231.148129106,
+          "rmse_S1C": 423.09236856703853,
+          "rmse_E5w": 417.8686696515114,
+          "rmse_E5": 407.71039674825175
+        },
+        "<900": {
+          "n": 8843,
+          "mean_y": 842.4709940065588,
+          "sum_g_E5": 140129352.87048447,
+          "sum_g_E5w": 14472798.789845658,
+          "sum_physics_increment": 125656554.08063884,
+          "rmse_S1C": 1485.6963692757722,
+          "rmse_E5w": 1485.1454685203232,
+          "rmse_E5": 1480.3537896911023
+        },
+        ">=2400": {
+          "n": 98,
+          "mean_y": 4511.6122448979595,
+          "sum_g_E5": -6585150.97522301,
+          "sum_g_E5w": -35039437.253403954,
+          "sum_physics_increment": 28454286.278180953,
+          "rmse_S1C": 2709.7741508708204,
+          "rmse_E5w": 2774.9632838694706,
+          "rmse_E5": 2722.1446263639627
+        },
+        "NaN": {
+          "n": 333,
+          "mean_y": 1242.2702702702702,
+          "sum_g_E5": 134882903.0493863,
+          "sum_g_E5w": 69656838.6603006,
+          "sum_physics_increment": 65226064.389085725,
+          "rmse_S1C": 1291.3155520282965,
+          "rmse_E5w": 1207.6076180753273,
+          "rmse_E5": 1123.5844836945168
+        }
+      },
+      "per_season": {
+        "DJF": {
+          "n": 3916,
+          "mean_y": 1273.711695607763,
+          "sum_g_E5": 320707888.74475735,
+          "sum_g_E5w": 43665008.93071607,
+          "sum_physics_increment": 277042879.8140413,
+          "rmse_S1C": 1900.9938397725296,
+          "rmse_E5w": 1898.058789393087,
+          "rmse_E5": 1879.3298735879127
+        },
+        "JJA": {
+          "n": 7961,
+          "mean_y": 987.5856048235146,
+          "sum_g_E5": 51104668.540205576,
+          "sum_g_E5w": -22668944.42969203,
+          "sum_physics_increment": 73773612.96989761,
+          "rmse_S1C": 501.51501928617745,
+          "rmse_E5w": 504.34592710157415,
+          "rmse_E5": 495.07366778507463
+        },
+        "MAM": {
+          "n": 3487,
+          "mean_y": 916.8325207915113,
+          "sum_g_E5": 24228593.771785066,
+          "sum_g_E5w": 15341965.884316925,
+          "sum_physics_increment": 8886627.88746814,
+          "rmse_S1C": 1525.8086172040878,
+          "rmse_E5w": 1524.3661553385068,
+          "rmse_E5": 1523.5300040157226
+        },
+        "SON": {
+          "n": 5367,
+          "mean_y": 995.7816284702814,
+          "sum_g_E5": 54164017.853586,
+          "sum_g_E5w": 2260556.7645254284,
+          "sum_physics_increment": 51903461.089060575,
+          "rmse_S1C": 437.9754919613032,
+          "rmse_E5w": 437.49438392120845,
+          "rmse_E5": 426.29858580550433
+        }
+      },
+      "deice_airport_x_deicing_condition": {
+        "deice_apt|0": {
+          "n": 8540,
+          "mean_y": 732.1162763466042,
+          "sum_g_E5": 40814362.19928329,
+          "sum_g_E5w": 16488173.138019813,
+          "sum_physics_increment": 24326189.06126347,
+          "rmse_S1C": 1021.6416966150565,
+          "rmse_E5w": 1020.6963587824785,
+          "rmse_E5": 1019.3000328371093
+        },
+        "deice_apt|1": {
+          "n": 563,
+          "mean_y": 1263.5861456483126,
+          "sum_g_E5": 63844441.71122634,
+          "sum_g_E5w": 44373193.38102489,
+          "sum_physics_increment": 19471248.330201443,
+          "rmse_S1C": 830.0208217986706,
+          "rmse_E5w": 781.1011111407636,
+          "rmse_E5": 758.639661032903
+        },
+        "other_apt|0": {
+          "n": 11126,
+          "mean_y": 1150.0076397627179,
+          "sum_g_E5": 104678558.20009053,
+          "sum_g_E5w": -56941419.21494515,
+          "sum_physics_increment": 161619977.41503567,
+          "rmse_S1C": 762.8993956858202,
+          "rmse_E5w": 766.2462774602069,
+          "rmse_E5": 756.7080183532249
+        },
+        "other_apt|1": {
+          "n": 500,
+          "mean_y": 3259.338,
+          "sum_g_E5": 240967804.80074018,
+          "sum_g_E5w": 34502196.02298963,
+          "sum_physics_increment": 206465608.77775052,
+          "rmse_S1C": 4364.294914895007,
+          "rmse_E5w": 4356.38218159661,
+          "rmse_E5": 4308.727711816673
+        },
+        "other_apt|NaN": {
+          "n": 2,
+          "mean_y": 1526.5,
+          "sum_g_E5": -99998.00100627197,
+          "sum_g_E5w": 176443.8227772049,
+          "sum_physics_increment": -276441.8237834769,
+          "rmse_S1C": 671.163058937534,
+          "rmse_E5w": 601.8620608526386,
+          "rmse_E5": 707.4311642736159
+        }
+      },
+      "deice_airport_x_freezing": {
+        "deice_apt|<=0": {
+          "n": 485,
+          "mean_y": 1185.822680412371,
+          "sum_g_E5": 43524168.47809255,
+          "sum_g_E5w": 24604170.288707707,
+          "sum_physics_increment": 18919998.189384844,
+          "rmse_S1C": 779.8901534719388,
+          "rmse_E5w": 746.6581570334112,
+          "rmse_E5": 720.0611765116953
+        },
+        "deice_apt|>0": {
+          "n": 8618,
+          "mean_y": 741.302854490601,
+          "sum_g_E5": 61134635.432417065,
+          "sum_g_E5w": 36257196.23033699,
+          "sum_physics_increment": 24877439.20208007,
+          "rmse_S1C": 1022.2926685227011,
+          "rmse_E5w": 1020.2328914137986,
+          "rmse_E5": 1018.8171912221729
+        },
+        "other_apt|<=0": {
+          "n": 310,
+          "mean_y": 3240.68064516129,
+          "sum_g_E5": 221801908.98354933,
+          "sum_g_E5w": 31943975.703524414,
+          "sum_physics_increment": 189857933.28002486,
+          "rmse_S1C": 5236.562960276653,
+          "rmse_E5w": 5226.714699888142,
+          "rmse_E5": 5167.794656133523
+        },
+        "other_apt|>0": {
+          "n": 11316,
+          "mean_y": 1185.9352244609402,
+          "sum_g_E5": 123844454.0172814,
+          "sum_g_E5w": -54383198.89547995,
+          "sum_physics_increment": 178227652.91276133,
+          "rmse_S1C": 814.0222349298361,
+          "rmse_E5w": 816.9688284508576,
+          "rmse_E5": 807.2719547724749
+        },
+        "other_apt|NaN": {
+          "n": 2,
+          "mean_y": 1526.5,
+          "sum_g_E5": -99998.00100627197,
+          "sum_g_E5w": 176443.8227772049,
+          "sum_physics_increment": -276441.8237834769,
+          "rmse_S1C": 671.163058937534,
+          "rmse_E5w": 601.8620608526386,
+          "rmse_E5": 707.4311642736159
+        }
+      }
+    }
+  },
+  "descriptive": {
+    "non_lirf": {
+      "pooled": {
+        "n": 20731,
+        "S1C": 1104.7463706148817,
+        "E5w": 1103.9033769584034,
+        "E5": 1094.873519514709,
+        "gain_s": 9.872851100172738
+      },
+      "exmonster": {
+        "n": 20725,
+        "S1C": 581.529799056235,
+        "E5w": 579.8005526828966,
+        "E5": 564.4158162046557,
+        "gain_s": 17.113982851579294
+      }
+    },
+    "lirf_report_only": {
+      "n": 1488,
+      "sum_g": 57562328.340982035,
+      "rmse": {
+        "n": 1488,
+        "S1C": 4447.2836688378275,
+        "E5w": 4448.492641962157,
+        "E5": 4442.932327941474,
+        "gain_s": 4.351340896353577
+      }
+    }
+  },
+  "judgement_calls": [
+    "prev_dep_gap is INCLUDED: on an unmatched row it is take-off minus the latest NM off-block of ANOTHER (matched) departure from the same stand; the row's own AOBT_3 (null) is never read -- read as 'computed without [the row's] AOBT_3', the way the registered queue block and the witness read their neighbours' AOBT_3. (On a MATCHED row the same name is ~ its own proxy; only unmatched rows are used here, in training and at serve time.)",
+    "prev_dep_gap < 0 is the builder's 'no earlier matched off-block at this stand in the month' case (it indexes the first LATER off-block); the input does not exist there and is set to NaN (counts in the metadata); nothing else is altered",
+    "the queue and stand-history inputs are built FRESH by stand_ab.build_unmatched_month / build_unmatched_ranking (the current code, the same builder for 2025 and 2026) and cross-checked against data/cache_unmatched (reported, not used)",
+    "weather as-of: pd.merge_asof backward per station, exact matches allowed (valid == MVT_TIME counts), tolerance 3 h inclusive (an observation exactly 3 h old is used, older is NaN); a row with no MVT_TIME or an unknown station reads NaN",
+    "deice_x_airport is the Kleene AND of deicing_condition and the de-icing-airport flag (prc/weather.py's three-valued logic): 0 at the other airports even where the condition is unknown, NaN only at a de-icing airport with an unknown condition",
+    "the two de-icing sensitivities are recomputed from the table's own fields with temperatures compared at 1e-6 C: the F->C conversion stores a reported +3 C as 2.999999999999999, so a literal `< 3` would equal `<= 3` on all such observations; the default rule recomputed this way equals the table's dc_moist_cold and deicing_condition on every observation (a guard); dc_frost is the table's in every variant",
+    "fog15: fog counts as visible moisture only with vis_km <= 1.5 (so it adds nothing beyond the visibility clause); mist kept",
+    "the two NEW encodings (AIRCRAFT_TYPE_mvt, airline|ADEP) and their prior are fitted on the fold's non-fill rows minus the regressor's own early-stopping rows (the split replicated from sklearn 1.8.0 and verified equal in the tests; the release is pinned); an unseen or missing level reads that prior. S1C's five encodings are left exactly as S1C computes them",
+    "E5w is S1C + the whole registered WEATHER block, the de-icing-airport interaction included",
+    "the sensitivity arms are E5 with the variant de-icing condition and the variant interaction; nothing else differs",
+    "the reproduction guard holds S1C (registered) and S1, the per-seed S1C arms, p_hat, nf_cells, nf_fit_c to 1e-6 s",
+    "an input is DROPPED iff it is absent or has no finite (non-null) value on the 2025 unmatched rows, decided once on the full label-free 2025 frame before any fold; ship refuses a 2026 frame where a kept input is NaN on every scored row",
+    "the 2026 witness bin counts are recomputed from data/raw/ranking.parquet and must equal E3C's stored 2026 witness rows",
+    "ship refuses any base but the registered v10 (an amendment would be needed to ship E5 on another base)",
+    "C1 and C3-C7 are unm_congestion.clauses' arithmetic on a renamed view (S1 := S1C, S1C := E5), the view's gains checked equal to E5's on every call; the reported arms are scored by the same function, never decisionally"
+  ],
+  "finished_utc": "2026-09-11T10:05:22.950639+00:00",
+  "wall_s": 0.7,
+  "peak_rss_gb": 0.65
+}

@@ -1,0 +1,27 @@
+{"arm_f_rmse": 222.56316251601282, "n_fold": 339015, "n_pairs_table": 11629}
+d2_four    K1     board    -625.9  95% [   -734.4,    -515.6]  per-row -1581.74
+d2_four    K2     board    -585.9  95% [   -682.0,    -489.2]  per-row -1480.49
+d2_four    NC_K1  board    -585.0  95% [   -678.8,    -490.1]  per-row -1478.34
+d2_four    NC_K2  board    -619.9  95% [   -713.9,    -526.4]  per-row -1566.42
+d2_control K1     board   -1574.3  95% [  -2457.7,    -840.3]  per-row -2673.08
+d2_control K2     board    -119.4  95% [   -166.2,     -65.8]  per-row  -202.82
+d2_control NC_K1  board     -91.9  95% [   -130.6,     -46.8]  per-row  -156.09
+d2_control NC_K2  board    -164.0  95% [   -206.6,    -116.0]  per-row  -278.47
+        2.26 real         2.15 user         0.18 sys
+           944128000  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              104705  page reclaims
+                 216  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  76  voluntary context switches
+                5258  involuntary context switches
+         52002561341  instructions retired
+         10355610088  cycles elapsed
+           899187984  peak memory footprint
