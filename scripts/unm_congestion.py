@@ -206,7 +206,8 @@ def fit_congestion_regressor(train_unmatched_nonfill: pd.DataFrame, seed: int) -
     return CongestionRegressor(frame, seed)
 
 
-def congestion_arms(train_unm: pd.DataFrame, test_unm: pd.DataFrame, train_matched: pd.DataFrame, seeds=SEEDS) -> tuple:
+def congestion_arms(train_unm: pd.DataFrame, test_unm: pd.DataFrame, train_matched: pd.DataFrame, seeds=SEEDS,
+                    drop_ids=None) -> tuple:
     """S1 and its per-seed arms exactly as `stratum_fold.stratum_arms`, plus S1C / S1C_seed* rebuilt from
     S1's OWN parts: p and nf_cells untouched, only the body regressor replaced. `parts` gains
     nf_fit_c and nf_fit_c_by_seed."""
@@ -215,6 +216,8 @@ def congestion_arms(train_unm: pd.DataFrame, test_unm: pd.DataFrame, train_match
         if c not in train_unm.columns or c not in test_unm.columns:
             raise ValueError(f"witness column {c!r} missing from the unmatched frames")
     nonfill = train_unm[~bs.schedule_fill(train_unm)]          # fit_unmatched's `tr[~tr.fill]`, same rows, same order
+    if drop_ids:                                               # arm CLN: named rows leave the BODY's fit only
+        nonfill = nonfill[~nonfill.MVT_ID_mvt.isin(list(drop_ids))]
     by_seed = {int(s): fit_congestion_regressor(nonfill, s).predict(test_unm) for s in seeds}
     nf_fit_c = bs.mean_over_seeds(by_seed)
     arms["S1C"] = bs.mixture(parts["p"], parts["sp"], bs.nf_hybrid(parts["nf_cells"], nf_fit_c))
@@ -224,12 +227,12 @@ def congestion_arms(train_unm: pd.DataFrame, test_unm: pd.DataFrame, train_match
     return arms, parts
 
 
-def _score_split(unm, lirf_matched, tr, te, test_months, seeds, fold_label: str) -> pd.DataFrame:
+def _score_split(unm, lirf_matched, tr, te, test_months, seeds, fold_label: str, drop_ids=None) -> pd.DataFrame:
     if tuple(int(s) for s in seeds) != tuple(SEEDS):
         raise ValueError(f"the harness scores the registered seeds {SEEDS} (every per-seed column is stored), got {tuple(seeds)!r}")
     tr_unm, te_unm = unm[tr], unm[te]
     tr_mat = lirf_matched[~lirf_matched.month.isin(list(test_months))]
-    arms, parts = congestion_arms(tr_unm, te_unm, tr_mat, seeds=seeds)
+    arms, parts = congestion_arms(tr_unm, te_unm, tr_mat, seeds=seeds, drop_ids=drop_ids)
     out = pd.DataFrame({"MVT_ID_mvt": te_unm.MVT_ID_mvt.to_numpy(), "fold": fold_label,
                         "month": te_unm.month.to_numpy().astype("int64"),
                         "date": te_unm.MVT_TIME_UTC_mvt.dt.strftime("%Y-%m-%d").to_numpy(),
@@ -248,13 +251,13 @@ def _score_split(unm, lirf_matched, tr, te, test_months, seeds, fold_label: str)
     return out[PRED_COLUMNS]
 
 
-def score_lomo(unm: pd.DataFrame, lirf_matched: pd.DataFrame, seeds, log) -> pd.DataFrame:
+def score_lomo(unm: pd.DataFrame, lirf_matched: pd.DataFrame, seeds, log, drop_ids=None) -> pd.DataFrame:
     """Out-of-fold predictions for every stratum row, `stratum_fold.score_lomo`'s loop with the S1C arms."""
     month = unm.month.to_numpy()
     parts, scored = [], np.zeros(len(unm), dtype="int64")
     for m, tr, te in sf.lomo_folds(month):
         t = time.time()
-        part = _score_split(unm, lirf_matched, tr, te, [m], seeds, "lomo")
+        part = _score_split(unm, lirf_matched, tr, te, [m], seeds, "lomo", drop_ids=drop_ids)
         scored += te
         parts.append(part)
         d = part.S1C.to_numpy() != part.S1.to_numpy()
