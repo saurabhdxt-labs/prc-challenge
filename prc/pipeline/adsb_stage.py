@@ -30,6 +30,9 @@ REQUIRED_META = ("git_sha", "extractor", "features_version")
 LABEL_COLUMNS = ("y", "delta", "TAXITIME_SEC_mvt", "BLOCK_TIME_UTC_mvt")
 COVERAGE_CODES = (0, 1, 2, 3)
 MIN_COVERAGE = 2
+# largest |resid| ever produced: 2025 fold A |B − F| max 1,237 s (data/adsb/v2/adn_fold_preds.parquet); shipped 2026 v11–v13
+# max 1,045 s (data/adsb/v2/v13_detail.parquet, covered rows). Beyond 3,600 s the predictor is broken, not bold
+MAX_ABS_RESID_S = 3600.0
 
 
 @dataclass(frozen=True)
@@ -114,7 +117,7 @@ def stage_frame(ids, ap, hour, proxy, F, table: pd.DataFrame) -> pd.DataFrame:
 
 def apply_stage(frame: pd.DataFrame, predict_residual, gate: dict) -> tuple:
     """(final taxi seconds, info). resid from the predictor; must be finite, one per row, and exactly 0.0 where coverage < 2
-    or the airport is not gated. value = rint(max(proxy − (F + resid), 1))."""
+    or the airport is not gated, and at most MAX_ABS_RESID_S in magnitude. value = rint(max(proxy − (F + resid), 1))."""
     resid = predict_residual(frame)
     if not isinstance(resid, np.ndarray) or resid.shape != (len(frame),):
         raise E.LaneError(f"predict_residual returned {getattr(resid, 'shape', type(resid).__name__)}, expected ({len(frame)},)")
@@ -127,6 +130,10 @@ def apply_stage(frame: pd.DataFrame, predict_residual, gate: dict) -> tuple:
     if (resid[must_zero] != 0.0).any():
         raise E.LaneError(f"predict_residual moved {int((resid[must_zero] != 0.0).sum()):,} rows that are uncovered or at an "
                           "ungated airport (the contract says 0.0 there)")
+    huge = np.abs(resid) > MAX_ABS_RESID_S
+    if huge.any():
+        raise E.LaneError(f"predict_residual returned {int(huge.sum()):,} eligible row(s) with |resid| > {MAX_ABS_RESID_S:.0f} s "
+                          f"(max {np.abs(resid).max():,.0f} s); a residual that size is a broken input or model, not a correction")
     proxy, F = frame.proxy.to_numpy(dtype="float64"), frame.F.to_numpy(dtype="float64")
     base = np.rint(np.maximum(proxy - F, 1.0))
     value = np.rint(np.maximum(proxy - (F + resid), 1.0))
@@ -134,7 +141,8 @@ def apply_stage(frame: pd.DataFrame, predict_residual, gate: dict) -> tuple:
     info = {"n_rows": int(len(frame)), "n_eligible": int((~must_zero).sum()), "n_changed": int(changed.sum()),
             "changed_by_airport": {str(a): int(n) for a, n in pd.Series(changed).groupby(frame.ap.to_numpy()).sum().items() if n},
             "coverage_share_by_airport": {str(a): float(v) for a, v in pd.Series(covered).groupby(frame.ap.to_numpy()).mean().items()},
-            "mean_abs_resid_eligible_s": float(np.abs(resid[~must_zero]).mean()) if (~must_zero).any() else 0.0}
+            "mean_abs_resid_eligible_s": float(np.abs(resid[~must_zero]).mean()) if (~must_zero).any() else 0.0,
+            "max_abs_resid_eligible_s": float(np.abs(resid[~must_zero]).max()) if (~must_zero).any() else 0.0}
     return value, info
 
 

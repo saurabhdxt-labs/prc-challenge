@@ -1,0 +1,148 @@
+"""`python -m prc` (AT10): thin wrappers over prc.api; a refused run exits 1 with the named error; usage errors exit 2;
+there is no --base."""
+from __future__ import annotations
+
+import json
+import pathlib
+import subprocess
+import sys
+
+import pandas as pd
+import pytest
+import yaml
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+FM1 = ROOT / "configs" / "fm1.yaml"
+
+
+def _prc(*args, timeout=600):
+    return subprocess.run([sys.executable, "-B", "-m", "prc", *map(str, args)], capture_output=True, text=True,
+                          timeout=timeout, cwd=str(ROOT))
+
+
+def test_config_reference_check_passes():
+    r = _prc("config-reference", "--check")
+    assert r.returncode == 0 and "current" in r.stdout
+
+
+def test_dry_run_of_the_default_config():
+    """Amendment A3: with Rome, ARC and the storm anchor ported, the documented forecaster plans every stage."""
+    r = _prc("validate", "--config", FM1, "--protocol", "dry-run")
+    assert r.returncode == 0, r.stderr
+    rep = json.loads(r.stdout)
+    assert rep["not_ported"] == [] and rep["stages"][-6:] == ["unmatched_body", "rome", "arc", "rome_e2", "rome_e2w",
+                                                               "finalise"]
+
+
+def test_unported_component_and_heavy_default_fit_are_refused_with_the_named_errors():
+    """A switched-on unported component exits 1 with ComponentNotPortedError before any read; the default config's
+    12-month fit exits 1 as a heavy job without --allow-heavy (no compute starts)."""
+    r = _prc("fit", "--config", FM1, "--set", "modules.storm.feature=true")
+    assert r.returncode == 1
+    assert "fm1 refused: ComponentNotPortedError" in r.stderr and "modules.storm.feature" in r.stderr
+    r = _prc("fit", "--config", FM1)
+    assert r.returncode == 1 and "heavy job" in r.stderr
+
+
+def test_there_is_no_base_flag_and_no_abbreviation():
+    r = _prc("build-submission", "--config", FM1, "--out", "x", "--base", "submissions/v2.parquet")
+    assert r.returncode == 2 and "unrecognized arguments: --base" in r.stderr
+    r = _prc("validate", "--config", FM1, "--proto", "S")
+    assert r.returncode == 2
+
+
+def test_bad_override_is_refused():
+    r = _prc("validate", "--config", FM1, "--protocol", "dry-run", "--set", "run.threads=0")
+    assert r.returncode == 1 and "ConfigValueError: run.threads: 0 is outside [1, 64]" in r.stderr
+
+
+def test_save_models_flag_defaults_off_and_reaches_the_api(monkeypatch):
+    """--save-models is a plain flag (default False) that main() forwards to api.validate as save_models=; no real
+    fit needed to prove the wiring. Mutation: drop save_models from the argparser or from the api.validate call ->
+    captured["save_models"] stays the wrong value -> red."""
+    from prc import __main__ as cli
+    from prc import api as api_mod
+
+    args = cli.parse_args(["validate", "--config", str(FM1), "--protocol", "S"])
+    assert args.save_models is False
+    args = cli.parse_args(["validate", "--config", str(FM1), "--protocol", "S", "--save-models"])
+    assert args.save_models is True
+
+    captured = {}
+
+    def fake_validate(config, protocol, out_dir=None, allow_heavy=False, overrides=(), log=None, save_models=False):
+        captured["save_models"] = save_models
+        return {"protocol": protocol, "folds": {}}
+
+    monkeypatch.setattr(api_mod, "validate", fake_validate)
+    rc = cli.main(["validate", "--config", str(FM1), "--protocol", "S", "--save-models"])
+    assert rc == 0 and captured["save_models"] is True
+    rc = cli.main(["validate", "--config", str(FM1), "--protocol", "S"])
+    assert rc == 0 and captured["save_models"] is False
+
+
+@pytest.mark.slow
+def test_fit_predict_build_on_the_world(e2e_world, fm1_world_mod, tmp_path):
+    world = e2e_world[0]
+    raw = fm1_world_mod.config_raw(world)
+    raw["run"]["artifacts_dir"] = str(tmp_path / "artifacts")
+    cfg = tmp_path / "world.yaml"
+    cfg.write_text(yaml.safe_dump(raw))
+    r = _prc("fit", "--config", cfg)
+    assert r.returncode == 0, r.stderr[-3000:]
+    art = pathlib.Path(r.stdout.strip().splitlines()[-1])
+    assert (art / "manifest.json").exists()
+    r = _prc("predict", "--config", cfg, "--rows", world / "raw" / "scored.parquet", "--out", tmp_path / "p.parquet")
+    assert r.returncode == 0, r.stderr[-3000:]
+    p = pd.read_parquet(tmp_path / "p.parquet")
+    assert p.decided_by.notna().all() and (p.TAXITIME_SEC_mvt >= 1).all()
+    r = _prc("predict", "--artifact", art, "--config", cfg, "--rows", world / "raw" / "scored.parquet",
+             "--out", tmp_path / "p.parquet")
+    assert r.returncode == 1 and "never overwritten" in r.stderr
+    r = _prc("build-submission", "--config", cfg, "--out", tmp_path / "sub", "--version", 7)
+    assert r.returncode == 0, r.stderr[-3000:]
+    sub = pd.read_parquet(tmp_path / "sub" / "merry-quicksand_v7.parquet")
+    tpl = pd.read_parquet(world / "raw" / "template.parquet")
+    assert sub.MVT_ID_mvt.tolist() == tpl.MVT_ID_mvt.tolist()
+    s = p.set_index("MVT_ID_mvt").TAXITIME_SEC_mvt
+    assert (sub.set_index("MVT_ID_mvt").TAXITIME_SEC_mvt == s.reindex(sub.MVT_ID_mvt)).all()
+
+
+def test_compare_command(tmp_path):
+    import numpy as np
+    rng = np.random.default_rng(0)
+    n = 200
+    y = rng.normal(900, 200, n)
+    base = pd.DataFrame({"MVT_ID_mvt": np.arange(n, dtype=float), "y": y, "pred": y + rng.normal(0, 100, n),
+                         "day": np.repeat([f"2025-01-{d:02d}" for d in range(1, 11)], 20), "month": 1,
+                         "ap": np.where(np.arange(n) % 2, "EDDF", "LSZH")})
+    base.to_parquet(tmp_path / "a.parquet")
+    base.assign(pred=base.y).to_parquet(tmp_path / "b.parquet")
+    r = _prc("compare", "--a", tmp_path / "a.parquet", "--b", tmp_path / "b.parquet", "--n-boot", 200,
+             "--out", tmp_path / "c.json")
+    assert r.returncode == 0, r.stderr
+    rep = json.loads((tmp_path / "c.json").read_text())
+    assert rep["gain_bmse"] > 0 and rep["ci95"][0] > 0
+
+
+def test_compare_and_blend_commands_take_several_files(tmp_path):
+    import numpy as np
+    rng = np.random.default_rng(1)
+    ys = {k: rng.normal(900, 200, 100) for k in (1, 2)}              # one label set per month, shared by both sides
+    for side, shift in (("a", 0.0), ("b", 0.4)):
+        for k in (1, 2):
+            n = 100
+            y = ys[k]
+            f = pd.DataFrame({"MVT_ID_mvt": np.arange(n, dtype=float) + 1000 * k, "y": y, "pred": y + 80,
+                              "day": np.repeat([f"2025-0{k}-{d:02d}" for d in range(1, 11)], 10), "month": k,
+                              "ap": np.where(np.arange(n) % 2, "EDDF", "LSZH"), "decided_by": "base_lightgbm"})
+            f = f.assign(pred=f.pred - shift * (f.pred - f.y))
+            f.to_parquet(tmp_path / f"{side}{k}.parquet")
+    r = _prc("compare", "--a", tmp_path / "a1.parquet", tmp_path / "a2.parquet", "--b", tmp_path / "b1.parquet",
+             tmp_path / "b2.parquet", "--n-boot", 200)
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout)["n"] == 200
+    r = _prc("blend", "--a", tmp_path / "a1.parquet", "--b", tmp_path / "b1.parquet", "--w", 0.5, "--out",
+             tmp_path / "ab.parquet")
+    assert r.returncode == 0, r.stderr
+    assert len(pd.read_parquet(tmp_path / "ab.parquet")) == 100

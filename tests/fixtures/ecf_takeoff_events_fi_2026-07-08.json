@@ -1,0 +1,19 @@
+{
+ "captured": "2026-09-18 17:51:47 EDT",
+ "adsb_features_sha256": "11aa6399817ede0fc94b2f070af9d7bb2f90df03ddbb543252629b4130bba8e9",
+ "day_file": "data/adsb/fi/y2026/adsb_2026-07-08.parquet",
+ "day_file_sha256": "1de417012aa66646eba5402e5831cf78a24d2a4e7024d9322f2c0e3aae356785",
+ "n_samples": 154720,
+ "n_events": 3617,
+ "dtypes": {
+  "track_id": "int64",
+  "icao": "str",
+  "callsign": "str",
+  "airport": "str",
+  "t_takeoff": "float64"
+ },
+ "callsign_missing_repr": "NaN",
+ "n_callsign_missing": 0,
+ "legacy_takeoff_events_wall_s": 0.8349684580462053,
+ "pandas": "3.0.1"
+}

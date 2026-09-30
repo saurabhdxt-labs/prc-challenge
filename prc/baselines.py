@@ -32,6 +32,19 @@ AIRPORT = "ADEP_mvt"
 RUNWAY = "RUNWAY_mvt"
 STAND = "STAND_mvt"
 OFF_BLOCK = "BLOCK_TIME_UTC_mvt"
+TAKE_OFF = "MVT_TIME_UTC_mvt"
+
+#: The column `_hour` is derived from. It is exported so a caller cannot resolve the derived name to the
+#: wrong source: accepting `_hour` at face value is exactly how the train-serve defect below survived review.
+#:
+#: RE-ANCHORED 2026-09-12 (session prc-challenge-9962-b) from OFF_BLOCK to TAKE_OFF, under the owner's ruling
+#: `reports/RXC_REVIEW_RULING_2026_09_12.md`: "repair the use of unavailable off-block hour with a
+#: serve-time-valid design and rerun its benchmark ... Do not fill hidden BLOCK_TIME with invented values."
+#: BLOCK_TIME_UTC_mvt is 100.000% null on all 344,841 scored rows, so the deepest rung silently returned the
+#: rung above it and the published denominator was not deliverable. MVT_TIME_UTC_mvt is 0.000% null on the
+#: same rows with all 24 hours present (measured 2026-09-12). Nothing is imputed; the anchor is a column that
+#: actually exists at serve time. `OFF_BLOCK` is retained as the definition of the hidden column, not as a key.
+HOUR_SOURCE = TAKE_OFF
 
 #: Below this many observations a cell is not trusted and falls back one rung.
 DEFAULT_MIN_COUNT = 30
@@ -47,7 +60,8 @@ class Rung:
 
 
 def _hour(frame: pd.DataFrame) -> pd.Series:
-    return frame[OFF_BLOCK].dt.hour
+    """Hour of the HOUR_SOURCE column. See HOUR_SOURCE for why this is take-off, not off-block."""
+    return frame[HOUR_SOURCE].dt.hour
 
 
 #: Coarse to fine, and a STRICT nesting: every rung extends the one before it

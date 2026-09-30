@@ -164,3 +164,42 @@ def test_cached_frames_carry_every_column_derive_produces(frames, tmp_path, monk
         assert set(orig.columns) <= set(back.columns)
         for c in ("sp_band", "sp_fine"):
             np.testing.assert_array_equal(orig[c].astype(str).to_numpy(), back[c].astype(str).to_numpy())
+
+
+# ---------------------------------------------------------------- extra_cat (CSF.2, 2026-09-22)
+
+def test_extra_cat_default_keeps_arm_R_bit_identical(frames):
+    """`extra_cat=()` is arm R exactly: the production caller (prc/pipeline/lanes.py run_rules_lane)
+    passes neither extra_num nor extra_cat. Rehearsed RED: the default set to a real column."""
+    unm, lirf = frames
+    tr = rf.rome_rows(unm[unm.month != 2], lirf[lirf.month != 2], [m for m in range(1, 13) if m != 2])
+    te = unm[(unm.ADEP_mvt == "LIRF") & (unm.month == 2)]
+    a = rf.fit_predict_fill(tr, te, seed=0)
+    b = rf.fit_predict_fill(tr, te, seed=0, extra_cat=())
+    np.testing.assert_array_equal(a, b)
+
+
+def test_extra_cat_planted_identity_is_recovered_and_an_unseen_level_is_tolerated(frames):
+    """A categorical that IS the fill label lifts the classifier to ~1; a level absent from training
+    becomes NaN (not an error, not a silent new code). Rehearsed RED: extra_cat columns dropped
+    before the fit; unseen level coerced to a training level."""
+    unm, lirf = frames
+    tr = rf.rome_rows(unm[unm.month != 2], lirf[lirf.month != 2], [m for m in range(1, 13) if m != 2])
+    te = unm[(unm.ADEP_mvt == "LIRF") & (unm.month == 2)].copy()
+    tr = tr.assign(ident=np.where(rf.fill_label(tr), "FILL", "ORD"))
+    te = te.assign(ident=np.where(rf.fill_label(te), "FILL", "ORD"))
+    te.loc[te.index[0], "ident"] = "NEVER_SEEN"
+    base = rf.fit_predict_fill(tr, te, seed=0)
+    arm = rf.fit_predict_fill(tr, te, seed=0, extra_cat=("ident",))
+    assert np.isfinite(arm).all() and len(arm) == len(te)
+    y = rf.fill_label(te)
+    assert rf._weighted_auc(y[1:], arm[1:], np.ones(len(y) - 1)) > 0.99
+    assert rf._weighted_auc(y[1:], arm[1:], np.ones(len(y) - 1)) > rf._weighted_auc(y[1:], base[1:], np.ones(len(y) - 1)) + 0.05
+
+
+def test_extra_cat_missing_column_raises_KeyError(frames):
+    unm, lirf = frames
+    tr = rf.rome_rows(unm[unm.month != 2], lirf[lirf.month != 2], [m for m in range(1, 13) if m != 2])
+    te = unm[(unm.ADEP_mvt == "LIRF") & (unm.month == 2)]
+    with pytest.raises(KeyError, match="no_such_column"):
+        rf.fit_predict_fill(tr, te, seed=0, extra_cat=("no_such_column",))

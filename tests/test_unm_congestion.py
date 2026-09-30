@@ -483,3 +483,34 @@ def test_synthetic_world_populates_the_witness_and_leaves_some_hours_nan(world):
     assert summary["unmatched_nan_share"] == unm.hprox_med.isna().mean()
     assert set(summary["unmatched_bin_counts"]) <= set(uc.BINS)
     assert unm.hprox_med.dropna().between(300, 3000).all()                # the planted prox: 700 / 1,600 plus noise
+
+
+# ---------------------------------------------------------------- arm CLN (plans/PREREG_unm_target_clean_2026_09_12.md)
+
+def test_the_body_fit_can_exclude_named_rows_and_defaults_to_excluding_none():
+    """CLN: `drop_ids` removes those rows from the BODY's training frame only — the fill mixture, the cells and the
+    test frame are untouched, and the default keeps today's behaviour exactly.
+    Kills: the exclusion applied to the TEST rows (they must still be scored); the exclusion applied to the fill part;
+    a default that quietly changes the shipped lane; ids that are not in the frame raising instead of being ignored."""
+    unm, lirf, summary = uc.synthetic_world(seed=3, n_per_month=120, n_matched_per_month=120)
+    month = unm.month.to_numpy()
+    m, tr_m, te_m = sf.lomo_folds(month)[11]
+    tr, te, mat = unm[tr_m], unm[te_m], lirf[lirf.month != m]
+    seen = {}
+    real = uc.fit_congestion_regressor
+
+    def spy(frame, seed):
+        seen.setdefault("train_ids", []).append(sorted(frame.MVT_ID_mvt.tolist()))
+        return real(frame, seed)
+    uc.fit_congestion_regressor = spy
+    try:
+        uc.congestion_arms(tr, te, mat, seeds=uc.SEEDS)
+        base = seen["train_ids"][0]
+        seen.clear()
+        uc.congestion_arms(tr, te, mat, seeds=uc.SEEDS, drop_ids={base[0]})
+        assert seen["train_ids"][0] == base[1:]                      # exactly one row gone from the body's fit
+        seen.clear()
+        uc.congestion_arms(tr, te, mat, seeds=uc.SEEDS, drop_ids={9_999_999.0})
+        assert seen["train_ids"][0] == base                          # an id that is not there changes nothing
+    finally:
+        uc.fit_congestion_regressor = real

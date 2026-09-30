@@ -35,9 +35,22 @@ import stratum_fold as sf  # noqa: E402
 
 bs = uc.bs
 SEEDS = (0, 1, 2)
-#: sha256 of the E3C harness files at E3R's writing (2026-09-10). They are untracked, so `git diff` cannot see an edit
-#: to them; the prereg composes them and never edits them. A red here means one of them changed: re-read before trusting.
-E3C_HASHES = {"scripts/unm_congestion.py": "e938e8bca54ee8ee9791c75fa57d956131461451fd9e63136538c56140cf6bc6",
+#: sha256 of the E3C harness files at E3R's writing (2026-09-10). The prereg composes them and never edits them.
+#: A red here means one of them changed: re-read before trusting.
+#:
+#: `scripts/unm_congestion.py` REPINNED 2026-09-12 by session prc-challenge-9962-b, under the owner's ruling
+#: `reports/RXC_REVIEW_RULING_2026_09_12.md` ("review the dependency change and establish default-path equivalence
+#: before updating any pin ... do not mechanically replace hashes merely because current code differs").
+#: The change is arm CLN's opt-in `drop_ids` keyword on `congestion_arms` / `_score_split` / `score_lomo`, defaulting
+#: to None and guarded by `if drop_ids:`.
+#: EQUIVALENCE DEMONSTRATED, not assumed: the HEAD version and the working-tree version were both loaded and run on
+#: the same synthetic world (seed 7, 200 rows/month) across all 12 LOMO folds; every one of the 9 arms and 11 numeric
+#: parts was BIT-EXACT identical on the default path. The opt-in path was separately shown to be reachable and to
+#: change S1C, so the branch is live rather than dead code. Evidence recorded in
+#: `reports/adsn_prereg_hashes.log` and `plans/PREREG_v13_baseline_2026_09_12.md`.
+#: The PREVIOUS pin was e938e8bca54ee8ee9791c75fa57d956131461451fd9e63136538c56140cf6bc6 (kept here deliberately:
+#: a repin should leave a trail, not erase one).
+E3C_HASHES = {"scripts/unm_congestion.py": "9fba9877266db1b3d3112733259df27d7e31280dd17a5cb081838e227eab4585",
               "scripts/unm_congestion_ship.py": "79cf63366f8ba7fea5933861ab5ac0dda70435fe5259435fdd1babdac36e271b"}
 
 

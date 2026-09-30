@@ -528,6 +528,37 @@ def parse_weights(text: str) -> tuple:
     return ws
 
 
+#: LightGBM parameters an override may introduce that production's `P` does not set. Keeping this
+#: explicit (rather than accepting any key) is what makes a typo an error instead of a silent no-op:
+#: an invented key would change nothing while the result got attributed to it.
+OVERRIDE_EXTRA_INT = frozenset({"max_bin", "min_data_in_bin", "bagging_seed", "feature_fraction_seed",
+                                "max_depth", "min_data_per_leaf", "num_threads", "top_k"})
+OVERRIDE_EXTRA_FLOAT = frozenset({"cat_l2", "lambda_l1", "lambda_l2", "min_sum_hessian_in_leaf",
+                                  "path_smooth", "min_gain_to_split", "pos_bagging_fraction",
+                                  "neg_bagging_fraction", "feature_fraction_bynode"})
+
+
+def apply_params_override(params: dict, override: dict) -> dict:
+    """`params` with exactly the keys in `override` replaced, types preserved, input unmutated.
+
+    Refuses a key that is neither in the production set nor in the explicit extras above. An override
+    that silently accepted an unknown key would fit the production model while the log and the
+    registration both claimed otherwise - an unfalsifiable result, which is the failure mode this
+    project has already produced five times from a mis-stated baseline.
+    """
+    out = dict(params)
+    for k, v in override.items():
+        if k not in params and k not in OVERRIDE_EXTRA_INT and k not in OVERRIDE_EXTRA_FLOAT:
+            raise ValueError(f"{k!r} is not a LightGBM parameter of the production set")
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            raise ValueError(f"{k!r} must be numeric, got {v!r}")
+        if k in OVERRIDE_EXTRA_INT or isinstance(params.get(k), int) and not isinstance(params.get(k), bool):
+            out[k] = int(v)
+        else:
+            out[k] = float(v)
+    return out
+
+
 def setting_params(params: dict, setting) -> dict:
     """The measured P with exactly num_leaves / min_data_in_leaf / feature_fraction replaced."""
     nl, md, ff = setting
@@ -537,6 +568,11 @@ def setting_params(params: dict, setting) -> dict:
 def parse_args(argv=None) -> argparse.Namespace:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--params-override", default=None, metavar="JSON",
+                    help="JSON object replacing named LightGBM parameters in the production set "
+                         "(plans/PREREG_reg_production_regularisation_2026_09_20.md). Every key must "
+                         "already be a production parameter or a known extra; a typo is an error, "
+                         "never a silent no-op. The effective params are recorded in the run JSON.")
     ap.add_argument("--smoke", action="store_true",
                     help="months 1-3, tiny trees, 200 bootstrap draws, scratch dir, banner")
     ap.add_argument("--out-dir", default=None,
@@ -2940,6 +2976,8 @@ def main(argv=None) -> int:
     started = dt.datetime.now(dt.timezone.utc)
     smoke = args.smoke
     params, nest, patience, months = dict(L.P), L.NEST, L.PATIENCE, None
+    if getattr(args, "params_override", None):
+        params = apply_params_override(params, json.loads(args.params_override))
     n_boot, pa_floor = N_BOOT, L.PA_TREE_FLOOR
     if smoke:
         params["learning_rate"] = SMOKE["learning_rate"]

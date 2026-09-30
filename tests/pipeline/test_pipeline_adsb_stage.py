@@ -99,6 +99,27 @@ def test_apply_refuses_a_predictor_that_breaks_the_contract(tmp_path, stub, msg)
         S.apply_stage(_frame(tmp_path), stub, {"EHAM": True, "LTFM": True})
 
 
+@pytest.mark.parametrize("bad", [-1.9e6, 3601.0, -3600.5])
+def test_apply_refuses_an_implausibly_large_residual(tmp_path, bad):
+    """A residual beyond MAX_ABS_RESID_S on an eligible row is a broken predictor, not a correction: 2025 fold A's largest
+    shipped |resid| is 1,237 s, and a duplicated adsb.fi fix (ground_rate_pm ≈ 5e8) drove the MLP to −1.9e6 s
+    (reports/RESEARCH_ADSBFI_JULY_2026_09_16.md). Fails if the magnitude refusal in apply_stage is removed or loosened."""
+    stub = lambda f: np.where((f.coverage >= 2) & (f.ap == "EHAM"), [bad, -40.0, 0.0, 0.0, 0.0], 0.0).astype("float64")
+    with pytest.raises(E.LaneError, match=r"1 eligible row\(s\) with \|resid\| > 3600 s"):
+        S.apply_stage(_frame(tmp_path), stub, {"EHAM": True})
+
+
+def test_apply_accepts_a_residual_at_the_magnitude_bound(tmp_path):
+    """The bound is inclusive: |resid| == MAX_ABS_RESID_S ships. Fails if the comparison becomes >=."""
+    assert S.MAX_ABS_RESID_S == 3600.0
+    fr = _frame(tmp_path)
+    stub = lambda f: np.where((f.coverage >= 2) & (f.ap == "EHAM"), [-3600.0, 3600.0, 0.0, 0.0, 0.0], 0.0).astype("float64")
+    v, info = S.apply_stage(fr, stub, {"EHAM": True})
+    base = np.rint(np.maximum(fr.proxy - fr.F, 1.0)).to_numpy()
+    assert v.tolist() == [base[0] + 3600, 1.0, base[2], base[3], base[4]] and info["n_changed"] == 2
+    assert info["max_abs_resid_eligible_s"] == 3600.0      # recorded in every build manifest, so headroom is visible
+
+
 def test_stage_frame_refuses_misaligned_inputs(tmp_path):
     table, _ = S.read_table(_table(tmp_path), IDS)
     with pytest.raises(E.LaneError, match="'F' has 4 values"):

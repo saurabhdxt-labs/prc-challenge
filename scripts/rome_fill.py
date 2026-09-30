@@ -56,7 +56,6 @@ N_BOOT, BOOT_SEED = 2_000, 0
 MIN_REDUCTION = 0.15
 MIN_MONTHS = 8
 # ---- reported, not decisional ----
-PUBLIC_JULY_ROME_RMSE = 3437.9       # elegant-alligator missing_v2.json, LIRF/7
 SCORED_ROME_UNMATCHED = 383          # LIRF rows without AOBT_3 in the 2026 scored file
 SCORED_ROWS = 344_841
 SP_BANDS = (-1e18, 0.0, 1800.0, 3600.0, 10_800.0, 24_000.0, 1e18)
@@ -93,10 +92,10 @@ def feature_frame(frame: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def _design(train_f: pd.DataFrame, test_f: pd.DataFrame) -> tuple:
+def _design(train_f: pd.DataFrame, test_f: pd.DataFrame, cats=FEATS_CAT) -> tuple:
     """Categorical columns as pandas categories with the TRAINING levels; an unseen test level is NaN."""
     a, b = train_f.copy(), test_f.copy()
-    for c in FEATS_CAT:
+    for c in cats:
         levels = pd.Index(sorted(a[c].unique()))
         a[c] = pd.Categorical(a[c], categories=levels)
         # an unseen level becomes NaN EXPLICITLY: pandas' implicit coercion is deprecated and will raise
@@ -113,9 +112,12 @@ def rome_rows(unm: pd.DataFrame, lirf: pd.DataFrame, months) -> pd.DataFrame:
 
 
 def fit_predict_fill(train: pd.DataFrame, test: pd.DataFrame, seed: int, permute: bool = False,
-                     extra_num=()) -> np.ndarray:
+                     extra_num=(), extra_cat=()) -> np.ndarray:
     """P(fill) for `test` from a stake-weighted LightGBM fitted on `train` (the registered design).
-    `extra_num`: additional numeric columns (arm M's NM-clock fields); empty = arm R exactly."""
+    `extra_num`: additional numeric columns (arm M's NM-clock fields); empty = arm R exactly.
+    `extra_cat`: additional native-categorical columns (CSF.2's imputed identity fields), encoded like
+    FEATS_CAT -- training levels only, an unseen test level is NaN, a null is the level "NA". Both
+    empty (the production caller, prc/pipeline/lanes.py run_rules_lane) = arm R exactly."""
     import lightgbm as lgb
 
     y = fill_label(train).astype(int)
@@ -130,8 +132,16 @@ def fit_predict_fill(train: pd.DataFrame, test: pd.DataFrame, seed: int, permute
     for c in extra_num:
         xtr[c] = train[c].to_numpy(dtype="float64")
         xte[c] = test[c].to_numpy(dtype="float64")
+    extra_cat = list(extra_cat)
+    if extra_cat:
+        as_str = lambda f, c: f[c].astype("object").where(f[c].notna(), "NA").astype(str)
+        ctr, cte = _design(pd.DataFrame({c: as_str(train, c) for c in extra_cat}, index=train.index),
+                           pd.DataFrame({c: as_str(test, c) for c in extra_cat}, index=test.index), cats=extra_cat)
+        for c in extra_cat:
+            xtr[c] = ctr[c]
+            xte[c] = cte[c]
     clf = lgb.LGBMClassifier(random_state=int(seed), **PARAMS)
-    clf.fit(xtr, y, sample_weight=w, categorical_feature=FEATS_CAT)
+    clf.fit(xtr, y, sample_weight=w, categorical_feature=FEATS_CAT + extra_cat)
     return clf.predict_proba(xte)[:, 1]
 
 
@@ -295,7 +305,6 @@ def run(unm: pd.DataFrame, lirf: pd.DataFrame, stored: pd.DataFrame, seeds=SEEDS
         "clauses": clauses, "verdict": verdict,
         "reported": {
             "foldA_july_rome_rmse": {a: float(np.sqrt(se[a][jul].mean())) for a in ("S1", "R")} if jul.any() else None,
-            "public_july_rome_rmse": PUBLIC_JULY_ROME_RMSE,
             "projected_board_mse": float((fa["sse"]["S1"] - fa["sse"]["R"]) * (SCORED_ROME_UNMATCHED / max(fa["n_rows"], 1))
                                          / SCORED_ROWS),
         },

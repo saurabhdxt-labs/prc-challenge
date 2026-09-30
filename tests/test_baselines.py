@@ -37,6 +37,9 @@ def frame(n_per_cell: int = 50) -> pd.DataFrame:
     """Two airports, two runways, two stands, with genuinely different levels
     so a deeper rung has something to find."""
     rows = []
+    # Keyed on baselines.HOUR_SOURCE, never on a literal column name: the ladder's hour anchor moved
+    # from off-block to take-off on 2026-09-12 and a hard-coded fixture column would have silently
+    # produced an all-NaN `_hour` instead of failing. Duplicating the mapping is the original defect.
     base = pd.Timestamp("2025-01-01", tz="UTC")
     for airport, level in (("EDDF", 800), ("EGLL", 1300)):
         for runway, rbump in (("25C", 0), ("07R", 200)):
@@ -44,7 +47,7 @@ def frame(n_per_cell: int = 50) -> pd.DataFrame:
                 for i in range(n_per_cell):
                     rows.append({"ADEP_mvt": airport, "RUNWAY_mvt": runway,
                                  "STAND_mvt": stand,
-                                 "BLOCK_TIME_UTC_mvt": base + pd.Timedelta(hours=i % 24),
+                                 baselines.HOUR_SOURCE: base + pd.Timedelta(hours=i % 24),
                                  "TAXITIME_SEC_mvt": level + rbump + sbump + (i % 7) * 10})
     return pd.DataFrame(rows)
 
@@ -90,7 +93,7 @@ def test_deeper_rungs_reduce_error_on_held_out_rows():
 def test_thin_cells_fall_back_rather_than_trusting_two_rows():
     df = frame(n_per_cell=50)
     thin = pd.DataFrame([{"ADEP_mvt": "EDDF", "RUNWAY_mvt": "25C", "STAND_mvt": "Z99",
-                          "BLOCK_TIME_UTC_mvt": pd.Timestamp("2025-01-01", tz="UTC"),
+                          baselines.HOUR_SOURCE: pd.Timestamp("2025-01-01", tz="UTC"),
                           "TAXITIME_SEC_mvt": 9999}])
     ladder = baselines.Ladder.fit(pd.concat([df, thin]), min_count=10)
     got = ladder.predict(thin)[0]
@@ -104,7 +107,7 @@ def test_fallback_is_one_rung_at_a_time_not_straight_to_global():
     ladder = baselines.Ladder.fit(df, min_count=5)
     # a stand never seen at this airport+runway: must use airport_runway, not global
     row = pd.DataFrame([{"ADEP_mvt": "EGLL", "RUNWAY_mvt": "07R", "STAND_mvt": "NEW",
-                         "BLOCK_TIME_UTC_mvt": pd.Timestamp("2025-01-01", tz="UTC")}])
+                         baselines.HOUR_SOURCE: pd.Timestamp("2025-01-01", tz="UTC")}])
     got = ladder.predict(row)[0]
     expected = df[(df.ADEP_mvt == "EGLL") & (df.RUNWAY_mvt == "07R")].TAXITIME_SEC_mvt.mean()
     assert got == pytest.approx(expected), "must land on airport_runway, not the global mean"
@@ -114,7 +117,7 @@ def test_predictions_are_never_null_and_never_negative():
     df = frame()
     ladder = baselines.Ladder.fit(df)
     weird = pd.DataFrame([{"ADEP_mvt": "ZZZZ", "RUNWAY_mvt": None, "STAND_mvt": None,
-                           "BLOCK_TIME_UTC_mvt": pd.Timestamp("2025-06-01", tz="UTC")}])
+                           baselines.HOUR_SOURCE: pd.Timestamp("2025-06-01", tz="UTC")}])
     pred = ladder.predict(weird)
     assert np.isfinite(pred).all() and (pred > 0).all()
 

@@ -1,0 +1,258 @@
+"""tools/mem_guard.py — pause OUR long run on memory pressure, resume on recovery (owner ruling 2026-09-24).
+
+Written before the module (seen RED: ModuleNotFoundError). Mutation rehearsal at write time (copies, then restored):
+  M1 pause when swap_free >= threshold (flip <)           -> test_pauses_when_swap_free_drops_below_threshold RED
+  M2 resume without the minimum pause time                -> test_resume_needs_min_pause_and_both_recovered RED
+  M3 resume on swap alone (drop the pressure condition)   -> test_resume_needs_min_pause_and_both_recovered RED
+  M4 accept a Phantom command as a target                 -> test_refuses_phantom_targets RED
+  M5 parse 'free = 1,234.56M' as 1                        -> test_parse_swapusage_reads_free_mb RED
+
+--pause-on-phantom (owner ruling 2026-09-28: "keep watching the memory when phantom starts just pause and resume").
+Mutation rehearsal for that addition is logged separately in logs/cml_scratch/mutation_memguard.txt; RED output for
+these new tests (seen before phantom_heavy_alive/decide_with_phantom/--pause-on-phantom existed) is in
+logs/cml_scratch/red_log_memguard.txt.
+"""
+from __future__ import annotations
+
+import argparse
+import pathlib
+import sys
+
+import pytest
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools"))
+import mem_guard as G  # noqa: E402
+
+
+def test_parse_swapusage_reads_free_mb():
+    s = "total = 14336.00M  used = 12857.62M  free = 1478.38M  (encrypted)"
+    assert G.parse_swap_free_mb(s) == pytest.approx(1478.38)
+    assert G.parse_swap_free_mb("total = 20,480.00M  used = 18,000.00M  free = 1,234.56M") == pytest.approx(1234.56)
+    with pytest.raises(ValueError, match="cannot parse vm.swapusage"):
+        G.parse_swap_free_mb("garbage")
+
+
+def test_parse_memory_pressure_reads_free_percentage():
+    out = "The system has 34359738368 (2097152 pages with a page size of 16384).\n...\nSystem-wide memory free percentage: 12%\n"
+    assert G.parse_pressure_free_pct(out) == 12
+    with pytest.raises(ValueError, match="cannot parse memory_pressure"):
+        G.parse_pressure_free_pct("no percentage here")
+
+
+def test_pauses_when_swap_free_drops_below_threshold():
+    assert G.decide(paused=False, swap_free_mb=300, free_pct=40, paused_for_s=0) == "PAUSE"
+    assert G.decide(paused=False, swap_free_mb=G.PAUSE_SWAP_MB, free_pct=40, paused_for_s=0) == "RUN"
+
+
+def test_pauses_when_pressure_free_drops_below_threshold():
+    assert G.decide(paused=False, swap_free_mb=5000, free_pct=G.PAUSE_FREE_PCT - 1, paused_for_s=0) == "PAUSE"
+    assert G.decide(paused=False, swap_free_mb=5000, free_pct=G.PAUSE_FREE_PCT, paused_for_s=0) == "RUN"
+
+
+def test_resume_needs_min_pause_and_both_recovered():
+    ok_swap, ok_pct = G.RESUME_SWAP_MB, G.RESUME_FREE_PCT
+    assert G.decide(paused=True, swap_free_mb=ok_swap, free_pct=ok_pct, paused_for_s=G.MIN_PAUSE_S) == "RESUME"
+    assert G.decide(paused=True, swap_free_mb=ok_swap, free_pct=ok_pct, paused_for_s=G.MIN_PAUSE_S - 1) == "HOLD"
+    assert G.decide(paused=True, swap_free_mb=ok_swap - 1, free_pct=ok_pct, paused_for_s=G.MIN_PAUSE_S) == "HOLD"
+    assert G.decide(paused=True, swap_free_mb=ok_swap, free_pct=ok_pct - 1, paused_for_s=G.MIN_PAUSE_S) == "HOLD"
+
+
+def test_hysteresis_gap_is_real():
+    assert G.RESUME_SWAP_MB > G.PAUSE_SWAP_MB and G.RESUME_FREE_PCT > G.PAUSE_FREE_PCT
+
+
+def test_refuses_phantom_targets():
+    with pytest.raises(ValueError, match="refusing to signal a Phantom process"):
+        G.check_target("/Users/x/Projects/Phantom/.venv/bin/python scripts/live_ingest/aggregate_cell_hour.py")
+    with pytest.raises(ValueError, match="refusing to signal a Phantom process"):
+        G.check_target("python r17_shadow_day_eval.py")
+    G.check_target("/opt/homebrew/bin/python3.11 -B scripts/analysis/nsc_fold.py")  # ours: no raise
+
+
+def test_tree_collects_descendants_from_a_parent_map():
+    parents = {10: 1, 11: 10, 12: 11, 13: 10, 20: 1}
+    assert G.tree(10, parents) == [10, 11, 13, 12] or sorted(G.tree(10, parents)) == [10, 11, 12, 13]
+    assert 20 not in G.tree(10, parents)
+
+
+# --- --pause-on-phantom -------------------------------------------------------------------------------------------
+
+def test_phantom_heavy_alive_detects_a_heavy_job():
+    ps = "111 /opt/homebrew/bin/python3.11 scripts/live_ingest/aggregate_cell_hour.py --day 2026-09-28\n"
+    assert G.phantom_heavy_alive(ps) == ["aggregate_cell_hour"]
+
+
+def test_phantom_heavy_alive_absent_returns_empty():
+    ps = "111 /opt/homebrew/bin/python3.11 scripts/analysis/nsc_fold.py\n222 -zsh\n"
+    assert G.phantom_heavy_alive(ps) == []
+
+
+def test_phantom_heavy_alive_ignores_bash_lc_wrapper_line():
+    ps = "111 /bin/bash -lc /Users/x/Projects/Phantom/run_track_record.sh\n"
+    assert G.phantom_heavy_alive(ps) == []
+
+
+def test_phantom_heavy_alive_ignores_our_own_pid():
+    # BC-29: fixture updated 2026-09-28 -- the old fixture ("verify_cron_lookalike", no interpreter) only
+    # matched via the naive substring scan this bug class removed; it no longer exercises a real job line.
+    ps = "111 /opt/homebrew/bin/python3.11 scripts/live_ingest/verify_cron.py --pid 999\n"
+    assert G.phantom_heavy_alive(ps, ignore_pids=frozenset({111})) == []
+    assert G.phantom_heavy_alive(ps, ignore_pids=frozenset()) == ["verify_cron"]
+
+
+def test_phantom_heavy_alive_skips_malformed_and_blank_lines():
+    # BC-29: fixture updated 2026-09-28 -- a bare "refresh_recall.py" with no interpreter token is no longer
+    # a valid job line under the stricter match (it must be run BY a Python interpreter); give it one.
+    ps = "\n   \nnotapid onlyonefield\nabc some command refresh_recall\n333 python refresh_recall.py\n"
+    assert G.phantom_heavy_alive(ps) == ["refresh_recall"]
+
+
+def test_regression_bug_29_phantom_names_in_a_launcher_shell_are_not_phantom_jobs():
+    """BC-29 (2026-09-28, live 14:20-16:28 EDT): a launcher shell whose OWN argv merely CONTAINS a Phantom
+    job name as text -- a `pgrep -f "..."` wait-loop pattern, a `grep`/`tail` watching a job's log -- is not
+    a Phantom heavy job. Only a process that actually EXECUTES the job's script (argv has a path ending in
+    `<name>.py`, run by a Python interpreter) counts. Live: mem_guard (pid 33005) SIGSTOPped an unrelated run
+    for 7,217s because its own `/bin/zsh -c ...` launcher's argv contained the pgrep pattern text below."""
+    ps = "\n".join([
+        '30001 /bin/zsh -c pgrep -f "aggregate_cell_hour|refresh_recall|verify_cron|track_record|retrain_gulf" ; sleep 5',
+        '30002 grep aggregate_cell_hour /Users/x/Projects/prc-challenge/logs/cml_scratch/he2_doy_s0.log',
+        '30003 tail -f /Users/x/Projects/prc-challenge/logs/cml_scratch/aggregate_cell_hour.log',
+        '30004 /opt/homebrew/Cellar/python@3.11/3.11.15/Frameworks/Python.framework/Versions/3.11/Resources/'
+        'Python.app/Contents/MacOS/Python scripts/live_ingest/aggregate_cell_hour.py --dates 2026-09-28 --force',
+        '30005 /opt/homebrew/bin/python3.11 -B retrain_gulf_shadow_day_eval.py --day 2026-09-28',
+    ]) + "\n"
+    assert G.phantom_heavy_alive(ps) == ["aggregate_cell_hour", "retrain_gulf_shadow_day_eval"]
+
+
+def test_phantom_heavy_alive_excludes_an_ancestor_pid_even_if_its_line_looks_like_a_real_job():
+    """BC-29: `ignore_pids` also carries the guard's own ancestor pid chain (main() merges it in via
+    `_ancestor_pids`), so a line that WOULD otherwise match a real Phantom job is still excluded when its pid
+    is one of the guard's own ancestors."""
+    ps = "40001 /opt/homebrew/bin/python3.11 scripts/live_ingest/track_record.py --day 2026-09-28\n"
+    assert G.phantom_heavy_alive(ps, ignore_pids=frozenset({40001})) == []
+    assert G.phantom_heavy_alive(ps, ignore_pids=frozenset()) == ["track_record"]
+
+
+def test_phantom_heavy_alive_matches_a_phantom_path_process_even_without_python_in_the_executable_name():
+    """The `/Projects/Phantom` fallback: a process whose executable name doesn't literally contain "python"
+    (e.g. a venv symlink) still counts as long as it lives under Phantom's own tree AND actually runs the job
+    script -- but a shell under that same tree still never matches (shells are always excluded)."""
+    ps = "50001 /Users/x/Projects/Phantom/.venv/bin/py3 scripts/live_ingest/verify_cron.py --once\n"
+    assert G.phantom_heavy_alive(ps) == ["verify_cron"]
+    ps_shell = '50002 /bin/zsh -c "/Users/x/Projects/Phantom/scripts/live_ingest/verify_cron.py --once"\n'
+    assert G.phantom_heavy_alive(ps_shell) == []
+
+
+def test_phantom_heavy_alive_multiple_jobs_multiple_lines():
+    ps = ("111 python aggregate_cell_hour.py\n"
+          "222 python track_record.py\n")
+    assert G.phantom_heavy_alive(ps) == ["aggregate_cell_hour", "track_record"]
+
+
+def test_decide_with_phantom_pauses_on_phantom_alone():
+    act, reason = G.decide_with_phantom(paused=False, swap_free_mb=5000, free_pct=40, paused_for_s=0,
+                                         phantom_names=["track_record"], phantom_quiet_for_s=0)
+    assert (act, reason) == ("PAUSE", "phantom:track_record")
+
+
+def test_decide_with_phantom_memory_reason_takes_the_label_when_both_trigger():
+    act, reason = G.decide_with_phantom(paused=False, swap_free_mb=100, free_pct=40, paused_for_s=0,
+                                         phantom_names=["track_record"], phantom_quiet_for_s=0)
+    assert (act, reason) == ("PAUSE", "memory")
+
+
+def test_decide_with_phantom_runs_when_nothing_triggers():
+    act, reason = G.decide_with_phantom(paused=False, swap_free_mb=5000, free_pct=40, paused_for_s=0,
+                                         phantom_names=[], phantom_quiet_for_s=9999)
+    assert (act, reason) == ("RUN", "")
+
+
+def test_decide_with_phantom_stays_paused_while_phantom_alive_even_if_memory_fine():
+    act, reason = G.decide_with_phantom(paused=True, swap_free_mb=G.RESUME_SWAP_MB, free_pct=G.RESUME_FREE_PCT,
+                                         paused_for_s=G.MIN_PAUSE_S, phantom_names=["verify_cron"],
+                                         phantom_quiet_for_s=0)
+    assert (act, reason) == ("HOLD", "phantom:verify_cron")
+
+
+def test_decide_with_phantom_holds_during_the_quiet_cooldown():
+    act, reason = G.decide_with_phantom(paused=True, swap_free_mb=G.RESUME_SWAP_MB, free_pct=G.RESUME_FREE_PCT,
+                                         paused_for_s=G.MIN_PAUSE_S, phantom_names=[],
+                                         phantom_quiet_for_s=G.PHANTOM_QUIET_S - 1)
+    assert (act, reason) == ("HOLD", "phantom-cooldown")
+
+
+def test_decide_with_phantom_resumes_only_after_quiet_and_memory_recovered():
+    act, reason = G.decide_with_phantom(paused=True, swap_free_mb=G.RESUME_SWAP_MB, free_pct=G.RESUME_FREE_PCT,
+                                         paused_for_s=G.MIN_PAUSE_S, phantom_names=[],
+                                         phantom_quiet_for_s=G.PHANTOM_QUIET_S)
+    assert (act, reason) == ("RESUME", "")
+
+
+def test_decide_with_phantom_memory_pressure_alone_still_pauses_like_decide():
+    # Same inputs as test_pauses_when_swap_free_drops_below_threshold, with no phantom involved at all.
+    act, reason = G.decide_with_phantom(paused=False, swap_free_mb=300, free_pct=40, paused_for_s=0,
+                                         phantom_names=[], phantom_quiet_for_s=9999)
+    assert (act, reason) == ("PAUSE", "memory")
+
+
+def test_decide_with_phantom_matches_plain_decide_when_phantom_never_present():
+    # Flag-off-equivalent path: with phantom_names always empty and quiet_for huge, decide_with_phantom's action
+    # must equal plain decide()'s action for every state decide() itself is tested against.
+    cases = [
+        (False, 300, 40, 0),
+        (False, G.PAUSE_SWAP_MB, 40, 0),
+        (True, G.RESUME_SWAP_MB, G.RESUME_FREE_PCT, G.MIN_PAUSE_S),
+        (True, G.RESUME_SWAP_MB, G.RESUME_FREE_PCT, G.MIN_PAUSE_S - 1),
+    ]
+    for paused, sw, pct, pf in cases:
+        act, _ = G.decide_with_phantom(paused, sw, pct, pf, phantom_names=[], phantom_quiet_for_s=9999)
+        assert act == G.decide(paused, sw, pct, pf)
+
+
+def test_signal_target_list_never_contains_a_phantom_pid():
+    """Negative invariant, extended: tree() enumerates candidate pids purely from a parent map (no OS calls);
+    check_target -- the actual gate before any os.kill -- must still refuse every Phantom-marked command, so no
+    Phantom pid can ever reach the signal step, flag on or off."""
+    parents = {10: 1, 11: 10, 12: 11}
+    commands = {10: "/opt/homebrew/bin/python3.11 scripts/analysis/nsc_fold.py",
+                11: "/opt/homebrew/bin/python3.11 -B scripts/analysis/lgbm_fold.py",
+                12: "python /Users/x/Projects/Phantom/scripts/live_ingest/aggregate_cell_hour.py"}
+    pids = G.tree(10, parents)
+    refused = []
+    for p in pids:
+        try:
+            G.check_target(commands[p])
+        except ValueError:
+            refused.append(p)
+    assert refused == [12]
+    # simulate _signal_tree's own gate-before-kill ordering: it must raise before any kill is issued
+    with pytest.raises(ValueError, match="refusing to signal a Phantom process"):
+        for p in pids:
+            G.check_target(commands[p])
+
+
+def test_argparse_accepts_pause_on_phantom_flag():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--pid", type=int, required=True)
+    ap.add_argument("--log", required=True)
+    ap.add_argument("--pause-on-phantom", action="store_true")
+    a = ap.parse_args(["--pid", "123", "--log", "x.log", "--pause-on-phantom"])
+    assert a.pause_on_phantom is True
+    b = ap.parse_args(["--pid", "123", "--log", "x.log"])
+    assert b.pause_on_phantom is False
+
+
+def test_mem_guard_main_argparse_accepts_pause_on_phantom_flag(monkeypatch, tmp_path):
+    """Exercises the real parser inside mem_guard.main(), not a re-declared copy, by stopping just after
+    parsing (patching check_target to raise a sentinel) so no process loop or OS call runs."""
+    sentinel = "STOP_AFTER_PARSE"
+
+    def fake_check_target(command):
+        raise RuntimeError(sentinel)
+
+    monkeypatch.setattr(G, "_command", lambda pid: "irrelevant")
+    monkeypatch.setattr(G, "check_target", fake_check_target)
+    log_path = tmp_path / "x.log"
+    with pytest.raises(RuntimeError, match=sentinel):
+        G.main(["--pid", "123", "--log", str(log_path), "--pause-on-phantom"])
