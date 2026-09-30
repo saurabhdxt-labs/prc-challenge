@@ -21,6 +21,7 @@ def _load(n, r):
 
 
 B = _load("dfc2_build", "scripts/analysis/dfc2_build.py")
+ISO = _load("prc_test_isolation", "tests/isolation.py")   # BC-34: real-data tests run in a child pytest
 D = B.D
 R = B.R
 
@@ -491,6 +492,7 @@ def test_serve_frame_2026_is_the_339551_serve_rows_with_a_consistent_clock():
 
 
 @pytest.mark.slow
+@ISO.isolated
 def test_fold_a_frame_reproduces_lgbm_ab_counts_and_keeps_the_dfc_inputs():
     d, masks = B.fold_a_frame(B.arm_feats("base"))
     te, tr, fit, es = masks
@@ -502,8 +504,25 @@ def test_fold_a_frame_reproduces_lgbm_ab_counts_and_keeps_the_dfc_inputs():
 
 
 @pytest.mark.slow
+@ISO.isolated
 def test_fold_a_frame_refuses_a_fold_whose_counts_differ_from_lgbm_ab(monkeypatch):
     LF = B._load("lgbm_fold", "scripts/lgbm_fold.py")
     monkeypatch.setitem(LF.LGBM_AB, "n_test", LF.LGBM_AB["n_test"] + 1)
     with pytest.raises(RuntimeError, match="not the same fold"):
         B.fold_a_frame(B.arm_feats("base"))
+
+
+# ---- BC-34 (2026-09-29): real-data tests run in a child pytest (tests/isolation.py) -----------------------------
+import os as _os, resource as _resource
+
+
+@pytest.mark.slow
+def test_regression_real_fold_a_tests_do_not_raise_the_pytest_peak_rss():
+    """In-process, the two fold-A tests above raised the suite's peak RSS 1.77 -> 4.12 GB, and a later unit test's 2 GB
+    in-process guard then failed in-suite (2026-09-29, BC-34). Calling one here must leave ru_maxrss within 300 MiB of
+    where it was."""
+    if _os.environ.get(ISO.CHILD_ENV) == "1":
+        pytest.skip("runs only in the parent process (the child is where the load happens, by design)")
+    before = _resource.getrusage(_resource.RUSAGE_SELF).ru_maxrss
+    test_fold_a_frame_reproduces_lgbm_ab_counts_and_keeps_the_dfc_inputs()
+    assert _resource.getrusage(_resource.RUSAGE_SELF).ru_maxrss - before < 300 * 1024 ** 2

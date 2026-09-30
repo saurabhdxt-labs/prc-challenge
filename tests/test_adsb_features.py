@@ -407,12 +407,41 @@ def test_fold_flights_refuse_a_misaligned_record(tmp_path):
 REAL_REC = ROOT / "data" / "cache_stand" / "fold_preds_queue_order.parquet"
 
 
+def _load_iso():
+    spec = importlib.util.spec_from_file_location("prc_test_isolation", ROOT / "tests/isolation.py")
+    if "prc_test_isolation" in sys.modules:
+        return sys.modules["prc_test_isolation"]
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["prc_test_isolation"] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+ISO = _load_iso()
+
+
+
+
 @pytest.mark.skipif(not REAL_REC.exists(), reason="fold-A record absent (data/ is not in git)")
+@ISO.isolated                                   # BC-34: +943 MiB in-process; the child's memory never reaches pytest
 def test_fold_flights_on_the_real_fold_a_record():
     """Real data: all 339,015 fold-A rows map to unique MVT_IDs and pass the proxy alignment guard."""
     fl = fx.fold_flights(REAL_REC, ROOT / "data" / "cache_stand", ROOT / "data" / "cache_order", ROOT / "data" / "raw")
     assert len(fl) == 339_015 and fl.MVT_ID_mvt.is_unique
     assert set(pd.to_datetime(fl.MVT_TIME_UTC_mvt, utc=True).dt.month.unique()) == {1, 7}
+
+
+@pytest.mark.skipif(not REAL_REC.exists(), reason="fold-A record absent (data/ is not in git)")
+def test_regression_real_fold_a_record_test_does_not_raise_the_pytest_peak_rss():
+    """In-process the real fold-A test above raised the suite's peak RSS 0.97 -> 1.55 GB (2026-09-29 suite; BC-34). Calling
+    it here must leave ru_maxrss within 300 MiB of where it was."""
+    import os
+    import resource
+    if os.environ.get(ISO.CHILD_ENV) == "1":
+        pytest.skip("runs only in the parent process (the child is where the load happens, by design)")
+    before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    test_fold_flights_on_the_real_fold_a_record()
+    assert resource.getrusage(resource.RUSAGE_SELF).ru_maxrss - before < 300 * 1024 ** 2
 
 
 # ---------------------------------------------------------------- BC-3: no sentinel stands in for "not observed"
