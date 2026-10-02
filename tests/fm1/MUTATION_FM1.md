@@ -162,3 +162,48 @@ logs/cml_scratch/mutation_fm1_lgbcat_20260929.json); killing test read from pyte
 | E-LGBCAT | `engine.py` | reuse `c_all[~elig]` for the half-blend -> predict X[~elig] again | — | EQUIVALENT (the same rows through the same CatBoost give the same values; not counted) |
 
 TOTAL LGBCAT 12 / 12 killed (1 equivalent, justified)
+
+## 2026-10-01 — memory refactor of the fit path (features.matched_design, learners.LightGBMLearner.fit, engine del)
+
+Why: the final-fit dry run peaked at a 17.8 GB footprint (logs/fm1_final/mem_probe.log: a 2.1 GB frame copied twice inside
+matched_design plus a column-major result, three row copies of X inside the learner, and the per-month parts kept beside
+the concatenated frame). Guard tests written first and seen red against the 2026-09-28 code: design peak 2.61 x X.nbytes
+(limit 2.0), learner peak 3.20 x (limit 1.8), column-major output. Pinned-prediction test (sha256 of predict(X), computed
+with the old code before any edit) proves bit-identity at test scale; the 1-round full-scale artefact diff proves it at
+full scale (logs/fm1_final/dry_fit_v2.log).
+
+| id | file | mutation (old -> new) | test | result |
+|---|---|---|---|---|
+| M49 | `features.py` | float32 cast dropped (`np.asarray(v, dtype=np.float64)`) | `test_matched_design_equals_the_reference_formula_bit_for_bit…` | KILLED |
+| M50 | `features.py` | `np.empty(..., order='F')` | same | KILLED |
+| M51 | `features.py` | frame column preferred over the encoding | `…encoding_columns_take_precedence…` (added after it survived) | KILLED |
+| M52 | `features.py` | per-column build via `frame.copy()` | `…allocates_at_most_twice_the_design…` | KILLED |
+| M53 | `learners.py` | `tr.any()` for `tr.all()` | `…rows_in_neither_mask_are_excluded…` | KILLED |
+| M54 | `learners.py` | refit on `X[fit_mask]` only | `…unchanged_by_the_memory_refactor_pinned` | KILLED |
+| M55 | `learners.py` | `del es_model, des, dfit` removed | `…does_not_hold_three_row_copies…` | KILLED |
+| M56 | `learners.py` | `free_raw_data=False` restored on dfit | same | KILLED |
+| M57 | `learners.py` | refit Dataset built with seed-0 params for every seed | pinned | SURVIVED — equivalent: `lgb.train`'s params (seed s) override the Dataset's at construction |
+| — | `engine.py` | `del m_parts` / `del u_parts` | no unit test (a release, no value path); covered by the full-scale probe re-run | measured |
+
+## 2026-10-02 — derived fits (`fit(..., reuse_from=donor)`; knobs.REUSE_FREE_KNOBS / reuse_blockers, engine._reuse_learners)
+
+13 tests written first and seen red 2026-10-01 (no ReuseError / REUSE_FREE_KNOBS / reuse_blockers / reuse_from), 15 after
+the row-count and CLI tests were added. Rehearsal (targeted test per mutant, sources restored and verified): **15 / 15 killed**.
+
+| id | file | mutation | test | result |
+|---|---|---|---|---|
+| M58 | `knobs.py` | `features.weather` added to the allow-list | `test_the_reuse_allow_list_is_exactly_the_registered_groups` | KILLED |
+| M59 | `knobs.py` | blockers taken from the free knobs | `test_reuse_blockers_names_every_differing_knob…` | KILLED |
+| M60 | `engine.py` | blockers check off | `test_reuse_refuses_a_knob_outside_the_allow_list` | KILLED |
+| M61 | `engine.py` | split / tier check off | `test_reuse_refuses_validation_splits_and_tiers` | KILLED |
+| M62 | `engine.py` | input-data check off | `test_reuse_refuses_different_input_data_encodings_or_design` | KILLED |
+| M63 | `engine.py` | `adsb/` dropped from the learner inputs | same | KILLED |
+| M64 | `engine.py` | every input key compared (free stages too) | same (the stack-key case must pass) | KILLED |
+| M65 | `engine.py` | design-columns check off | same | KILLED |
+| M66 | `engine.py` | encodings check off | same | KILLED |
+| M67 | `engine.py` | early-stopping row count not compared | same | KILLED |
+| M68 | `engine.py` | missing-CatBoost check off | `test_reuse_refuses_a_variant_that_needs_a_learner_the_donor_lacks` | KILLED |
+| M69 | `engine.py` | donor's CatBoost kept when the variant has none | `test_a_derived_artefact_predicts_bit_identically…` | KILLED |
+| M70 | `engine.py` | reuse path falls through to training | `test_a_derived_fit_never_trains_a_matched_learner` | KILLED |
+| M71 | `engine.py` | `reused_learners_from` not recorded | `test_a_derived_artefact_predicts_bit_identically…` | KILLED |
+| M72 | `__main__.py` | `--reuse-from` not forwarded | `test_reuse_from_flag_defaults_to_none_and_reaches_the_api` | KILLED |

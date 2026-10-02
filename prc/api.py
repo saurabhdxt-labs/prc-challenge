@@ -1,6 +1,8 @@
 """FM1's public API (plans/PREREG_fm1_2026_09_28.md §1). Everything a user or a script needs; nothing else is public.
 
-    fit(config, *, save=True, allow_heavy=False, overrides=()) -> ModelArtifact
+    fit(config, *, save=True, allow_heavy=False, overrides=(), reuse_from=None) -> ModelArtifact
+                                                  reuse_from: a donor artefact (or directory) whose fitted matched
+                                                  learners are reused when only allow-listed knobs differ
     predict(config | artifact, rows) -> DataFrame[MVT_ID_mvt, TAXITIME_SEC_mvt, decided_by, lane, value_before_calibration,
                                                   calibration_shift, F, base_value, stack_resid, stack_eligible,
                                                   catboost_C, unmatched_pred]      (.attrs["fm1_report"]: the run report)
@@ -42,8 +44,11 @@ def load_artifact(directory) -> ModelArtifact:
     return _A.load(directory)
 
 
-def fit(config, *, save: bool = True, allow_heavy: bool = False, overrides=(), log=_G._log) -> ModelArtifact:
-    return _G.fit(config, save=save, allow_heavy=allow_heavy, overrides=overrides, log=log)
+def fit(config, *, save: bool = True, allow_heavy: bool = False, overrides=(), log=_G._log,
+        reuse_from=None) -> ModelArtifact:
+    """`reuse_from` (an artefact or its directory): a derived fit that takes the donor's fitted matched learners when only
+    predict-time / light-fit knobs differ (knobs.REUSE_FREE_KNOBS); see engine.fit."""
+    return _G.fit(config, save=save, allow_heavy=allow_heavy, overrides=overrides, log=log, reuse_from=reuse_from)
 
 
 def find_artifact(cfg: FM1Config) -> ModelArtifact:

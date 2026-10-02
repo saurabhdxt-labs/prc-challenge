@@ -34,4 +34,8 @@ def isolated(fn):
         r = subprocess.run([sys.executable, "-B", "-m", "pytest", "-q", "-p", "no:cacheprovider", node],
                            env={**os.environ, CHILD_ENV: "1"}, capture_output=True, text=True, timeout=TIMEOUT_S)
         assert r.returncode == 0, f"child pytest rc {r.returncode}: {r.stdout[-4000:]}{r.stderr[-2000:]}"
+        tail = r.stdout.strip().splitlines()[-1] if r.stdout.strip() else ""
+        if "skipped" in tail and "passed" not in tail:
+            import pytest
+            pytest.skip(f"child skipped: {tail}")
     return wrapper

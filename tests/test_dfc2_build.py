@@ -517,7 +517,7 @@ import os as _os, resource as _resource
 
 
 @pytest.mark.slow
-def test_regression_real_fold_a_tests_do_not_raise_the_pytest_peak_rss():
+def test_regression_bug_34_real_fold_a_tests_do_not_raise_the_pytest_peak_rss():
     """In-process, the two fold-A tests above raised the suite's peak RSS 1.77 -> 4.12 GB, and a later unit test's 2 GB
     in-process guard then failed in-suite (2026-09-29, BC-34). Calling one here must leave ru_maxrss within 300 MiB of
     where it was."""

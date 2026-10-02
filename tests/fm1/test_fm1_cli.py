@@ -81,6 +81,28 @@ def test_save_models_flag_defaults_off_and_reaches_the_api(monkeypatch):
     assert rc == 0 and captured["save_models"] is False
 
 
+def test_reuse_from_flag_defaults_to_none_and_reaches_the_api(monkeypatch):
+    """`fit --reuse-from DIR` forwards DIR to api.fit as reuse_from= (None when absent); no real fit needed for the
+    wiring. Mutation: drop reuse_from from the api.fit call in main() -> captured stays None -> red."""
+    from prc import __main__ as cli
+    from prc import api as api_mod
+
+    assert cli.parse_args(["fit", "--config", str(FM1)]).reuse_from is None
+    captured = {}
+
+    class _Art:
+        directory = "somewhere"
+
+    def fake_fit(config, save=True, allow_heavy=False, overrides=(), log=None, reuse_from=None):
+        captured["reuse_from"] = reuse_from
+        return _Art()
+
+    monkeypatch.setattr(api_mod, "fit", fake_fit)
+    assert cli.main(["fit", "--config", str(FM1), "--reuse-from", "artifacts/fm1/donor"]) == 0
+    assert captured["reuse_from"] == "artifacts/fm1/donor"
+    assert cli.main(["fit", "--config", str(FM1)]) == 0 and captured["reuse_from"] is None
+
+
 @pytest.mark.slow
 def test_fit_predict_build_on_the_world(e2e_world, fm1_world_mod, tmp_path):
     world = e2e_world[0]

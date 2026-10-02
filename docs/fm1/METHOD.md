@@ -1,4 +1,4 @@
-# FM1 — method report (skeleton, 2026-09-28)
+# FM1 — method report (2026-09-28; §5 filled 2026-09-30)
 
 Sections marked **TODO (day N)** are filled by the registered studies; nothing here is a result until then.
 
@@ -82,20 +82,110 @@ R2 classifier fit and predict in one call, so the artefact stores the lane's tra
 re-runs every fit, seeded (bit-reproducible, tested). Set-level rules (witness, anomaly, ARC's ARR join, E2's day checks and
 its stand-inbound context read from `data.raw_dir`) mean the whole scored file must be served together.
 
-## 5. Selection study — TODO (days 4–6)
+## 5. Selection study (2026-09-30; `plans/PREREG_swap_selection_2026_09_30.md`, `plans/PREREG_weather_S_check_2026_09_30.md`)
 
-Primary folds LOMO-Jan and LOMO-Jul; secondary strict Jan↔Jul swap; forward F3/F4 tertiary (Amendment A2). Arms A0–A7 + H1
-(FMA §4.3); the ADS-B stack is off in these folds unless retrained per fold (leakage guard: it was trained on Jan + Jul).
+**Why the strict swap is the primary selector.** Our 2025 Jan / Jul holdout skill matches or beats teams that score 11–14 RMSE
+better than us on the 2026 board, so the gap is in 2025 → 2026 transfer, not in-season fit (`reports/MSE_LEDGER.md`,
+2026-09-30 08:20). Two changes priced on 2025 this campaign did far worse on the board than priced (HPX-S −703 vs +120;
+MOVE −1,121 vs −398). The swap protocol (`prc/pipeline/fm1/protocols.py`: X1to7 = fit January only, test July; X7to1 = fit
+July only, test January; early stopping on days ≥ 24 of the training month) trains and tests on different seasons, so a
+component that only fits its training season loses there.
 
-## 6. Validation — TODO (day 7)
+**Setting.** Screen tier (learning rate 0.05, seed 0). Fixed in every arm, as registered amendments, before any fit: the
+ADS-B stack off (SWAP.1: it was trained on January + July 2025, so a swap fold would test on its training months) and E2W
+off (SWAP.2: its nested leave-one-month-out needs two training months). Statistic: paired gain of the arm over A0 from
+`python -m prc compare` (day-block bootstrap, 2,000 resamples, seed 20260928; units bmse = SSE / 344,841; gain > 0 = the arm
+is better). An arm counts as a candidate only if the CI's lower bound is above 0.
 
-LOMO / forward / swap / 2026 drift (domain AUC, ESS, coverage, schedule-field rates) / standalone component numbers.
+| arm | change | gain vs A0 | 95 % CI | reading |
+|---|---|---|---|---|
+| A1 | ARC off | −1,028.1 | [−2,179.8, −150.2] | ARC transfers → kept |
+| A2 | Rome module off | −3,089.3 | [−19,650.6, +10,586.9] | ambiguous → kept; ≤ 3 rows carry its net (ex-top-3 rows: +8,756.8), a lead only |
+| A3 | E2 off | −2,970.5 | [−4,349.2, −1,817.0] | kept |
+| A4 | queue features off | −824.6 | [−1,062.7, −595.6] | kept |
+| A5 | order features off | −1,499.7 | [−1,916.9, −1,137.9] | kept |
+| A6 | weather features off | **+493.6** | **[+131.8, +828.9]** | the only candidate; same-season check below |
+| A7 | route-length feature off | −947.1 | [−1,203.9, −702.3] | kept |
+| A8 | ADS-B features off | −9,960.1 | [−11,174.4, −8,774.5] | the largest single contribution → kept |
+| A9 | CatBoost as the matched learner | −1,759.6 | [−2,161.8, −1,405.7] | LightGBM base kept |
+| A10 | unmatched `hgb` body | not run | — | refused at plan time (the Rome module needs the v26 body); not re-specified, per the registration |
+
+Registered prediction vs outcome: P(at least one candidate) 0.35 → one candidate. The predicted candidates (E2, ARC, route
+length) were all wrong: they transfer. ADS-B off and Rome off were predicted worse, as measured.
+
+**Weather.** METAR weather is the most season-specific input (freezing in January, convective weather in July), and the
+swap makes it extrapolate across seasons, which the final setting does not (it trains on all twelve 2025 months and scores
+the same seasons of 2026). The swap result is therefore checked under protocol S (leave-one-month-out on January and July,
+training on the other ten months), registered before either run: drop weather if the S gain's CI is above 0 or straddles 0;
+keep it only if weather clearly helps within season (CI below 0). LDI reads the weather block, so dropping weather also
+turns LDI off (amendment registered before the second run). **Result: keep weather.** Weather off vs on under protocol S:
+−269.0 bmse [−423.9, −120.5] (excluding LIRF −175.2 [−300.5, −53.4]; excluding the 3 largest rows −241.2 [−386.7, −102.4]);
+the largest losses without weather are at LIRF, LFPG and LTFM. The two protocols disagree in sign, as the season argument
+predicts: the swap's weather gain is an extrapolation artefact, and the final model keeps weather and LDI.
+
+**Not testable in these folds:** the ADS-B stack, E2W, MTX (a 2026 calibration), the storm anchor.
+
+## 6. Validation (2025 labels only; filled 2026-10-02)
+
+All numbers are RMSE in seconds on held-out 2025 months, screen tier (learning rate 0.05, one seed), **ADS-B stack off**
+(it was trained on January + July 2025 and cannot be validated on them) and, in the swap folds, E2W off. They are a floor
+for the final configuration, not its score.
+
+| protocol | fold | held out | n | RMSE | worst airports (RMSE) |
+|---|---|---|---|---|---|
+| S (leave one month out; train on the other ten) | F1 | January | 153,658 | 327.07 | LFPG 799.2, LIRF 364.5, LTFM 220.6 |
+| S | F2 | July | 190,678 | 266.21 | LIRF 614.6, EGLL 278.0, LTFM 274.5 |
+| swap (train one month, test the other) | X7to1 | January | 153,658 | 351.83 | LFPG 823.6, LIRF 411.6 |
+| swap | X1to7 | July | 190,678 | 376.94 | LIRF 972.1, LFPG 414.9, EGLL 329.6 |
+
+Reading: the January figures are dominated by LFPG, where two departures with a stale recorded off-block time carry most
+of that airport's squared error (the comparison in §5 is paired, so they cancel there); Rome (LIRF) is the largest
+structural error in both months — its unmatched departures have no flight-plan record and no ADS-B. Best airports sit
+near 100–160 s (EDDM 98.8, LEBL 102.7 in January; EHAM 118.0 in July).
+
+**Determinism at scale.** The final configuration on a three-month slice, fitted twice and served on the full scored file:
+344,841 rows × 30 columns, 0 different cells (2026-10-01).
+
+**Consistency with the previous best file (label-free).** On the 233,132 matched rows of the fifteen airport-months where
+the final model and v46 share a design, the row-level difference after removing each airport-month's constant is 30.5 s RMS
+(registered limit 81.6 s = twice the measured refit-to-refit difference). The constants themselves are the calibration
+(MTX) the forecaster omits by design.
+
+**2025 → 2026 drift that validation on 2025 cannot see.** Share of matched departures with ground ADS-B coverage, stack
+training months vs the 2026 scored file: EDDF 0.909 → 0.623, EDDM 0.837 → 0.970, EGLL 0.384 → 0.902, EHAM 0.972 → 0.978,
+LEBL 0.957 → 0.946, LEMD 0.679 → 0.795, LFPG 0.077 → 0.141, LIRF 0.405 → 0.299, LSZH 0.939 → 0.959, LTFM ≈ 0. The stack
+serves EDDF, EDDM, EHAM, LEBL, LIRF and LSZH (its stored gate); `adsb.support_gate.rule=coverage_ratio` is the label-free
+rule that would switch it off where the share moved outside [0.7, 1.43] × training (EDDF).
+
+**Not validated here:** the ADS-B stack, E2W, MTX and the storm anchor (no clean 2025 fold exists for them; their evidence
+is the board history in §8); the full-tier learners (validated only through the determinism slice and the consistency
+check above); the CatBoost half reached its round cap in the final fit (REPRODUCE.md).
 
 ## 7. Ablations, including every NOT WORKING result — TODO (day 9)
 
 To be filled from the ledger with numbers: CLN, UMR, TNS, GHJ, OPX, DSG, v22, AGF/v27, MXK, R13, UCE, APT, TRC, RCR2,
 CSF.2, OMW, DFC, BLX, ODX, ... (memory index and `reports/MSE_LEDGER.md`).
 
-## 8. Board history as external evidence — TODO (day 9)
+## 8. Board history as external evidence (public leaderboard, RMSE; lower is better)
 
-k per component (FMA §1.3).
+The public board scores the same 344,841 departures of January and July 2026 for every upload. A step was kept only if
+the board improved when it was added; the list is therefore selected on the public set and is NOT an unbiased estimate
+for unseen data (the final-model audit of 2026-09-28 put about 28 % of the cumulative gain in board-specific patches).
+
+| file | what changed | board | change in MSE |
+|---|---|---|---|
+| v12 | Rome local-day rule (pipeline with the Rome module) | 266.3738 | — |
+| v16 | storm anchor | 260.366 | +2,432 better than v14 |
+| v17 | ARC at LIRF (42 rows) | 259.4012 | +501 |
+| v31 | Rome E2 | 254.8221 | +1,057 |
+| v35 | 12-month ADS-B refit (R12, screen) | 252.0706 | +1,015 vs v34 |
+| v36 | full R12 at five airports | 251.3146 | +381 vs v35 |
+| v40 | R12 at EGLL / LIRF / LEMD | 251.1991 | +58 |
+| v41 | LDI (LTFM January de-icing) | 251.0977 | +51 |
+| v46 | LightGBM + CatBoost stack base at the R12 cells (with MTX) | **250.7314** | +38.5 vs v43 — best file |
+| v48 | Rome delayed-departure rule (HPX-S) | 252.1294 | −703 (worse); not kept |
+| v49 | movement-only ADS-B base (MOVE) | 253.0326 | −1,121 vs v43 (worse); not kept |
+
+Rows read from the project's board records on 2026-10-01; v42's MTX gain (+124) and the individual Rome steps v7 / v10 are
+quoted in the ledger and not repeated here. The final model (v50) and its board-selected variants are reported in
+`plans/PREREG_fm1_final_fit_2026_09_30.md` and `plans/PREREG_bsv_board_selected_variants_2026_10_01.md` once scored.

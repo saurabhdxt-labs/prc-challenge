@@ -288,3 +288,68 @@ def test_month_chunks():
     raw.loc[0, "MVT_TIME_UTC_mvt"] = pd.NaT
     with pytest.raises(E.RangeError, match="without MVT_TIME"):
         F.month_chunks(raw)
+
+
+# ---------------------------------------------------------------------------------------------- design memory (2026-10-01)
+
+def _design_frame(n=200_000, seed=0):
+    """A matched-like frame: float64 / float32 / int32 columns, NaN, a string key — the dtypes of the real frame."""
+    rng = np.random.default_rng(seed)
+    f = pd.DataFrame({"ap": pd.array(rng.choice(["EDDF", "EGLL", "LIRF"], n), dtype="string"),
+                      "y": rng.normal(600, 100, n), "delta": rng.normal(0, 50, n),
+                      "a": rng.normal(size=n), "b": rng.normal(size=n).astype(np.float32),
+                      "c": rng.integers(0, 9, n).astype(np.int32), "d": rng.normal(size=n), "e": rng.normal(size=n),
+                      "g": rng.normal(size=n), "h": rng.normal(size=n), "i": rng.normal(size=n)})
+    f.loc[rng.random(n) < 0.05, "a"] = np.nan
+    return f
+
+
+def _reference_design(frame, enc, columns):
+    """matched_design as written on 2026-09-28 (frame.copy + column selection + float32 + float64)."""
+    f = frame.copy()
+    for k, v in enc.transform(frame).items():
+        f[k] = v
+    return f[list(columns)].to_numpy(dtype=np.float32).astype(np.float64)
+
+
+def test_matched_design_equals_the_reference_formula_bit_for_bit_and_leaves_the_frame_alone():
+    """Refactor guard (2026-10-01 memory fix): the design is built column by column, never via a copy of the whole
+    frame; its values must equal the original formula's exactly (float32 rounding of int32 / float64 / float32 / NaN,
+    encoding columns float32 -> float64). Mutation: cast to float64 directly (skip float32) -> red."""
+    f = _design_frame(5_000)
+    before = f.copy(deep=True)
+    enc = F.EncodingTables.fit(f, {"te": f.y.to_numpy(float)}, ["ap"], 50.0)
+    cols = ["a", "b", "c", "d", "te_ap", "e"]
+    X = F.matched_design(f, enc, cols)
+    ref = _reference_design(f, enc, cols)
+    assert X.dtype == np.float64 and X.shape == (5_000, 6) and X.flags.c_contiguous
+    assert np.array_equal(X.view(np.uint64), ref.view(np.uint64))      # bit-for-bit, NaN included
+    pd.testing.assert_frame_equal(f, before)
+
+
+def test_matched_design_allocates_at_most_twice_the_design_not_a_frame_copy():
+    """The 2026-10-01 dry run peaked at 17.8 GB: matched_design held a full copy of the 2.1 GB frame, a second copy of
+    the selected columns, the float32 intermediate and the float64 result at once (logs/fm1_final/mem_probe.log, +3.2 GB
+    for a 2.0 GB X). Traced allocation during the call must stay within 2 x X.nbytes (float32 half + float64 result +
+    per-column temporaries); the old formula needs > 3 x. Seen red against the old formula (3.5 x)."""
+    import tracemalloc
+    f = _design_frame()
+    enc = F.EncodingTables.fit(f, {"te": f.y.to_numpy(float)}, ["ap"], 50.0)
+    cols = ["a", "b", "c", "d", "e", "g", "h", "i", "te_ap"]
+    tracemalloc.start()
+    X = F.matched_design(f, enc, cols)
+    _, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    assert peak <= 2.0 * X.nbytes, f"peak {peak / X.nbytes:.2f} x X.nbytes"
+
+
+def test_matched_design_encoding_columns_take_precedence_over_frame_columns_of_the_same_name():
+    """The 2026-09-28 formula assigned the encodings onto a copy of the frame, so an encoding always replaced a frame
+    column of the same name; the column-wise build keeps that precedence. Mutation (survivor of the 2026-10-01
+    rehearsal before this test): prefer the frame column -> red."""
+    f = _design_frame(1_000)
+    enc = F.EncodingTables.fit(f, {"te": f.y.to_numpy(float)}, ["ap"], 50.0)
+    f["te_ap"] = -1.0                                   # a stale column with the encoding's name
+    X = F.matched_design(f, enc, ["a", "te_ap"])
+    assert np.array_equal(X[:, 1], enc.transform(f)["te_ap"].astype(np.float64))
+    assert not (X[:, 1] == -1.0).any()

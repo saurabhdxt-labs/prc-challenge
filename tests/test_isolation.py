@@ -1,6 +1,8 @@
 """tests/isolation.py — the shared `isolated` decorator: a real-data test runs in a CHILD pytest process so its memory never
 raises the shared pytest process's lifetime peak RSS (BC-34, 2026-09-29: a later unit test read an inherited 3.89 GB
-peak and tripped its own 2 GB guard in-suite). No real child is started here: subprocess.run is faked."""
+peak and tripped its own 2 GB guard in-suite). No real child is started here: subprocess.run is faked.
+Seen red first (collection error; the skip test: 1 failed). Mutation rehearsal 2026-09-30: 7 of 7 RED (child check
+inverted, node without the test name, rc unchecked, CHILD_ENV not set, skip detection off, timeout dropped, no wraps)."""
 from __future__ import annotations
 
 import importlib.util
@@ -63,3 +65,14 @@ def test_isolated_keeps_the_test_name_and_signature_for_pytest():
         pass
     w = I.isolated(test_something)
     assert w.__name__ == "test_something" and w.__wrapped__ is test_something
+
+
+def test_isolated_reports_a_skipped_child_as_skipped_not_passed(monkeypatch):
+    """A child that skips (e.g. its real file is absent) exits 0; the parent must say SKIPPED, not PASSED, or a missing
+    real-data check hides behind a green run (reviewer MINOR, 2026-09-30)."""
+    monkeypatch.delenv(I.CHILD_ENV, raising=False)
+    monkeypatch.setattr(I.subprocess, "run", lambda argv, env, capture_output, text, timeout:
+                        subprocess.CompletedProcess(argv, 0, "s\n1 skipped in 0.01s\n", ""))
+    body, _ = _body_recorder()
+    with pytest.raises(pytest.skip.Exception, match="child skipped"):
+        I.isolated(body)()

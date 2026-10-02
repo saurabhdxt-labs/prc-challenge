@@ -35,6 +35,8 @@ def parse_args(argv=None) -> argparse.Namespace:
         return p
     f = common(sub.add_parser("fit", allow_abbrev=False))
     f.add_argument("--allow-heavy", action="store_true")
+    f.add_argument("--reuse-from", default=None,
+                   help="a donor artefact directory: reuse its fitted matched learners (only allow-listed knobs may differ)")
     p = common(sub.add_parser("predict", allow_abbrev=False))
     p.add_argument("--artifact", default=None)
     p.add_argument("--rows", required=True, help="a raw scored parquet file (the organiser's 30 columns)")
@@ -101,7 +103,7 @@ def main(argv=None) -> int:
             print(out)
             return 0
         if args.cmd == "fit":
-            art = api.fit(args.config, allow_heavy=args.allow_heavy, overrides=args.overrides)
+            art = api.fit(args.config, allow_heavy=args.allow_heavy, overrides=args.overrides, reuse_from=args.reuse_from)
             print(art.directory)
             return 0
         if args.cmd == "validate":

@@ -45,6 +45,11 @@ class ArtifactError(E.PipelineError):
     """A model artefact is missing, incomplete, tampered with, or would be overwritten."""
 
 
+class ReuseError(E.PipelineError):
+    """A derived fit (`fit(..., reuse_from=donor)`) cannot take the donor's fitted matched learners: a knob outside the
+    reuse allow-list, the input data, the design or the encodings differ, or the donor lacks a learner the variant needs."""
+
+
 class WorkerError(E.PipelineError):
     """A learner worker process (CatBoost in ~/.venvs/prc-catboost) failed or returned a malformed result."""
 

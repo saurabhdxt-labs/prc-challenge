@@ -228,3 +228,51 @@ def test_load_learner_refuses_a_bad_directory(tmp_path):
     (tmp_path / "learner.json").write_text('{"name": "xgboost"}')
     with pytest.raises(E.ArtifactError, match="unknown learner 'xgboost'"):
         L.load_learner(tmp_path)
+
+
+# ---------------------------------------------------------------------------------------------- memory (2026-10-01)
+
+def test_lightgbm_fit_is_unchanged_by_the_memory_refactor_pinned():
+    """Pins the 2026-09-28 learner's predictions (sha256 of predict(X) bytes, 600 rows, seeds 0 + 1, 2 threads,
+    computed with the pre-refactor code on 2026-10-01 before any edit). The memory refactor (free_raw_data default,
+    no X[tr] copy when fit | es covers every row, datasets released before the refit) must not move a single bit:
+    LightGBM's bins are fixed at Dataset construction, so a changed construction order or reference would show here.
+    Mutation: build the refit Dataset from X[fit_mask] instead of the fit + es rows -> red."""
+    import hashlib
+    X, y, fit, es = _data()
+    m = _lgb()
+    m.fit(X, y, fit, es, seeds=(0, 1), feature_names=FEATS)
+    assert hashlib.sha256(m.predict(X).tobytes()).hexdigest() == \
+        "91d45222d88f38d64a9d24efabc3afd537b44d02fd1ad4b73aa7805b03e15353"
+
+
+def test_lightgbm_fit_does_not_hold_three_row_copies_of_the_design():
+    """The 2026-09-28 fit kept X[fit], X[es] (free_raw_data=False) and X[tr] — a full copy when fit | es is every
+    row — alive through the refit: 3.2 x X.nbytes traced (measured 2026-10-01). Now the ES datasets drop their raw
+    rows after construction and the refit uses X itself: peak traced allocation <= 1.8 x X.nbytes. numpy copies are
+    traced; LightGBM's own bins are not (and are the same either way). Seen red against the old code (3.2 x)."""
+    import tracemalloc
+    X, y, fit, es = _data(n=50_000, seed=1)
+    tracemalloc.start()
+    m = _lgb()
+    m.fit(X, y, fit, es, seeds=(0,), feature_names=FEATS)
+    _, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    assert m.best_iter >= 1
+    assert peak <= 1.8 * X.nbytes, f"peak {peak / X.nbytes:.2f} x X.nbytes"
+
+
+def test_lightgbm_rows_in_neither_mask_are_excluded_from_the_refit():
+    """The invariant behind the no-copy refit: rows that are neither fit nor early-stopping rows take no part. A fit on
+    the full X with 10 % of rows masked out must equal a fit on the masked subset alone. Mutation: refit on X when
+    tr.any() instead of tr.all() -> red."""
+    X, y, fit, es = _data(n=2_000, seed=2)
+    rng = np.random.default_rng(3)
+    drop = rng.random(len(y)) < 0.1
+    fit, es = fit & ~drop, es & ~drop
+    a, b = _lgb(), _lgb()
+    a.fit(X, y, fit, es, seeds=(0,), feature_names=FEATS)
+    tr = fit | es
+    b.fit(X[tr], y[tr], fit[tr], es[tr], seeds=(0,), feature_names=FEATS)
+    assert a.n_ref == b.n_ref and a.best_iter == b.best_iter
+    assert np.array_equal(a.predict(X), b.predict(X))

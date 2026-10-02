@@ -113,15 +113,28 @@ class LightGBMLearner:
     def fit(self, X, y, fit_mask, es_mask, seeds, feature_names) -> None:
         import lightgbm as lgb
         X, y, fit_mask, es_mask, seeds, names = _check_fit_inputs(X, y, fit_mask, es_mask, seeds, feature_names)
-        dfit = lgb.Dataset(X[fit_mask], y[fit_mask], feature_name=names, free_raw_data=False)
-        des = lgb.Dataset(X[es_mask], y[es_mask], reference=dfit, feature_name=names, free_raw_data=False)
+        # Memory (2026-10-01): the datasets release their raw rows once binned (LightGBM's default; the shipped
+        # lgbm_submit never kept them), the early-stopping datasets are dropped before the refit, and the refit binds X
+        # itself when fit | es is every row (the production split) instead of a full copy. Bins are fixed at
+        # construction, so none of this moves a value (test_lightgbm_fit_is_unchanged_by_the_memory_refactor_pinned).
+        dfit = lgb.Dataset(X[fit_mask], y[fit_mask], feature_name=names)
+        des = lgb.Dataset(X[es_mask], y[es_mask], reference=dfit, feature_name=names)
         es_model = lgb.train(lgb_params(self.params, seeds[0], self.threads), dfit, self.max_rounds, valid_sets=[des],
                              callbacks=[lgb.early_stopping(self.patience, verbose=False)])
         best = int(es_model.best_iteration) or int(es_model.current_iteration())
+        del es_model, des, dfit
         tr = fit_mask | es_mask
         n_ref = n_refit(best, int(tr.sum()), int(fit_mask.sum()))
-        dtr = lgb.Dataset(X[tr], y[tr], feature_name=names, free_raw_data=False)
-        self.boosters = [lgb.train(lgb_params(self.params, s, self.threads), dtr, n_ref) for s in seeds]
+        X_tr, y_tr = (X, y) if tr.all() else (X[tr], y[tr])
+        # One Dataset per seed: data_random_seed picks the row sample that sets the bin boundaries, so each seed bins
+        # afresh (what the 2026-09-28 code did implicitly: LightGBM re-constructed the retained raw rows on the seed
+        # change; without retained rows it refuses). A Dataset binds X_tr without copying it.
+        self.boosters = []
+        for s in seeds:
+            dtr = lgb.Dataset(X_tr, y_tr, feature_name=names)
+            self.boosters.append(lgb.train(lgb_params(self.params, s, self.threads), dtr, n_ref))
+            del dtr
+        del X_tr, y_tr
         self.seeds, self.feature_names, self.best_iter, self.n_ref = seeds, names, best, n_ref
 
     def predict(self, X) -> np.ndarray:

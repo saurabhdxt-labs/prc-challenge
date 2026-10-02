@@ -342,6 +342,20 @@ SCHEMA: tuple = (
 
 KNOBS: Mapping[str, Knob] = types.MappingProxyType({k.path: k for k in SCHEMA})
 
+#: Knobs a derived fit (`fit(..., reuse_from=donor)`) may change relative to its donor: predict-time or light-fit settings
+#: only (plans/PREREG_bsv_board_selected_variants_2026_10_01.md, "Mechanism"). A `.`-terminated entry covers a group. A
+#: knob that feeds the matched learners' X, y, masks or parameters must never be listed (tests/fm1/test_fm1_reuse.py).
+_REUSE_FREE_PREFIXES = ("run.purpose", "run.artifacts_dir", "calibration.mtx.", "modules.", "matched.blend.catboost_weight",
+                        "adsb.stack.", "adsb.support_gate.", "adsb.min_coverage")
+REUSE_FREE_KNOBS = frozenset(p for p in KNOBS
+                             if any(p == q or (q.endswith(".") and p.startswith(q)) for q in _REUSE_FREE_PREFIXES))
+
+
+def reuse_blockers(cfg, donor_cfg) -> list:
+    """The knobs outside the reuse allow-list on which two resolved configs differ, sorted; empty = the donor's matched
+    learners are the ones a full fit of `cfg` would train (given the same input data)."""
+    return sorted(p for p in KNOBS if p not in REUSE_FREE_KNOBS and cfg[p] != donor_cfg[p])
+
 
 # =================================================================================================================
 # schema completeness (the generator and the tests both call this)

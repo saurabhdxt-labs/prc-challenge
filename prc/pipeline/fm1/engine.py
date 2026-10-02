@@ -122,11 +122,49 @@ def _orl(cfg):
 # fit
 # =================================================================================================================
 
+#: fit_inputs keys the matched learners were fitted on (the free stages' inputs — stack models, MTX csv, E2 rules — change
+#: with the reuse allow-list's knobs and are not compared)
+_LEARNER_INPUTS = ("raw/", "weather/", "orl_routes", "adsb/")
+
+
+def _reuse_learners(donor: A.ModelArtifact, cols, enc_m, n_rows: int, n_es: int, need_cat: bool) -> tuple:
+    """The donor's (base, catboost) for a derived fit, after checking that this fit's recomputed design columns,
+    encodings and matched row counts are the donor's (so its learners are what this fit would train)."""
+    if list(cols) != list(donor.design_columns):
+        raise E.ReuseError(f"design columns differ from the donor {donor.key}'s")
+    if donor.enc_matched is None or enc_m.to_json() != donor.enc_matched.to_json():
+        raise E.ReuseError(f"the recomputed encodings differ from the donor {donor.key}'s (not the donor's training rows)")
+    dm = donor.fit_report.get("matched", {})
+    if (dm.get("n_rows"), dm.get("n_es")) != (n_rows, n_es):
+        raise E.ReuseError(f"matched rows differ from the donor {donor.key}'s: {n_rows:,} rows / {n_es:,} early-stopping "
+                           f"vs {dm.get('n_rows')} / {dm.get('n_es')}")
+    if donor.base is None:
+        raise E.ReuseError(f"the donor {donor.key} has no base learner")
+    if need_cat and donor.catboost is None:
+        raise E.ReuseError("the variant needs the CatBoost learner; the donor has none")
+    return donor.base, (donor.catboost if need_cat else None)
+
+
 def fit(config, *, save: bool = True, allow_heavy: bool = False, tier_overrides: dict | None = None, log=_log,
-        overrides=(), split: dict | None = None) -> A.ModelArtifact:
+        overrides=(), split: dict | None = None, reuse_from=None) -> A.ModelArtifact:
     """`split` (validation protocols only): {"train_months": [...], "es_months": [...]} or {"train_months": [...],
-    "es_days_from": d} (early stopping on the training rows whose UTC day of month >= d: the strict swap folds)."""
+    "es_days_from": d} (early stopping on the training rows whose UTC day of month >= d: the strict swap folds).
+
+    `reuse_from` (a ModelArtifact or its directory): a derived fit. The donor's fitted matched learners are taken as they
+    are — no LightGBM / CatBoost training — when every knob outside knobs.REUSE_FREE_KNOBS equals the donor's and the
+    learners' input files are the same; frames, encodings, the unmatched lane and MTX are recomputed, and the recomputed
+    design columns / encodings / row counts must equal the donor's. Anything else raises ReuseError. A derived artefact
+    predicts what a full fit of the same config predicts (tests/fm1/test_fm1_reuse.py)."""
     cfg = as_config(config, overrides)
+    donor = None
+    if reuse_from is not None:
+        if split or tier_overrides:
+            raise E.ReuseError("reuse_from cannot be combined with a split / tier (a protocol fold or a screen tier "
+                               "trains different models)")
+        donor = reuse_from if isinstance(reuse_from, A.ModelArtifact) else A.load(reuse_from)
+        blockers = K.reuse_blockers(cfg, donor.config)
+        if blockers:
+            raise E.ReuseError(f"knob(s) outside the reuse allow-list differ from the donor {donor.key}: {blockers}")
     stages = S.plan(cfg)
     names = {s.name for s in stages}
     split = dict(split or {})
@@ -136,6 +174,13 @@ def fit(config, *, save: bool = True, allow_heavy: bool = False, tier_overrides:
     if n_raw > HEAVY_ROWS and not allow_heavy:
         raise E.PipelineError(f"fit over {n_raw:,} raw training rows (> {HEAVY_ROWS:,}) is a heavy job: run the quality gate, "
                               "then pass allow_heavy=True / --allow-heavy (one heavy job at a time, AC power)")
+    inputs = fit_inputs(cfg, files)
+    if donor is not None:
+        diff = sorted(k for k in set(inputs) | set(donor.inputs)
+                      if k.startswith(_LEARNER_INPUTS) and inputs.get(k) != donor.inputs.get(k))
+        if diff:
+            raise E.ReuseError(f"input data differ from the donor {donor.key}'s: {diff[:5]}"
+                               + (f" (+{len(diff) - 5} more)" if len(diff) > 5 else ""))
     t0 = time.time()
     tier = dict(tier_overrides or {})
     seeds = tuple(tier.pop("seeds", cfg["run.seeds"]))
@@ -179,18 +224,26 @@ def fit(config, *, save: bool = True, allow_heavy: bool = False, tier_overrides:
     cols, ucols, gate_man, cov_share, feats = [], [], {}, {}, []
     if "base_model" in names:
         m = pd.concat(m_parts, ignore_index=True)
+        del m_parts                                      # the per-month frames are a full second copy of m (2.1 GB)
         es = es_mask(m)
         target = m.delta.to_numpy(float) if cfg["matched.target"] == "delta" else m.y.to_numpy(float)
         enc_m = F.EncodingTables.fit(m, {"te": m.y.to_numpy(float), "de": m.delta.to_numpy(float)}, F.stand_ab().ENC_KEYS,
                                      F.stand_ab().SMOOTH)
         cols = F.matched_design_columns(cfg)
-        X = F.matched_design(m, enc_m, cols)
-        base = L.make_learner(cfg["matched.learner"], cfg, **_lr(tier, cfg["matched.learner"]))
-        base.fit(X, target, ~es, es, seeds, cols)
+        need_cat = "cbv_blend" in names or ("adsb_stack" in names and cfg["adsb.stack.f_model"] == "lgbcat")
+        if donor is None:
+            X = F.matched_design(m, enc_m, cols)
+            base = L.make_learner(cfg["matched.learner"], cfg, **_lr(tier, cfg["matched.learner"]))
+            base.fit(X, target, ~es, es, seeds, cols)
+            if need_cat:
+                cat = L.make_learner("catboost", cfg, **_lr(tier, "catboost"))
+                cat.fit(X, m.delta.to_numpy(float), ~es, es, seeds, cols)
+            del X
+        else:
+            base, cat = _reuse_learners(donor, cols, enc_m, int(len(m)), int(es.sum()), need_cat)
+            report["reused_learners_from"] = donor.key
         report["matched"] = {"n_rows": int(len(m)), "n_es": int(es.sum()), "base": base.describe()}
-        if "cbv_blend" in names or ("adsb_stack" in names and cfg["adsb.stack.f_model"] == "lgbcat"):
-            cat = L.make_learner("catboost", cfg, **_lr(tier, "catboost"))
-            cat.fit(X, m.delta.to_numpy(float), ~es, es, seeds, cols)
+        if cat is not None:
             report["matched"]["catboost"] = cat.describe()
         if "adsb_stack" in names:
             gate_man = C.gate_manifest(cfg.path("adsb.stack.models_dir"))
@@ -199,12 +252,13 @@ def fit(config, *, save: bool = True, allow_heavy: bool = False, tier_overrides:
             if absent:
                 raise E.SchemaError(f"the stack's features {absent} are not in the ADS-B block of {cfg['adsb.table_dir']}")
             cov_share = C.covered_share(m.ap.to_numpy(), m.coverage.to_numpy(), cfg["adsb.min_coverage"])
-        del X
-        log(f"matched: {len(m):,} rows, base best_iter {base.best_iter} n_ref {base.n_ref}")
+        log(f"matched: {len(m):,} rows, base best_iter {base.best_iter} n_ref {base.n_ref}"
+            + (f" (learners reused from {donor.key})" if donor is not None else ""))
     if v26:
         report["unmatched"] = {"learner": "v26", **lane.report}
     elif "unmatched_body" in names:
         u = pd.concat(u_parts, ignore_index=True)
+        del u_parts
         if len(u) == 0:
             raise E.SchemaError("no unmatched training rows")
         enc_u = F.EncodingTables.fit(u, {"te": u.y.to_numpy(float)}, F.UNM_KEYS, cfg["unmatched.encoding_smooth"])
@@ -223,7 +277,7 @@ def fit(config, *, save: bool = True, allow_heavy: bool = False, tier_overrides:
                           base=base, catboost=cat, unmatched=unm,
                           stack_dir=cfg.path("adsb.stack.models_dir") if "adsb_stack" in names else None,
                           stack_feats=feats, gate_manifest=gate_man, train_covered_share=cov_share, mtx=mtx,
-                          fit_report=report, inputs=fit_inputs(cfg, files), unmatched_lane=lane)
+                          fit_report=report, inputs=inputs, unmatched_lane=lane)
     if save:
         A.save(art)
         log(f"artefact {art.directory}")

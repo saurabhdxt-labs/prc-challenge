@@ -1,4 +1,4 @@
-# FM1 — reproduction guide (days 1–3 state)
+# FM1 — reproduction guide (updated 2026-10-02 after the first full fit)
 
 Interpreter: `/opt/homebrew/bin/python3.11` (pandas 3.0.1, numpy 2.4.3, lightgbm 4.5.0, sklearn 1.8.0). CatBoost 1.2.10 lives
 only in `~/.venvs/prc-catboost` (numpy 1.26.4) and is used through the worker. Plain `python3` in this shell is the CatBoost
@@ -10,6 +10,7 @@ venv — always call the interpreter above.
 python -m prc config-reference --check                                  # the reference doc is current
 python -m prc validate --config configs/fm1.yaml --protocol dry-run     # config, plan, every input path; fits nothing
 python -m prc fit --config configs/fm1.yaml [--set path=value ...] [--allow-heavy]
+python -m prc fit --config configs/fm1.yaml --reuse-from <donor artefact dir> --set <allow-listed knob>=<value> [--allow-heavy]
 python -m prc predict --config configs/fm1.yaml --rows <raw scored parquet> --out <file.parquet>
 python -m prc build-submission --config configs/fm1.yaml --out <dir> --version <N> [--set run.purpose=scored_period]
 python -m prc validate --config configs/fm1.yaml --protocol S|swap|forward|lomo|forward_monthly --out <dir> [--allow-heavy]
@@ -37,10 +38,26 @@ manifest and re-checked on load). Cross-machine determinism is NOT claimed.
 `run.artifacts_dir/<config hash[:12]>-<input data digest[:8]>/` — never overwritten; the manifest records the git sha,
 library versions, every input file's sha256 and every artefact file's sha256.
 
-## Runtimes and resources — TODO (day 8–9)
+## Derived variants (no retraining)
 
-Full-tier fit, validation and clean-checkout rebuild times, disk and peak RAM, and the expected hashes.
-Measured so far: AT14 stored-tier gate 158 s, peak 2.6 GB (parent + one booster child); AT9 e2e world: `fit` 4 s,
+`fit --reuse-from <donor artefact dir>` builds a variant artefact from a donor's fitted matched learners when only
+predict-time or light-fit knobs differ (`knobs.REUSE_FREE_KNOBS`: `run.purpose`, `run.artifacts_dir`, `calibration.mtx.*`,
+`modules.*`, `matched.blend.catboost_weight`, `adsb.stack.*`, `adsb.support_gate.*`, `adsb.min_coverage`). Frames, encodings,
+the unmatched lane and MTX are recomputed; the recomputed design columns, encodings and row counts must equal the donor's,
+and the learners' input files (raw months, weather, routes, ADS-B tables) must be the same — otherwise `ReuseError`.
+A derived artefact predicts bit-identically to a full fit of the same config (tests/fm1/test_fm1_reuse.py, five variants).
+
+## Runtimes and resources (measured 2026-10-01 / 02, this machine: 18 cores, 24 GB)
+
+Full fit of the final configuration (twelve raw months, 2,062,440 matched rows, 133 features, `run.threads=12`,
+three seeds): wall **9 h 40 min** including 44 pauses for other jobs (LightGBM 5 h 55 min: best_iter 40,550, n_ref 48,691;
+CatBoost 3 h 43 min: best_iter 29,993 of `max_rounds` 30,000 — the cap bound, early stopping did not fire; n_ref 36,014).
+Artefact 3.5 GB. `build-submission` of the scored file: 18 min, 344,841 rows.
+Memory: the data path alone peaks at 9.9 GB (1-round fit; it was 17.8 GB before the 2026-10-01 design / learner refactor).
+During the full fit the main process reaches ~15 GB (three 48,691-tree boosters on top of the frame and the design) and
+the CatBoost worker runs beside it at ~5 GB: plan for ~20 GB, or run with a memory guard that pauses the fit. A 1-round
+dry run does NOT measure the model-size term or the worker.
+Determinism at scale: two fits of a three-month slice of the final configuration predicted the full scored file
+identically (344,841 × 30 cells, 0 different).
+Measured earlier: AT14 stored-tier gate 158 s, peak 2.6 GB (parent + one booster child); AT9 e2e world: `fit` 4 s,
 `build-submission` 21 s, parent peak 0.31 GB, two independent runs byte-identical (notes N7).
-NOT measured: the full-scale fit (twelve raw months). The design is held as float64 (a 2 M x ~130 copy is ~2 GB on top of
-the frames); run a 1-step dry run under the heavy lock and the quality gate before the first real fit.

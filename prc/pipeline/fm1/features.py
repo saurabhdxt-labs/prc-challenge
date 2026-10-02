@@ -344,15 +344,22 @@ def build_frames(raw: pd.DataFrame, serve: bool, cfg, weather=None, orl_routes=N
 
 
 def matched_design(frame: pd.DataFrame, enc: EncodingTables, columns) -> np.ndarray:
-    """The float32-valued design (lgbm_submit.design_matrix's precision) as float64, columns in `columns` order."""
+    """The float32-valued design (lgbm_submit.design_matrix's precision) as float64, columns in `columns` order.
+
+    Built column by column into one C-contiguous float64 array: each column is cast to float32 (the shipped precision)
+    and widened, exactly what `frame[columns].to_numpy(dtype=float32).astype(float64)` computes, without that route's
+    copy of the whole frame, second copy of the selected columns and column-major result (which LightGBM and the
+    CatBoost worker then re-copied to C order). 2026-10-01: the full-scale fit peaked at 17.8 GB on this path."""
     rows.assert_design_clean(columns, "matched design")
-    f = frame.copy()
-    for k, v in enc.transform(frame).items():
-        f[k] = v
-    missing = [c for c in columns if c not in f.columns]
+    encoded = enc.transform(frame)                      # encodings take precedence over a frame column of the same name
+    missing = [c for c in columns if c not in encoded and c not in frame.columns]
     if missing:
         raise E.MissingColumnError(f"matched design: missing column(s) {missing}")
-    return f[list(columns)].to_numpy(dtype=np.float32).astype(np.float64)
+    out = np.empty((len(frame), len(columns)), dtype=np.float64)
+    for j, c in enumerate(columns):
+        v = encoded[c] if c in encoded else frame[c].to_numpy()
+        out[:, j] = np.asarray(v).astype(np.float32, copy=False)
+    return out
 
 
 def unmatched_design(frame: pd.DataFrame, enc: EncodingTables) -> np.ndarray:

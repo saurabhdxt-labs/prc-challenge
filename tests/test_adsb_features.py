@@ -432,7 +432,7 @@ def test_fold_flights_on_the_real_fold_a_record():
 
 
 @pytest.mark.skipif(not REAL_REC.exists(), reason="fold-A record absent (data/ is not in git)")
-def test_regression_real_fold_a_record_test_does_not_raise_the_pytest_peak_rss():
+def test_regression_bug_34_real_fold_a_record_test_does_not_raise_the_pytest_peak_rss():
     """In-process the real fold-A test above raised the suite's peak RSS 0.97 -> 1.55 GB (2026-09-29 suite; BC-34). Calling
     it here must leave ru_maxrss within 300 MiB of where it was."""
     import os

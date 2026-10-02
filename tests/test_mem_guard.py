@@ -11,6 +11,15 @@ Written before the module (seen RED: ModuleNotFoundError). Mutation rehearsal at
 Mutation rehearsal for that addition is logged separately in logs/cml_scratch/mutation_memguard.txt; RED output for
 these new tests (seen before phantom_heavy_alive/decide_with_phantom/--pause-on-phantom existed) is in
 logs/cml_scratch/red_log_memguard.txt.
+
+BC-37 (2026-10-01, owner decision "1"): a phantom-caused pause resumes without the memory RESUME hysteresis. 6 tests seen
+red first (HOLD on the real stuck case; next_cause / resume_label absent). Mutation rehearsal on copies (scratch dir, live
+file untouched): 12 of 12 RED — phantom branch off, <= for < on swap, free-% condition dropped, hold-below-pause dropped,
+default cause flipped, PAUSE cause constant, escalation dropped, cause not sticky, RESUME not clearing, cooldown off,
+labels swapped, HOLD reason blank.
+BC-37 part 2 (2026-10-01 22:1x, owner decision "1"): the memory resume rule is free RAM >= 30 % with swap not below the
+pause line. 2 tests seen red first (HOLD at 684 MB / 65 %; constants). Rehearsal on copies: 8 of 8 RED — swap line back
+at 1,000, RAM line 15 and 31, swap or RAM condition dropped, > for >= on swap, minimum pause dropped, cause ignored.
 """
 from __future__ import annotations
 
@@ -58,8 +67,27 @@ def test_resume_needs_min_pause_and_both_recovered():
     assert G.decide(paused=True, swap_free_mb=ok_swap, free_pct=ok_pct - 1, paused_for_s=G.MIN_PAUSE_S) == "HOLD"
 
 
-def test_hysteresis_gap_is_real():
-    assert G.RESUME_SWAP_MB > G.PAUSE_SWAP_MB and G.RESUME_FREE_PCT > G.PAUSE_FREE_PCT
+def test_hysteresis_is_on_free_ram_and_the_swap_resume_line_is_the_pause_line():
+    """Owner decision 2026-10-01 22:1x ("1", BC-37 second part): free swap is not a recovery signal on macOS — a paused
+    run's own pages sit in swap until it runs again, and the swap files are resized under it — so the resume line for
+    swap is the pause line (350 MB) and the hysteresis lives on free RAM: pause < 8 %, resume >= 30 %."""
+    assert G.RESUME_SWAP_MB == G.PAUSE_SWAP_MB == 350.0
+    assert (G.PAUSE_FREE_PCT, G.RESUME_FREE_PCT) == (8, 30)
+
+
+def test_regression_bug_37_a_memory_pause_resumes_on_free_ram_not_on_free_swap():
+    """2026-10-01 21:59–22:1x: a memory pause (swap free 309 MB) outlived its cause: the other job ended, RAM free went
+    to 65 %, but swap free sat at 684 MB (< the old 1,000 MB line) because the paused fit's own pages stayed in swap.
+    Seen red: HOLD at these inputs. Mutation: put the swap resume line back at 1,000 MB -> red."""
+    assert G.decide(paused=True, swap_free_mb=684, free_pct=65, paused_for_s=602) == "RESUME"
+    assert G.decide_with_phantom(True, 684, 65, 602, phantom_names=[], phantom_quiet_for_s=9999,
+                                 memory_caused=True) == ("RESUME", "")
+    # still held: RAM not yet at the resume line, swap below the pause line, or the minimum pause not served
+    assert G.decide(paused=True, swap_free_mb=5000, free_pct=29, paused_for_s=602) == "HOLD"
+    assert G.decide(paused=True, swap_free_mb=5000, free_pct=30, paused_for_s=602) == "RESUME"
+    assert G.decide(paused=True, swap_free_mb=349, free_pct=65, paused_for_s=602) == "HOLD"
+    assert G.decide(paused=True, swap_free_mb=350, free_pct=65, paused_for_s=602) == "RESUME"
+    assert G.decide(paused=True, swap_free_mb=684, free_pct=65, paused_for_s=G.MIN_PAUSE_S - 1) == "HOLD"
 
 
 def test_refuses_phantom_targets():
@@ -256,3 +284,70 @@ def test_mem_guard_main_argparse_accepts_pause_on_phantom_flag(monkeypatch, tmp_
     log_path = tmp_path / "x.log"
     with pytest.raises(RuntimeError, match=sentinel):
         G.main(["--pid", "123", "--log", str(log_path), "--pause-on-phantom"])
+
+
+# ------------------------------------------------------------------ BC-37 (2026-10-01): a phantom-caused pause and
+# the memory hysteresis. Owner decision 2026-10-01 ("1"): after a pause that only a Phantom job caused, resume when
+# Phantom is quiet and memory is not below the PAUSE thresholds; the 1,000 MB / 15 % resume hysteresis stays for
+# pauses that memory caused (or that memory joined while paused).
+
+def test_regression_bug_37_a_phantom_caused_pause_resumes_without_the_memory_hysteresis():
+    """2026-10-01 17:44–18:09: the full fit sat paused 25 min after aggregate_cell_hour had gone, because swap free was
+    761 MB (< the 1,000 MB RESUME line) with 57 % of RAM free; macOS sizes its swap files so that free swap hovers
+    around 0.7–1.7 GB. Seen red: HOLD. Mutation: require RESUME_SWAP_MB for a phantom-caused pause -> red."""
+    act, reason = G.decide_with_phantom(paused=True, swap_free_mb=761, free_pct=57, paused_for_s=1489,
+                                         phantom_names=[], phantom_quiet_for_s=1400, memory_caused=False)
+    assert (act, reason) == ("RESUME", "")
+
+
+def test_a_memory_caused_pause_keeps_the_resume_hysteresis():
+    """The two causes differ on free RAM: a phantom-only pause resumes above the PAUSE line (8 %), a memory-caused one
+    needs the RESUME line (30 %). Mutation: ignore memory_caused -> red."""
+    args = dict(paused=True, swap_free_mb=761, free_pct=20, paused_for_s=1489, phantom_names=[], phantom_quiet_for_s=9999)
+    assert G.decide_with_phantom(**args, memory_caused=True) == ("HOLD", "")
+    assert G.decide_with_phantom(**args, memory_caused=False) == ("RESUME", "")
+    # and the default (no cause given) is the strict rule: existing callers lose no protection
+    assert G.decide_with_phantom(**args)[0] == "HOLD"
+
+
+def test_a_phantom_caused_pause_still_waits_for_phantom_and_its_cooldown():
+    act, reason = G.decide_with_phantom(paused=True, swap_free_mb=5000, free_pct=60, paused_for_s=500,
+                                         phantom_names=["aggregate_cell_hour"], phantom_quiet_for_s=0, memory_caused=False)
+    assert (act, reason) == ("HOLD", "phantom:aggregate_cell_hour")
+    act, reason = G.decide_with_phantom(paused=True, swap_free_mb=5000, free_pct=60, paused_for_s=500,
+                                         phantom_names=[], phantom_quiet_for_s=G.PHANTOM_QUIET_S - 1, memory_caused=False)
+    assert (act, reason) == ("HOLD", "phantom-cooldown")
+    act, _ = G.decide_with_phantom(paused=True, swap_free_mb=5000, free_pct=60, paused_for_s=500,
+                                    phantom_names=[], phantom_quiet_for_s=G.PHANTOM_QUIET_S, memory_caused=False)
+    assert act == "RESUME"
+
+
+def test_a_phantom_caused_pause_holds_while_memory_is_below_the_pause_thresholds():
+    for sw, pct in ((G.PAUSE_SWAP_MB - 1, 60), (5000, G.PAUSE_FREE_PCT - 1)):
+        act, reason = G.decide_with_phantom(paused=True, swap_free_mb=sw, free_pct=pct, paused_for_s=500,
+                                             phantom_names=[], phantom_quiet_for_s=9999, memory_caused=False)
+        assert (act, reason) == ("HOLD", "memory")
+    # exactly at the pause thresholds is not below them (decide() pauses on < only)
+    act, _ = G.decide_with_phantom(paused=True, swap_free_mb=G.PAUSE_SWAP_MB, free_pct=G.PAUSE_FREE_PCT,
+                                    paused_for_s=500, phantom_names=[], phantom_quiet_for_s=9999, memory_caused=False)
+    assert act == "RESUME"
+
+
+def test_next_cause_tracks_who_caused_the_pause_and_escalates_to_memory():
+    # a new pause takes its cause from the reason
+    assert G.next_cause(False, False, "PAUSE", "memory", 100, 40) is True
+    assert G.next_cause(False, True, "PAUSE", "phantom:track_record", 5000, 40) is False
+    # running: no cause
+    assert G.next_cause(False, True, "RUN", "", 5000, 40) is False
+    # paused for Phantom, memory fine: stays phantom-caused
+    assert G.next_cause(True, False, "HOLD", "phantom:track_record", 761, 57) is False
+    # paused for Phantom, memory falls below a pause threshold: memory joins, and stays joined after it recovers a bit
+    assert G.next_cause(True, False, "HOLD", "memory", G.PAUSE_SWAP_MB - 1, 57) is True
+    assert G.next_cause(True, False, "HOLD", "phantom:track_record", 5000, G.PAUSE_FREE_PCT - 1) is True
+    assert G.next_cause(True, True, "HOLD", "", 761, 57) is True
+    # a resume clears it
+    assert G.next_cause(True, True, "RESUME", "", 5000, 60) is False
+
+
+def test_resume_label_names_the_cause_in_the_log():
+    assert G.resume_label(True) == "memory" and G.resume_label(False) == "phantom-quiet"

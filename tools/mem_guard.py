@@ -3,14 +3,16 @@
     /opt/homebrew/bin/python3.11 -B tools/mem_guard.py --pid <our run's pid> --log logs/<run>_memguard.log
 
 Every POLL_S seconds: read free swap (sysctl vm.swapusage) and the system-wide free percentage (memory_pressure).
-Below either pause threshold -> SIGSTOP the run's whole process tree; once BOTH recover past the resume thresholds
-(hysteresis) and the pause has lasted MIN_PAUSE_S -> SIGCONT. Never signals a Phantom process. Exits when the run ends.
+Below either pause threshold -> SIGSTOP the run's whole process tree; once free RAM is past the resume threshold
+(hysteresis), free swap is not below its pause threshold, and the pause has lasted MIN_PAUSE_S -> SIGCONT. Never signals a Phantom process. Exits when the run ends.
 One line per state change goes to the log (for a Monitor), plus a STILL PAUSED line every 10 minutes.
 
 Opt-in (--pause-on-phantom, owner ruling 2026-09-28: "keep watching the memory when phantom starts just pause and
 resume"): ALSO pause our run while any Phantom HEAVY job (PHANTOM_HEAVY_JOBS) is alive, and resume only once none has
-been alive for PHANTOM_QUIET_S seconds AND memory is past the existing resume thresholds. Off by default; with the
-flag unset, behaviour is unchanged byte-for-byte.
+been alive for PHANTOM_QUIET_S seconds. The memory RESUME thresholds apply to that resume only if memory caused the pause
+or fell below a PAUSE threshold during it; after a pause that only Phantom caused, memory must merely not be below the
+PAUSE thresholds (BC-37, owner decision 2026-10-01). Off by default; with the flag unset, behaviour is unchanged
+byte-for-byte.
 """
 from __future__ import annotations
 
@@ -24,8 +26,11 @@ import time
 
 PAUSE_SWAP_MB = 350.0
 PAUSE_FREE_PCT = 8
-RESUME_SWAP_MB = 1000.0
-RESUME_FREE_PCT = 15
+# Resume (owner decision 2026-10-01, BC-37): the hysteresis is on free RAM (pause < 8 %, resume >= 30 %). The swap resume
+# line is the pause line: free swap is not a recovery signal on macOS — a paused run's own pages stay in swap until it
+# runs again and the swap files are resized under it (a 1,000 MB line held the full fit paused after its cause had gone).
+RESUME_SWAP_MB = PAUSE_SWAP_MB
+RESUME_FREE_PCT = 30
 MIN_PAUSE_S = 60
 POLL_S = 15
 PHANTOM_MARKERS = ("Phantom", "phantom", "r17_shadow", "aggregate_cell_hour", "refresh_recall", "track_record")
@@ -111,14 +116,23 @@ def phantom_heavy_alive(ps_text: str, ignore_pids: frozenset = frozenset()) -> l
     return found
 
 
+def below_pause(swap_free_mb: float, free_pct: int) -> bool:
+    """Memory is past a PAUSE threshold (the same strict < that decide() pauses on)."""
+    return swap_free_mb < PAUSE_SWAP_MB or free_pct < PAUSE_FREE_PCT
+
+
 def decide_with_phantom(paused: bool, swap_free_mb: float, free_pct: int, paused_for_s: float,
-                         phantom_names: list, phantom_quiet_for_s: float) -> tuple:
+                         phantom_names: list, phantom_quiet_for_s: float, memory_caused: bool = True) -> tuple:
     """decide() plus the --pause-on-phantom overlay. Returns (action, reason).
 
     action is RUN/PAUSE/HOLD/RESUME as in decide(). reason is "" for RUN and a plain RESUME, "memory" for a
-    memory-pressure PAUSE, or "phantom:<name>" while a heavy Phantom job is the (co-)cause of the pause/hold.
-    Resuming from a pause needs BOTH: decide()'s own memory-recovery+min-pause condition, AND no heavy Phantom
-    job seen for at least PHANTOM_QUIET_S seconds -- whichever reason originally caused the pause.
+    memory-pressure PAUSE or HOLD, or "phantom:<name>" while a heavy Phantom job is the (co-)cause of the pause/hold.
+    Resuming always needs no heavy Phantom job seen for at least PHANTOM_QUIET_S seconds. On top of that:
+      memory_caused=True  (memory caused the pause, or joined it while paused; the default): decide()'s own
+                          memory-recovery + min-pause condition (the RESUME hysteresis).
+      memory_caused=False (only a Phantom job caused it; BC-37, owner decision 2026-10-01): memory must merely not be
+                          below the PAUSE thresholds. macOS sizes its swap files so that free swap hovers around
+                          0.7-1.7 GB; the 1,000 MB RESUME line held a run paused 25 min with 57 % of RAM free.
     """
     mem_action = decide(paused, swap_free_mb, free_pct, paused_for_s)
     if not paused:
@@ -132,9 +146,25 @@ def decide_with_phantom(paused: bool, swap_free_mb: float, free_pct: int, paused
         return "HOLD", f"phantom:{phantom_names[0]}"
     if phantom_quiet_for_s < PHANTOM_QUIET_S:
         return "HOLD", "phantom-cooldown"
+    if not memory_caused:
+        return ("HOLD", "memory") if below_pause(swap_free_mb, free_pct) else ("RESUME", "")
     if mem_action == "RESUME":
         return "RESUME", ""
     return "HOLD", ""
+
+
+def next_cause(paused: bool, memory_caused: bool, action: str, reason: str, swap_free_mb: float, free_pct: int) -> bool:
+    """Whether the pause counts as memory-caused after this tick: a new pause takes its cause from its reason; while
+    paused, memory falling below a PAUSE threshold joins the cause and stays joined; RUN / RESUME clear it."""
+    if action == "PAUSE":
+        return reason == "memory"
+    if not paused or action == "RESUME":
+        return False
+    return memory_caused or below_pause(swap_free_mb, free_pct)
+
+
+def resume_label(memory_caused: bool) -> str:
+    return "memory" if memory_caused else "phantom-quiet"
 
 
 def check_target(command: str) -> None:
@@ -204,7 +234,8 @@ def main(argv=None) -> int:  # pragma: no cover - process loop; decisions and pa
     ap.add_argument("--log", required=True)
     ap.add_argument("--pause-on-phantom", action="store_true",
                      help="also pause while a heavy Phantom job (PHANTOM_HEAVY_JOBS) is alive; "
-                          "resume needs it absent for PHANTOM_QUIET_S seconds AND memory past the resume thresholds")
+                          "resume needs it absent for PHANTOM_QUIET_S seconds; the memory resume thresholds apply only "
+                          "when memory caused or joined the pause (else memory must not be below the pause thresholds)")
     a = ap.parse_args(argv)
     check_target(_command(a.pid))
 
@@ -216,6 +247,7 @@ def main(argv=None) -> int:  # pragma: no cover - process loop; decisions and pa
         f"resume>={RESUME_SWAP_MB:.0f}M and >={RESUME_FREE_PCT}% after {MIN_PAUSE_S}s"
         + (f"; pause-on-phantom quiet>={PHANTOM_QUIET_S}s" if a.pause_on_phantom else ""))
     paused, since, last_note = False, 0.0, 0.0
+    mem_cause = False        # BC-37: did memory cause (or join) the current pause? decides the resume rule
     phantom_last_seen = 0.0  # 0.0 sentinel: never seen -> "quiet for" is huge (now - 0.0), never blocks resume
     # BC-29: also exclude our own ancestor pid chain (whatever launched this guard), never just os.getpid()/a.pid.
     ignore_pids = frozenset({os.getpid(), a.pid}) | _ancestor_pids(os.getpid())
@@ -248,14 +280,16 @@ def main(argv=None) -> int:  # pragma: no cover - process loop; decisions and pa
             if phantom_names:
                 phantom_last_seen = now
             act, reason = decide_with_phantom(paused, sw, pct, now - since if paused else 0.0,
-                                               phantom_names, now - phantom_last_seen)
+                                               phantom_names, now - phantom_last_seen, memory_caused=mem_cause)
+            was_mem = mem_cause
+            mem_cause = next_cause(paused, mem_cause, act, reason, sw, pct)
             if act == "PAUSE":
                 pids = _signal_tree(a.pid, signal.SIGSTOP)
                 paused, since, last_note = True, now, now
                 log(f"MEMGUARD PAUSED reason={reason} pids={pids} swap_free={sw:.0f}M free={pct}%")
             elif act == "RESUME":
                 pids = _signal_tree(a.pid, signal.SIGCONT)
-                log(f"MEMGUARD RESUMED after {now - since:.0f}s reason={reason or 'memory'} "
+                log(f"MEMGUARD RESUMED after {now - since:.0f}s reason={resume_label(was_mem)} "
                     f"pids={pids} swap_free={sw:.0f}M free={pct}%")
                 paused = False
             elif paused and now - last_note >= 600:
