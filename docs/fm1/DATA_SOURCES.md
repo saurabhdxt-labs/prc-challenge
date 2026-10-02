@@ -15,6 +15,9 @@ re-checked this session it says so.
 | METAR via Iowa Environmental Mesonet (ASOS/METAR archive) | yes — the weather block | `scripts/fetch_weather.py` | stated **public domain** by the fetch script | `scripts/fetch_weather.py:5,44` |
 | Open-Meteo | no (OMW closed NOT WORKING at G1) | `scripts/analysis/omw_build.py` | **TODO: quote the terms** (not an FM1 input) | memory OMW note |
 
+Derived inputs (ADS-B tables, the stack models, the ORL route table, the MTX CSVs) are rebuilt from the sources above by
+code in the repository; REPRODUCE.md lists each one with the command and the version the final model uses.
+
 Refused sources (never read by any FM1 path): EUROCONTROL 2026 taxi-out aggregates as a label source outside the MTX
 calibration ruling (memory `feedback_prc_refused_label_aggregate_sources`); paid data (owner ruling); OpenSky beyond the
 competition files (ADN prereg).

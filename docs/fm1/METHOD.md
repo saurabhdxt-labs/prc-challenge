@@ -1,6 +1,7 @@
-# FM1 — method report (2026-09-28; §5 filled 2026-09-30)
+# FM1 — method report (2026-09-28; §5 filled 2026-09-30; §6, §8 and the EOBT clip 2026-10-02)
 
-Sections marked **TODO (day N)** are filled by the registered studies; nothing here is a result until then.
+Every number below comes from a registered study (its registration is named where it is used); none is a result
+from an unregistered look.
 
 ## 1. Problem and row classes
 
@@ -58,10 +59,20 @@ Routing difference from v36 (a design choice for the day-4 study, not a replay):
 not serve; v34/v36 blended only rows outside the v13-era ADS-B table (N rows without coverage kept the base value).
 
 ADS-B support gate: `manifest` (the stack's stored ADN.7 gate, as v36 served) or `coverage_ratio`; a rule can narrow the
-stack's airports, never widen them. The label-free ESS rule set on 2025 LOMO is TODO (days 4–6).
+stack's airports, never widen them. The label-free ESS rule planned for 2025 LOMO was not built; the coverage-ratio
+rule was tested on the board instead (v52, −10.6 MSE vs v50, not kept; §8), so the final model serves the stored gate.
 
 Calibration (MTX) runs LAST, structurally (plan check) and at run time (the ledger refuses any value write after it) — the
 v43 EGLL-7 defect class cannot be expressed.
+
+EOBT clip (`prc/pipeline/fm1/eobt_clip.py`, `modules.eobt_clip`, off by default): a serve-time repair of one raw input,
+run before the feature path (stage `eobt_clip`). In an (airport, UTC month) cell of the served rows where the share of
+eligible departures with EOBT_1 later than LOBT is at least 0.15 (on at least 1,000 rows; fewer is refused), every eligible
+departure takes EOBT_1 := min(EOBT_1, LOBT); a batch of the scored file is decided on the scored file's whole cell. Fit never
+applies it. On the 2026 scored file it fires at LFPG July only (35.1 %; LFPG January 6.1 % and every 2025 month 3.9 – 7.1 %
+do not). Why and what it is worth: LIMITATIONS 9 / 9b. The provenance marks each clipped row (`eobt_clipped`) and the
+predict report lists every cell's share and decision. **It is not part of the final configuration:** served on the board as
+v54 (v51 + clip) it scored −214 MSE worse than v51 (§8), so it stays off.
 
 ## 4b. The unmatched lane (`prc/pipeline/fm1/unmatched.py`; PREREG Amendment A3)
 
@@ -161,10 +172,41 @@ rule that would switch it off where the share moved outside [0.7, 1.43] × train
 is the board history in §8); the full-tier learners (validated only through the determinism slice and the consistency
 check above); the CatBoost half reached its round cap in the final fit (REPRODUCE.md).
 
-## 7. Ablations, including every NOT WORKING result — TODO (day 9)
+## 7. Ablations, including every NOT WORKING result
 
-To be filled from the ledger with numbers: CLN, UMR, TNS, GHJ, OPX, DSG, v22, AGF/v27, MXK, R13, UCE, APT, TRC, RCR2,
-CSF.2, OMW, DFC, BLX, ODX, ... (memory index and `reports/MSE_LEDGER.md`).
+The swap-study arms (§5) are the ablations of the final configuration. Below are the other levers tried in the last three
+weeks, each registered before it was measured, with its verdict as recorded. Units as recorded: **s** = paired RMSE gain on
+a 2025 holdout; **bmse** = SSE / 344,841 on 2025 holdout rows; **board MSE** = change on the 2026 public board. Positive =
+the lever helped. Sources: `reports/MSE_LEDGER.md` and each registration's hash log (`reports/<arm>_prereg_hashes.log`).
+
+| date | arm | what was tried | headline | verdict |
+|---|---|---|---|---|
+| 09-17 | TRC | correct the target residual (WIN / RES heads) | −2.661 s / −1,100 board (WIN); −0.698 s / −288 (RES) | NOT WORKING |
+| 09-18 | TNS | tree ↔ neural models on the residual | +0.007 s / +3 board at best; −0.073 s / −30 | NOT WORKING (function class closed in three directions) |
+| 09-18 | OPX | 96 ordered peer-clock columns added to the ADS-B stage | composed −0.400 s [−0.501, −0.300]; a shuffled null −0.748 s | NOT WORKING (capacity, not content) |
+| 09-18 | GHJ | adsb.fi `globe_history` heatmap archive as a source | stopped at the distribution-shift gate, no score | NOT WORKING |
+| 09-19 | MAH | extra LOBT- / EOBT-anchored residual heads | +86.3 board (40–55 % of the +200 bar) | NOT WORKING |
+| 09-19 | v22 (BLS) | production blend splice on the CatBoost rows | −133.79 board MSE vs v21 (registered +51.53) | NOT WORKING (wrong sign) |
+| 09-21 | AGF / v27 | ACX-G bag as an ADS-B-stage ensemble member | forward +69.69 [17.8, 120.4]; board −153.50 vs v26 | NOT WORKING on the board |
+| 09-21 | MXK | unmatched body capacity (leaves 15 → 31) | forward +18.96 [−0.68, 42.49] | NOT WORKING (over-fitting shape) |
+| 09-23 | CSF.2 | Rome callsign-frequency identifier | AUC 0.914 < 0.95 bar; −2,020.2 board [−5,645.4, +796.2] | NOT WORKING |
+| 09-23 | RCR2 | direct target y instead of the delta target | January −1.73 s [−3.15, −0.35] | NOT WORKING |
+| 09-23 | OMW | Open-Meteo weather instead of / beside METAR | July −0.036 s [−0.695, +0.691]; January +0.110 [−0.399, +0.620] | NOT WORKING (gate G1) |
+| 09-23 | DFC.3 | destination departure-count columns | +11.84 bmse [−7.34, +31.24] (MDE 27.6) | NOT WORKING (underpowered) |
+| 09-24 | CLN | a clean-room LightGBM on the raw columns vs the pipeline | matched −13,560.5 [−15,154.6, −12,119.9] | FALSE: the architecture is not the cap |
+| 09-25 | UMR | rebuilt unmatched lane | −18,618.8 [−27,816, −10,797] | NOT WORKING |
+| 09-25 | ODX | off-block time detected from ADS-B | −779,498 [−813,210, −745,285] | NOT WORKING |
+| 09-26 | BLX | blind airports (LFPG / LTFM) residual model | forward +4.98 [−3.9, +13.5]; swap +13.83 [−0.6, +27.9] | NOT WORKING (first sight of the LFPG EOBT drift) |
+| 09-29 | RC-1 | best-of-8-clocks oracle on stale off-block rows | −47.2 bmse net of a permutation null (raw 904 < 1,000 bar) | NOT WORKING |
+| 09-30 | HPX-S (v48) | Rome delayed-departure rule | −702.9 board MSE vs v46 (registered +120) | NOT WORKING |
+| 09-30 | MOVE (v49) | movement-only ADS-B base | −1,120.8 board MSE vs v43 (null −398.5) | NOT WORKING |
+| 10-01 | WSC | weather off, same-season protocol S | −269.0 bmse [−423.9, −120.5] | weather kept (§5) |
+| 10-02 | DRF | label-free drift audit of the 133 inputs | LFPG July EOBT field 6.6 % → 35.1 % revised | TRUE (LIMITATIONS 9) |
+| 10-02 | EPX | price of that change on a held-out 2025 July | damage 265.6 [196.2, 339.0]; clip net ≈ +195 … +290 | NOT established (LIMITATIONS 9b) |
+| 10-02 | CLP (v54) | the EOBT clip served at LFPG July | −214.0 board MSE vs v51 (registered +100 … +300) | FALSE: not in the final configuration |
+
+Reading: almost every lever that looked good on a 2025 holdout either failed its own registered gate or lost on the 2026
+board (AGF, v22, HPX-S, MOVE). The final model is what survived this, not the best of many tries.
 
 ## 8. Board history as external evidence (public leaderboard, RMSE; lower is better)
 
@@ -185,7 +227,14 @@ for unseen data (the final-model audit of 2026-09-28 put about 28 % of the cumul
 | v46 | LightGBM + CatBoost stack base at the R12 cells (with MTX) | **250.7314** | +38.5 vs v43 — best file |
 | v48 | Rome delayed-departure rule (HPX-S) | 252.1294 | −703 (worse); not kept |
 | v49 | movement-only ADS-B base (MOVE) | 253.0326 | −1,121 vs v43 (worse); not kept |
+| **v50** | **FM1, the final model (forecaster, full fit)** | 251.4767 | −374 vs v46 (registered band met: +0.745 RMSE) |
+| v51 | v50 + MTX (scored-period build) | **251.1335** | +172.5 vs v50 — best FM1 file |
+| v52 | v50 + coverage-ratio gate (stack off at EDDF) | 251.4978 | −10.6 vs v50; not kept |
+| v53 | v50 without the CatBoost half-blend | 251.8068 | −166.1 vs v50; not kept |
+| v54 | v51 + the EOBT clip at LFPG July | 251.5593 | −214.0 vs v51; not kept |
 
-Rows read from the project's board records on 2026-10-01; v42's MTX gain (+124) and the individual Rome steps v7 / v10 are
-quoted in the ledger and not repeated here. The final model (v50) and its board-selected variants are reported in
-`plans/PREREG_fm1_final_fit_2026_09_30.md` and `plans/PREREG_bsv_board_selected_variants_2026_10_01.md` once scored.
+Rows read from the project's board records (v50–v53 from the scoring service's result files, 2026-10-02); v42's MTX gain
+(+124) and the individual Rome steps v7 / v10 are quoted in the ledger and not repeated here. v51–v53 are board-selected
+whole-model variants of v50: each differs in one documented knob and changes at least 10,000 rows (fewer would turn the
+board into a label probe). The documented forecaster is v50; v51 adds MTX, which reads the target period's published
+monthly aggregates and is disclosed as such (LIMITATIONS 8). Change in MSE = difference of the squared board RMSEs.

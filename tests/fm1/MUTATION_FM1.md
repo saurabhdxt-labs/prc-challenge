@@ -207,3 +207,62 @@ the row-count and CLI tests were added. Rehearsal (targeted test per mutant, sou
 | M70 | `engine.py` | reuse path falls through to training | `test_a_derived_fit_never_trains_a_matched_learner` | KILLED |
 | M71 | `engine.py` | `reused_learners_from` not recorded | `test_a_derived_artefact_predicts_bit_identically…` | KILLED |
 | M72 | `__main__.py` | `--reuse-from` not forwarded | `test_reuse_from_flag_defaults_to_none_and_reaches_the_api` | KILLED |
+
+## 2026-10-02 — serve-time EOBT clip (`eobt_clip.py`; the late-knob hash rule in `knobs.py`; stage + engine wiring)
+
+27 tests in `tests/fm1/test_fm1_eobt_clip.py`, written first and seen red 2026-10-02 09:0x EDT (no `eobt_clip` module, no
+late knobs); green before the rehearsal (25 fast + 2 slow). Rehearsal (one mutant at a time, targeted tests, a fresh
+bytecode prefix per mutant, sources restored and sha-verified; each failure read at its assertion): **24 / 24 killed**.
+
+| id | file | mutation | test | result |
+|---|---|---|---|---|
+| M-CLP1 | `knobs.py` | late knobs never left out of the hash | `test_every_config_with_the_late_knobs_at_default_hashes_as_before…` | KILLED |
+| M-CLP2 | `knobs.py` | late knobs always left out | `test_any_late_knob_off_its_default_puts_every_late_knob_in_the_hash` | KILLED |
+| M-CLP3 | `knobs.py` | each late knob left out at its own default (not all-or-none) | same | KILLED |
+| M-CLP4 | `knobs.py` | `min_share` default 0.2 | `test_late_knobs_and_their_defaults_are_pinned` | KILLED |
+| M-CLP5 | `knobs.py` | no ICAO check on the clip's airports | `test_clip_knobs_refuse_bad_values` | KILLED |
+| M-CLP6 | `knobs.py` | no airports.codes cross-check | same | KILLED |
+| M-CLP7 | `knobs.py` | no "late must be hashed" schema check | `test_check_schema_refuses_an_unhashed_late_knob` | KILLED |
+| M-CLP8 | `stages.py` | plan reads `modules.ldi.enabled` | `test_plan_places_the_clip_before_the_features_and_only_when_on` | KILLED |
+| M-CLP9 | `eobt_clip.py` | AOBT_3 dropped from eligibility | `test_eligible_rows_are_epx_selection_plus_a_movement_time` | KILLED |
+| M-CLP10 | `eobt_clip.py` | late = EOBT >= LOBT | `test_cell_table_counts_strictly_later_eobt_per_airport_month` | KILLED |
+| M-CLP11 | `eobt_clip.py` | fires at share > min_share | `test_decide_fires_at_or_above_the_share` | KILLED |
+| M-CLP12 | `eobt_clip.py` | no row floor | `test_decide_refuses_a_cell_below_the_row_floor_by_name` | KILLED |
+| M-CLP13 | `eobt_clip.py` | floor n <= min_rows | same | KILLED |
+| M-CLP14 | `eobt_clip.py` | clip every eligible row of every cell (fired ignored) | `test_serve_clips_only_the_late_eligible_rows_of_fired_cells` | KILLED |
+| M-CLP15 | `eobt_clip.py` | clip to LOBT + 60 s | same / `test_the_clip_equals_epx_priced_clip…` | KILLED |
+| M-CLP16 | `eobt_clip.py` | population always the batch | `test_a_batch_of_the_scored_file_is_decided_on_the_scored_files_whole_cell` | KILLED |
+| M-CLP17 | `eobt_clip.py` | mixed batch let through | `test_a_batch_from_another_file_is_its_own_population…` | KILLED |
+| M-CLP18 | `eobt_clip.py` | apply ignores `min_share` | `test_apply_reads_the_knobs_and_the_scored_file` | KILLED |
+| M-CLP19 | `engine.py` | features built from the unclipped rows | `test_world_predict_with_the_clip_equals_predict_on_clipped_rows…` (slow) | KILLED (assert_series_equal) |
+| M-CLP20 | `engine.py` | rows_digest of the clipped rows | same (slow) | KILLED (digest assertion) |
+| M-CLP21 | `eobt_clip.py` | clip written into the caller's frame | `test_serve_clips_only_the_late_eligible_rows_of_fired_cells` | KILLED |
+| M-CLP22 | `eobt_clip.py` | cell keyed on the day | `test_cell_table_counts_strictly_later_eobt_per_airport_month` | KILLED |
+| M-CLP23 | `knobs.py` | `modules.` dropped from the reuse allow-list | `test_the_clip_knobs_are_reuse_free…` | KILLED |
+| M-CLP24 | `eobt_clip.py` | fires at 0.05 | `test_on_the_real_files_the_detector_fires_at_lfpg_july_2026_only` (slow, real files) | KILLED |
+
+`scripts/analysis/clp_checks.py` (CLP acceptance 1-3): 11 tests in `tests/test_clp_checks.py`, seen red first (no
+module); **6 / 6 killed**: M-CLC1 every cell counted as changed · M-CLC2 cells outside the allow-list ignored · M-CLC3 an
+empty change passes · M-CLC4 no clipped-row range · M-CLC5 no population check · M-CLC6 a missing clip report defaults
+to a passing one.
+
+## 2026-10-02 — BC-38 (clean checkout): `knobs.check_schema` structural only; `check_evidence_files` in the development tree
+
+`tests/fm1/test_fm1_clean_checkout.py` (3 slow tests: FM1 imports and parses `configs/fm1.yaml` in a tree holding only
+`prc/`, the git-tracked `scripts/*.py`, `configs/fm1.yaml` and the E2 rules file; the CLI regenerates
+CONFIG_REFERENCE.md there byte-identically; every zero-argument `shipped` / `legacy` loader runs there) and two tests in
+`test_fm1_knobs.py`; the two (a) tests were seen red against the old code (ConfigError: evidence file … does not exist).
+**4 / 4 killed:** M-CCO1 the exists() check back in check_schema (3 tests red) · M-CCO2 no exists() in
+check_evidence_files · M-CCO3 a shipped loader reads `plans/…` at import · M-CCO4 the "evidence is missing" check dropped.
+Coverage additions in `test_fm1_eobt_clip.py` (written after the code, so rehearsed): **2 / 2 killed** — M-CLP25 `_check`
+dropped from `eligible` · M-CLP26 `cell_table` returns None on no eligible row.
+
+## 2026-10-02 — training-time ADS-B dropout (`features.set_unheard`, `features.dropout_masks`, knobs `adsb.train_dropout.*`, engine fit hook)
+
+`tests/fm1/test_fm1_adsb_dropout.py` (9 fast + 1 slow), written first and seen red (no functions, no knobs). **9 / 9 killed:**
+M-ACR1 FL also blanks the airport counts · M-ACR2 coverage 0 instead of 1 · M-ACR3 NB keeps moving_mvt_m10 · M-ACR4 no
+mask-length check · M-ACR5 FL over all rows, not only joined · M-ACR6 NB per row, not per (airport, day) · M-ACR7 unseeded ·
+M-ACR8 no features.adsb cross-check · M-ACR9 fit skips the dropout (slow world test).
+`scripts/analysis/acr_price.py` (tests written after the code — stated; they caught a tuple / dict defect in `stats`):
+**7 / 8 killed**, M-ACP2 (Frankfurt's share drawn from all rows instead of joined rows) equivalent on the real tables —
+unjoined rows already hold the unheard state, so re-applying it changes nothing.

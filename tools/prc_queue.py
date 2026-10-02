@@ -360,12 +360,16 @@ def _inputs(d: pathlib.Path, since_heavy_s=None) -> dict:  # pragma: no cover - 
                 phantom=machine_state(_lock_free(), _phantom_now(since_heavy_s)))
 
 
-def _alive(pid: int) -> bool:  # pragma: no cover - live process table
+def process_alive(pid: int) -> bool:
+    """True while `pid` names a live process; a process we may not signal (PermissionError: it exists, owned by another
+    user) is alive, so the driver never treats a running step as finished."""
     try:
         os.kill(pid, 0)
+    except PermissionError:
         return True
-    except (ProcessLookupError, PermissionError):
+    except ProcessLookupError:
         return False
+    return True
 
 
 def _execute(d: pathlib.Path, step: Step) -> int:  # pragma: no cover - launches the real step
@@ -394,7 +398,7 @@ def _execute(d: pathlib.Path, step: Step) -> int:  # pragma: no cover - launches
         pid, log_path = parse_launch(r.stdout)
         fh.write(f"waiting on r12_launch pid {pid}, log {log_path}\n")
         fh.flush()
-        while _alive(pid):
+        while process_alive(pid):
             time.sleep(POLL_S)
         rc = parse_r12_log(log_path.read_text() if log_path.exists() else "")
         return -1 if rc is None else rc
@@ -425,7 +429,7 @@ def main(argv=None) -> int:  # pragma: no cover - CLI shell around the tested fu
     w.add_argument("--log", required=True)
     a = ap.parse_args(argv)
     if a.cmd == "wait":
-        while _alive(a.pid):
+        while process_alive(a.pid):
             time.sleep(POLL_S)
         lp = pathlib.Path(a.log)
         rc = wait_rc(lp.read_text() if lp.exists() else "")
@@ -434,7 +438,7 @@ def main(argv=None) -> int:  # pragma: no cover - CLI shell around the tested fu
     d = pathlib.Path(a.dir).resolve()
     d.mkdir(parents=True, exist_ok=True)
     state_p, pid_p = d / "state.json", d / "queue.pid"
-    driver_alive = pid_p.exists() and _alive(int(pid_p.read_text()))
+    driver_alive = pid_p.exists() and process_alive(int(pid_p.read_text()))
     if a.cmd == "status":
         print(json.dumps(load_state(state_p), indent=1, sort_keys=True))
         print("driver:", "alive" if driver_alive else "not running", "| paused:", (d / "PAUSE").exists())

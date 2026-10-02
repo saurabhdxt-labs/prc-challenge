@@ -13,6 +13,10 @@ reports/**/*.parquet
 *.joblib
 *.pkl
 
+# Run logs and fitted model artefacts: regenerable (docs/fm1/REPRODUCE.md), never part of the record.
+logs/
+artifacts/
+
 # Handoffs are working files for the next session, never part of the record.
 _HANDOFF_*.md
 

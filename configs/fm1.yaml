@@ -58,6 +58,9 @@ adsb:
   support_gate:
     rule: manifest
     threshold: 0.7
+  train_dropout:
+    flight: 0.0
+    day: 0.0
   stack:
     enabled: true
     train_months: [1, 7]
@@ -115,6 +118,11 @@ modules:
     delta_le30_s: 8.003118629519271
     delta_30_60_s: 35.44180751815995
     delta_gt60_s: 122.4855891190231
+  eobt_clip:
+    enabled: false
+    airports: ["LFPG"]
+    min_share: 0.15
+    min_rows: 1000
 
 calibration:
   mtx:

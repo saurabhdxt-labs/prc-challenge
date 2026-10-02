@@ -58,6 +58,16 @@ class PartialDayError(E.PipelineError):
     """A set-level rule that reads every row of a day (LDI's severe-day test) was served a batch holding only part of a
     day of the scored file, or a batch mixing scored-file rows with rows from elsewhere."""
 
+
+class PopulationError(E.PipelineError):
+    """A set-level serve rule (the EOBT clip's cell test) was served a batch mixing scored-file rows with rows from
+    elsewhere: neither population is the batch's."""
+
+
+class DetectorError(E.PipelineError):
+    """A serve-time detector (the EOBT clip's revised-field test) was asked to decide a cell on fewer rows than its
+    registered floor (modules.eobt_clip.min_rows)."""
+
 NullabilityError = E.NullabilityError
 RoutingError = E.RoutingError
 LaneError = E.LaneError

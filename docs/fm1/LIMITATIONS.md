@@ -1,7 +1,8 @@
-# FM1 — limitations (known on 2026-09-28; the list grows with days 4–7)
+# FM1 — limitations (first written 2026-09-28; updated 2026-10-02)
 
-1. **Not validated yet.** No FM1 score exists; no FM1 number counts until the AT14 replay gate passes (its stored tier on
-   the matched AND unmatched strata; the refit tier is day 8).
+1. **Validation is a floor, not a score.** The 2025 validation (METHOD §6) runs at the screen tier with the ADS-B stack
+   off; the full-tier configuration has no clean 2025 fold. Its only 2026 measurement is the public board (v50 251.4767,
+   METHOD §8), which is also where every board-kept step was selected.
 2. **Unported components.** adsb.fi and the storm-as-feature form (owner decision 2's LOEO re-validation) are declared
    and refused by `fit` when switched on. ARN (v21) is DROPPED: its 8 scored 2026 rows keep their Rome / E2 values.
 2b. **LDI's constants are not refitted.** FM1 applies LDI's registered shifts (8.0 / 35.4 / 122.5 s; owner decision
@@ -34,10 +35,34 @@
 8. **MTX is hindsight information** about the target period (published after the month closes); it is off in the
    forecaster and on only for the scored-period build. It keys scored rows by the UTC month of MVT while the published
    cells are local months (as v42 did).
-9. **2026 drift.** Schedule-field shifts (LTFM SCHED == IOBT 0.56 → 0.82), LFPG July-2026 EOBT drift, ADS-B coverage drift:
-   only label-free drift checks can see them (TODO day 7 drift report).
+9. **2026 drift (label-free audit of the 133 inputs, 2026-10-02).** At **LFPG in July 2026 the EOBT_1 field changed how it is
+   produced**: the share of matched departures with EOBT_1 later than LOBT is 3.9 – 7.1 % in every 2025 month and 6.1 % in
+   January 2026, but 35.1 % in July 2026 (median AOBT_3 − EOBT 600 s → 120 s while delays fell). `aobt_eobt`, the base
+   model's largest input (19.9 % of split gain), therefore means something else there. The cell's mean prediction is on
+   the published monthly target (gap 2.7 s), so the damage is row-level. Also flagged: LTFM January (later off-blocks
+   relative to schedule; operational, no action) and the schedule shift LTFM SCHED == IOBT 0.56 → 0.82. The audit's
+   multivariate domain classifier did not work (row-wise folds memorise days) and was not used.
+9b. **The EOBT clip is a repair priced on a simulation.** `modules.eobt_clip` (off by default) sets EOBT_1 := min(EOBT_1,
+   LOBT) at serve time in an airport-month whose field carries revisions (share ≥ 0.15 on ≥ 1,000 departures; LFPG only).
+   Its value was priced on a held-out 2025 July with the 2026 practice imposed: about +195 … +290 bmse, LightGBM only; the
+   simulator matched the revised share or the feature distributions, never both, so the price is not established. It
+   assumes the practice changed only the field (not the flights), does not price the CatBoost half, and uses an absolute
+   threshold at a named airport; a detector relative to each airport's own training share would need a training
+   statistic stored in the artefact (a refit). **Measured on the board it lost:** v54 (v51 + clip) 251.5593 vs v51
+   251.1335, −214 MSE. The clip lifted LFPG-July's mean prediction from 983 s to 1014 s against a published monthly mean of
+   986 s, which already said the unclipped model had that cell's mean right. So the 2026 revisions seem to carry information
+   the model reads correctly; the field change stays an open limitation, the module stays off, and a refit that treats
+   revised EOBTs as their own input is the untested remedy.
 10. **Serve rows without an ADS-B table row** are served as "no ADS-B data" (coverage 0) up to 0.1 % of the scored matched
     rows (measured 2025 rate 0.014 %); above that the run refuses (`adsb.serve_missing_max_share`).
 11. **Stack residual rounding** depends on the batch size at the 1e-7 s level (float32 MLP); a row within 4e-7 s of a .5
     boundary could move by 1 s.
 12. **adsb.fi cannot be re-fetched** (a live capture, July 2026 only; non-commercial terms).
+13. **The CatBoost half is under-trained.** In the final fit CatBoost reached its round cap (best iteration 29,993 of
+    `matched.catboost.max_rounds` 30,000 at learning rate 0.02; early stopping never fired). A higher cap needs a new full
+    fit (~10 h). The board still measured the half-blend as worth +166 MSE (v53 vs v50).
+14. **ADS-B coverage moved between 2025 and 2026** (share of matched departures with ground coverage, stack training months →
+    2026: EDDF 0.909 → 0.623, EGLL 0.384 → 0.902, LIRF 0.405 → 0.299; METHOD §6). The stack keeps its stored gate; the
+    label-free `coverage_ratio` gate would switch EDDF off, and the board measured that as no better (v52, −10.6 MSE).
+15. **Full-fit memory.** The full fit holds ~15 GB in the main process plus ~5 GB in the CatBoost worker; the dry-run memory
+    gate measures neither the grown models nor the worker. Plan for ~20 GB or run under a memory guard (REPRODUCE).

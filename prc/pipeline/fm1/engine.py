@@ -25,6 +25,7 @@ import pyarrow.parquet as pq
 
 from . import artifact as A
 from . import components as C
+from . import eobt_clip as EC
 from . import errors as E
 from . import features as F
 from . import knobs as K
@@ -225,6 +226,15 @@ def fit(config, *, save: bool = True, allow_heavy: bool = False, tier_overrides:
     if "base_model" in names:
         m = pd.concat(m_parts, ignore_index=True)
         del m_parts                                      # the per-month frames are a full second copy of m (2.1 GB)
+        fs, ds = cfg["adsb.train_dropout.flight"], cfg["adsb.train_dropout.day"]
+        if fs > 0 or ds > 0:                             # fit only: the model learns to predict without the flight's track
+            fl, nb = F.dropout_masks(m, fs, ds, seed=seeds[0])
+            acols = F.adsb_columns(cfg.path("adsb.table_dir"))
+            F.set_unheard(m, acols, fl, network=False)
+            F.set_unheard(m, acols, nb, network=True)
+            report["adsb_dropout"] = {"flight_share": fs, "day_share": ds, "n_flight": int(fl.sum()),
+                                      "n_network": int(nb.sum())}
+            log(f"ADS-B dropout: {int(fl.sum()):,} unheard flights, {int(nb.sum()):,} network-blackout rows")
         es = es_mask(m)
         target = m.delta.to_numpy(float) if cfg["matched.target"] == "delta" else m.y.to_numpy(float)
         enc_m = F.EncodingTables.fit(m, {"te": m.y.to_numpy(float), "de": m.delta.to_numpy(float)}, F.stand_ab().ENC_KEYS,
@@ -302,6 +312,10 @@ def predict(art: A.ModelArtifact, rows: pd.DataFrame, log=_log) -> pd.DataFrame:
     stages = S.plan(cfg)
     names = {s.name for s in stages}
     R.validate_raw(rows, "serve", cfg["airports.codes"])
+    given = rows                                        # the caller's rows: their digest identifies the input
+    clipped = clip_rep = None
+    if "eobt_clip" in names:                            # before the feature path: every stage sees the repaired field
+        rows, clipped, clip_rep = EC.apply(cfg, rows)
     fr = F.build_frames(rows, serve=True, cfg=cfg, weather=_weather(cfg), orl_routes=_orl(cfg))
     dep_ids = fr.dep_ids
     v26 = "unmatched_body" in names and cfg["unmatched.learner"] == "v26"
@@ -323,6 +337,9 @@ def predict(art: A.ModelArtifact, rows: pd.DataFrame, log=_log) -> pd.DataFrame:
     comp["stack_eligible"] = False
     comp["lane"] = "unmatched"
     info: dict = {"n_adsb_missing": int(fr.n_adsb_missing)}
+    if clipped is not None:
+        comp["eobt_clipped"] = comp.index.isin(clipped)
+        info["eobt_clip"] = clip_rep
     stage = {s.name: s for s in stages}
     if "base_model" in names and fr.matched is not None and len(fr.matched):
         m = fr.matched
@@ -391,7 +408,7 @@ def predict(art: A.ModelArtifact, rows: pd.DataFrame, log=_log) -> pd.DataFrame:
         info["mtx"] = rep
     out = ledger.finalise()
     out = out.join(comp, on="MVT_ID_mvt")
-    info.update(decided_by=ledger.counts(), n_rows=int(len(out)), artifact=art.key, rows_digest=rows_digest(rows),
+    info.update(decided_by=ledger.counts(), n_rows=int(len(out)), artifact=art.key, rows_digest=rows_digest(given),
                 stages=[s.name for s in stages])
     out.attrs["fm1_report"] = info
     log(f"predicted {len(out):,} departures: {info['decided_by']}")

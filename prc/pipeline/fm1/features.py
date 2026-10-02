@@ -33,6 +33,10 @@ ROOT = pathlib.Path(__file__).resolve().parents[3]
 #: stamp 801f9bcac9a5 = the 33 features v36/v41 served, 51348d3e1cb3 = 35 after DWG; pinned by tests)
 ADSB_TABLE_KEYS = ["month", "pos", "MVT_ID_mvt", "ap", "mvt_day", "adsb_day_present", "coverage"]
 ADSB_EXTRA = ["coverage", "adsb_day_present"]
+#: ADS-B columns describing the airport's surface traffic, not the flight: kept when only the flight is unheard
+ADSB_AIRPORT_COLS = ("ground_seen_mvt_m10", "moving_mvt_m10")
+#: the coverage state of a flight the receiver network did not hear on a day it heard others (a 2025 unjoined row)
+ADSB_UNHEARD_STATE = {"joined": 0.0, "coverage": 1.0, "adsb_day_present": 1.0}
 ORL_COLS = ["orl_route_m", "orl_route_med_m", "orl_straight_m", "orl_n_edges", "orl_rank", "orl_matched"]
 UNM_NUMERIC = ["sp", "hr", "dayoff", "hprox_med", "hprox_n"]
 UNM_KEYS = ["ADEP_mvt", "RUNWAY_mvt", "stand_pref", "airline", "AIRCRAFT_OPERATOR_flt", "ars"]
@@ -259,6 +263,44 @@ def attach_adsb(frame: pd.DataFrame, table_dir, serve: bool = False, max_missing
         out.loc[miss, "coverage"] = 0.0
         out.loc[miss, "adsb_day_present"] = 0.0
     return out, int(len(missing))
+
+
+def set_unheard(frame: pd.DataFrame, adsb_cols, rows, network: bool) -> None:
+    """IN PLACE: make the rows `rows` (boolean mask) look like flights the receiver network did not hear
+    (plans/PREREG_acr_adsb_coverage_regime_2026_10_02.md): ADSB_UNHEARD_STATE and every flight-level ADS-B column NaN; with
+    `network` also the airport-level counts (ground_seen_mvt_m10 = 0, moving_mvt_m10 = NaN), a network blackout."""
+    rows = np.asarray(rows, dtype=bool)
+    if rows.shape != (len(frame),):
+        raise ValueError(f"set_unheard: the row mask has shape {rows.shape}, the frame {len(frame):,} rows")
+    missing = [c for c in [*ADSB_UNHEARD_STATE, *adsb_cols] if c not in frame.columns]
+    if missing:
+        raise E.MissingColumnError(f"set_unheard: missing ADS-B column(s) {sorted(set(missing))}")
+    if not rows.any():
+        return
+    for c in adsb_cols:
+        if c not in ADSB_UNHEARD_STATE and c not in ADSB_AIRPORT_COLS:
+            frame.loc[rows, c] = np.nan
+    for c, v in ADSB_UNHEARD_STATE.items():
+        frame.loc[rows, c] = v
+    if network:
+        if "ground_seen_mvt_m10" in frame.columns:
+            frame.loc[rows, "ground_seen_mvt_m10"] = 0.0
+        if "moving_mvt_m10" in frame.columns:
+            frame.loc[rows, "moving_mvt_m10"] = np.nan
+
+
+def dropout_masks(frame: pd.DataFrame, flight_share: float, day_share: float, seed: int) -> tuple:
+    """(flight mask, network mask) for training-time ADS-B dropout, seeded: the network mask takes every row of a random
+    `day_share` of (ap, day) groups; the flight mask a random `flight_share` of the remaining JOINED rows."""
+    rng = np.random.default_rng([int(seed), 20261002])
+    n = len(frame)
+    keys = pd.MultiIndex.from_arrays([frame.ap.astype(str).to_numpy(), frame.day.astype(str).to_numpy()])
+    codes, uniq = pd.factorize(keys, sort=True)
+    pick = rng.random(len(uniq)) < day_share
+    network = pick[codes] if len(uniq) else np.zeros(n, dtype=bool)
+    joined = frame.joined.to_numpy(dtype="float64", na_value=np.nan) == 1
+    flight = joined & ~network & (rng.random(n) < flight_share)
+    return flight, network
 
 
 def _dayoff(mvt: pd.Series, sched: pd.Series, ap: np.ndarray, tz_mode: str, tz_map) -> np.ndarray:

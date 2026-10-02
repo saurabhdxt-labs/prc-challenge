@@ -530,3 +530,15 @@ def test_loop_resets_the_heavy_clock_when_a_heavy_step_ends():
     w = World(exec_s={"a": 1_000.0, "l": 50.0})
     assert w.run(steps) == 0
     assert w.since == [0.0, 0.0, 50.0]            # a at start; l right after a; b after l's 50 s (l is light)
+
+
+def test_process_alive_counts_a_process_it_may_not_signal_as_alive():
+    """The driver waits on a launched step's PID. PID 1 exists but belongs to root (PermissionError on signal 0): alive;
+    our own PID: alive; a reaped child's PID: gone. Mutation: PermissionError -> False (the old helper) -> red."""
+    import os
+    import subprocess
+    child = subprocess.Popen([sys.executable, "-c", "pass"])
+    child.wait()
+    assert Q.process_alive(os.getpid()) is True
+    assert Q.process_alive(1) is True
+    assert Q.process_alive(child.pid) is False

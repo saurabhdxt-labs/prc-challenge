@@ -61,3 +61,29 @@ Determinism at scale: two fits of a three-month slice of the final configuration
 identically (344,841 × 30 cells, 0 different).
 Measured earlier: AT14 stored-tier gate 158 s, peak 2.6 GB (parent + one booster child); AT9 e2e world: `fit` 4 s,
 `build-submission` 21 s, parent peak 0.31 GB, two independent runs byte-identical (notes N7).
+
+## What a clone of the repository can run (2026-10-02)
+
+A clone carries the package (`prc/`), the config (`configs/fm1.yaml`), the code FM1 loads by path (`scripts/`, the E2
+rules file) and these docs; it never carries data, artefacts or the project's development record (registrations under
+`plans/`, `logs/`, `reports/`). From a clone, FM1 imports, resolves its config to the documented hash and runs its CLI
+(`tests/fm1/test_fm1_clean_checkout.py` checks exactly this in a temporary tree). The knobs' evidence pointers name files
+of the development record: they document why a default was chosen and are checked only in the development tree
+(`knobs.check_evidence_files`). The test suite likewise reads that record (registered results, golden files) and the data;
+it is a development-tree tool.
+
+To fit or predict, a clone also needs the inputs every path knob names (CONFIG_REFERENCE.md): the raw challenge files and
+weather (DATA_SOURCES.md) and the derived inputs below, each rebuilt by code in the repository (heavy steps run through
+`scripts/analysis/r12_launch.py`, which takes the machine-wide lock and a memory guard):
+
+| input (knob) | built by | final configuration |
+|---|---|---|
+| ADS-B tables (`adsb.table_dir`) | `scripts/analysis/r12_build.py features`, then `tables` | `data/r12/tables_51348d3e1cb3` |
+| holdout fits feeding the stack | `scripts/analysis/r12_validate.py` (LightGBM base; CatBoost half via `scripts/analysis/r13_cat.py`), assembled by `r13_cat.py assemble` | `data/r12/r13_arms_full` |
+| ADS-B stack models (`adsb.stack.models_dir`) | `scripts/analysis/r12_stack.py oof --val data/r12/r13_arms_full --tables data/r12/tables_51348d3e1cb3 --arms r12,lgbcat --out data/r12/r13_stack_full` | `data/r12/r13_stack_full/models_lgbcat` (MANIFEST.json: seeds 0–2, 5 folds, gate, git sha) |
+| ORL route table (`features.orl_routes_file`) | `scripts/analysis/orl_build.py fetch`, then `build` | `data/osm/orl_routes.parquet` |
+| MTX CSVs (`calibration.mtx.*_csv`) | `scripts/analysis/mtx_source.py` | `data/mtx/raw/` (sha256 manifest) |
+
+The stack's MLP half trains and predicts in `scripts/adsb_nn_worker.py` (a separate process; torch never shares a process
+with LightGBM), and the CatBoost learner runs in `~/.venvs/prc-catboost` (`prc/pipeline/fm1/catboost_worker.py`). A fitted
+artefact carries its own copy of the stack models, so predicting with a saved artefact needs only the tables and raw files.

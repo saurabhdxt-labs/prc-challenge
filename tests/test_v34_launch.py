@@ -6,6 +6,7 @@ from __future__ import annotations
 import datetime as dt
 import importlib.util
 import inspect
+import os
 import pathlib
 import sys
 
@@ -146,3 +147,17 @@ def test_parse_args_requires_a_known_step():
 
 def test_memguard_log_sits_beside_the_run_log():
     assert VL.memguard_log("/a/b/run_1.log") == pathlib.Path("/a/b/run_1_memguard.log")
+
+
+def test_pid_alive_reads_a_pid_file_and_counts_a_process_it_may_not_signal_as_alive(tmp_path):
+    """A missing or unreadable PID file is not alive; our own process is; PID 1 exists but belongs to root, so signalling
+    it raises PermissionError — the process is alive (the old helper said False, so a launcher could miss a live run
+    of another user). Mutation: PermissionError -> False -> red."""
+    pf = tmp_path / "x.pid"
+    assert VL.pid_alive(pf) is False
+    pf.write_text("not a pid")
+    assert VL.pid_alive(pf) is False
+    pf.write_text(str(os.getpid()))
+    assert VL.pid_alive(pf) is True
+    pf.write_text("1")
+    assert VL.pid_alive(pf) is True

@@ -39,7 +39,7 @@ def test_every_knob_is_documented():
     K.check_schema(K.SCHEMA)          # raises on any gap
     for k in K.SCHEMA:
         assert len(k.effect) >= 20, k.path
-        assert k.evidence and K.evidence_file(k.evidence).exists(), (k.path, k.evidence)
+        assert k.evidence and K.evidence_file(k.evidence).exists(), (k.path, k.evidence)   # dev tree (BC-38)
         assert k.status in K.STATUSES, k.path
         if k.kind in ("int", "float"):
             assert k.lo is not None and k.hi is not None, f"{k.path}: numeric knob without a range"
@@ -53,11 +53,26 @@ def test_check_schema_refuses_an_undocumented_knob():
         K.check_schema((*K.SCHEMA, bad))
 
 
-def test_check_schema_refuses_missing_evidence_file():
+def test_check_evidence_files_refuses_a_missing_evidence_file():
+    """The development tree's documentation check (BC-38: it used to run at import, inside check_schema, and broke every
+    clone). Mutation: drop the exists() test -> red."""
     bad = K.Knob("x.y", "bool", True, effect="a long enough effect sentence here", evidence="plans/NO_SUCH_FILE.md",
                  status="implemented")
     with pytest.raises(E.ConfigError, match=r"x\.y: evidence .*does not exist"):
-        K.check_schema((*K.SCHEMA, bad))
+        K.check_evidence_files((*K.SCHEMA, bad))
+    K.check_evidence_files(K.SCHEMA)                 # every real pointer resolves in the development tree
+
+
+def test_regression_bug_38_the_import_time_schema_check_reads_no_file():
+    """BC-38: check_schema runs at import, so it must not depend on files a clone does not carry; an evidence pointer to
+    a missing file is a documentation gap (check_evidence_files), not a broken schema. Mutation: put the exists() test
+    back into check_schema -> red here and in tests/fm1/test_fm1_clean_checkout.py."""
+    bad = K.Knob("x.y", "bool", True, effect="a long enough effect sentence here", evidence="plans/NO_SUCH_FILE.md",
+                 status="implemented")
+    K.check_schema((*K.SCHEMA, bad))
+    with pytest.raises(E.ConfigError, match=r"x\.y: evidence is missing"):
+        K.check_schema((*K.SCHEMA, K.Knob("x.y", "bool", True, effect="a long enough effect sentence here", evidence="",
+                                         status="implemented")))
 
 
 def test_check_schema_refuses_duplicate_and_prefix_paths():

@@ -167,12 +167,16 @@ def _lock_free() -> bool:  # pragma: no cover - touches the real lock
     return True
 
 
-def _alive(pf: pathlib.Path) -> bool:
+def pid_alive(pf: pathlib.Path) -> bool:
+    """True when the PID in `pf` names a live process. A missing or unreadable file, or no such process, is False; a
+    process we may not signal (PermissionError: it exists, owned by another user) is alive."""
     try:
         os.kill(int(pf.read_text().strip()), 0)
+    except PermissionError:
         return True
-    except (FileNotFoundError, ValueError, ProcessLookupError, PermissionError):
+    except (FileNotFoundError, ValueError, ProcessLookupError):
         return False
+    return True
 
 
 def parse_args(argv=None) -> argparse.Namespace:
@@ -210,7 +214,7 @@ def _run(step: int, smoke: bool, log_path: pathlib.Path) -> int:  # pragma: no c
         pm = subprocess.run(["pmset", "-g", "batt"], capture_output=True, text=True).stdout
         swap = subprocess.run(["sysctl", "vm.swapusage"], capture_output=True, text=True).stdout.strip()
         reasons = preflight(pm, dt.datetime.now(), True if smoke else _lock_free(),
-                            others_alive([pidfile(n) for n in STEPS], _alive))
+                            others_alive([pidfile(n) for n in STEPS], pid_alive))
         log(f"step {step} ({'smoke' if smoke else 'run'}); limits self-abort {s.rss_abort_gib:g} GiB / watchdog "
             f"{s.watchdog_gib:g} GiB; expected {s.expected}")
         log(f"preflight: {swap}; {'OK' if not reasons else 'REFUSED: ' + '; '.join(reasons)}")
