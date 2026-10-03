@@ -204,6 +204,9 @@ the lever helped. Sources: `reports/MSE_LEDGER.md` and each registration's hash 
 | 10-02 | DRF | label-free drift audit of the 133 inputs | LFPG July EOBT field 6.6 % → 35.1 % revised | TRUE (LIMITATIONS 9) |
 | 10-02 | EPX | price of that change on a held-out 2025 July | damage 265.6 [196.2, 339.0]; clip net ≈ +195 … +290 | NOT established (LIMITATIONS 9b) |
 | 10-02 | CLP (v54) | the EOBT clip served at LFPG July | −214.0 board MSE vs v51 (registered +100 … +300) | FALSE: not in the final configuration |
+| 10-02 | ACR | training with ADS-B randomly hidden (coverage-regime repair) | the 2026 coverage loss costs 862.7 bmse [671.7, 1124.8]; the repair recovers 25.7 [−120.5, 163.9] | FALSE: information, not calibration |
+| 10-03 | AFI (v55) | adsb.fi July-2026 capture merged into the serve table (no refit) | +609.6 board MSE vs v51 (registered +150 … +600) | TRUE: in the scored-period build |
+| 10-03 | AFB (v56) | adsb.fi only where adsb.lol had no track | −205.8 vs v55 | FALSE |
 
 Reading: almost every lever that looked good on a 2025 holdout either failed its own registered gate or lost on the 2026
 board (AGF, v22, HPX-S, MOVE). The final model is what survived this, not the best of many tries.
@@ -232,6 +235,8 @@ for unseen data (the final-model audit of 2026-09-28 put about 28 % of the cumul
 | v52 | v50 + coverage-ratio gate (stack off at EDDF) | 251.4978 | −10.6 vs v50; not kept |
 | v53 | v50 without the CatBoost half-blend | 251.8068 | −166.1 vs v50; not kept |
 | v54 | v51 + the EOBT clip at LFPG July | 251.5593 | −214.0 vs v51; not kept |
+| **v55** | **v51 + adsb.fi July-2026 serve table (adsb.lol ∪ adsb.fi, LTFM excluded)** | **249.9168** | **+609.6 vs v51; +407.8 vs v46 — best file** |
+| v56 | as v55, adsb.fi only where adsb.lol had no track | 250.3282 | −205.8 vs v55; not kept |
 
 Rows read from the project's board records (v50–v53 from the scoring service's result files, 2026-10-02); v42's MTX gain
 (+124) and the individual Rome steps v7 / v10 are quoted in the ledger and not repeated here. v51–v53 are board-selected
