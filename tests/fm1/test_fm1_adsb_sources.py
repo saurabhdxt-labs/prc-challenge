@@ -57,20 +57,30 @@ def test_fit_reads_only_the_training_table(tmp_path):
 
 def test_the_knob_must_agree_with_the_tables_declared_sources(tmp_path):
     """adsb.fi in the tables needs the knob on (it is non-commercial and not redistributable: never used unawares); the
-    knob on needs adsb.fi in the tables; tables without a report (fixtures, legacy) are adsb.lol. Mutation: check one
-    direction only -> red."""
+    knob on needs adsb.fi in the tables; a report without `sources` (tables built before AFI) is adsb.lol. Mutation:
+    check one direction only -> red."""
     lol = _tables(tmp_path / "lol", [1.0], [], {"sources": ["adsb.lol"]})
     fi = _tables(tmp_path / "fi", [1.0], [], {"sources": ["adsb.fi", "adsb.lol"]})
-    bare = _tables(tmp_path / "bare", [1.0], [])
+    legacy = _tables(tmp_path / "legacy", [1.0], [], {"stamp": "51348d3e1cb3"})
     F.check_table_sources(lol, adsb_fi=False)
     F.check_table_sources(fi, adsb_fi=True)
-    F.check_table_sources(bare, adsb_fi=False)
+    assert F.check_table_sources(legacy, adsb_fi=False) == ["adsb.lol"]
     with pytest.raises(E.ConfigValueError, match="hold adsb.fi points.*adsb.sources.adsb_fi=true"):
         F.check_table_sources(fi, adsb_fi=False)
     with pytest.raises(E.ConfigValueError, match="adsb.sources.adsb_fi is true but"):
         F.check_table_sources(lol, adsb_fi=True)
     with pytest.raises(E.ConfigValueError, match="adsb.sources.adsb_fi is true but"):
-        F.check_table_sources(bare, adsb_fi=True)
+        F.check_table_sources(legacy, adsb_fi=True)
+
+
+@pytest.mark.parametrize("adsb_fi", [False, True])
+def test_tables_without_a_report_are_refused(tmp_path, adsb_fi):
+    """End-of-session review 2026-10-03 (finding 3): a table directory without report.json was read as adsb.lol, so an
+    adsb.fi table written without its report passed with the knob off. Every producer (r12_build tables, afi_build
+    fallback) writes one; a directory without it is refused by name. Seen red 2026-10-03 08:25-08:42 EDT."""
+    bare = _tables(tmp_path / "bare", [1.0], [])
+    with pytest.raises(E.SchemaError, match="report.json"):
+        F.check_table_sources(bare, adsb_fi=adsb_fi)
 
 
 def test_the_adsb_fi_knob_is_ported_and_a_derived_fit_may_switch_it():
@@ -120,3 +130,11 @@ def test_a_new_serve_table_does_not_block_a_derived_fit_but_a_new_training_table
     cfg_bad = K.parse_config(fm1_world_mod.config_raw(world, **dict(over, **{"adsb.table_dir": str(bad)})))
     with pytest.raises(E.ReuseError, match="adsb/train.parquet"):
         api.fit(cfg_bad, save=False, log=quiet, reuse_from=donor.directory)
+
+
+def test_the_adsb_fi_knob_needs_the_adsb_block():
+    """End-of-session review 2026-10-03 (finding 7): `adsb.sources.adsb_fi=true` with the ADS-B block off declared a source
+    nothing reads, and no check refused it. Seen red 2026-10-03 08:25-08:42 EDT (accepted)."""
+    with pytest.raises(E.ConfigValueError, match="adsb.sources.adsb_fi needs features.adsb"):
+        K.parse_config({"features": {"adsb": False}, "adsb": {"sources": {"adsb_fi": True}, "stack": {"enabled": False}}})
+    K.parse_config({"features": {"adsb": False}, "adsb": {"stack": {"enabled": False}}})        # off with the block off

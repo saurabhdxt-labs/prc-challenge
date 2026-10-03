@@ -53,12 +53,15 @@ def data_digest(inputs: dict) -> str:
 
 
 def git_state(root=K.ROOT) -> dict:
+    """The commit and whether the code FM1 runs differs from it: prc/ (tracked or untracked) or a tracked scripts/ file
+    (FM1 loads only tracked scripts, BC-38). Configs are not code: the config's values are stored in config.json."""
     def run(*a):
         try:
             return subprocess.run(["git", *a], cwd=root, capture_output=True, text=True, timeout=30).stdout.strip()
         except (OSError, subprocess.SubprocessError):          # pragma: no cover - git missing is recorded, not fatal
             return None
-    return {"sha": run("rev-parse", "HEAD"), "dirty_fm1": bool(run("status", "--porcelain", "--", "prc", "configs"))}
+    dirty = run("status", "--porcelain", "--", "prc") or run("status", "--porcelain", "--untracked-files=no", "--", "scripts")
+    return {"sha": run("rev-parse", "HEAD"), "dirty_fm1": bool(dirty)}
 
 
 def library_versions() -> dict:

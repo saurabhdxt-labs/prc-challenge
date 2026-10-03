@@ -268,11 +268,15 @@ def attach_adsb(frame: pd.DataFrame, table_dir, serve: bool = False, max_missing
 
 
 def check_table_sources(table_dir, adsb_fi: bool) -> list:
-    """The sources the ADS-B tables declare (report.json `sources`; tables without the key or the file: adsb.lol), checked
-    against adsb.sources.adsb_fi both ways: adsb.fi points (non-commercial, not redistributable) are never used unawares,
-    and the knob never claims a source the tables do not hold."""
+    """The sources the ADS-B tables declare (report.json `sources`; a report without the key was written before AFI, when
+    every table was adsb.lol), checked against adsb.sources.adsb_fi both ways: adsb.fi points (non-commercial, not
+    redistributable) are never used unawares, and the knob never claims a source the tables do not hold. Every table
+    producer writes report.json, so a directory without one is refused, never assumed to be adsb.lol."""
     p = pathlib.Path(table_dir) / "report.json"
-    sources = sorted(json.loads(p.read_text()).get("sources", ["adsb.lol"])) if p.exists() else ["adsb.lol"]
+    if not p.is_file():
+        raise E.SchemaError(f"{table_dir}: no report.json, so the ADS-B tables' sources are unknown (r12_build tables "
+                            "and afi_build fallback write one)")
+    sources = sorted(json.loads(p.read_text()).get("sources", ["adsb.lol"]))
     if "adsb.fi" in sources and not adsb_fi:
         raise E.ConfigValueError(f"the ADS-B tables in {table_dir} hold adsb.fi points (non-commercial, not "
                                  "redistributable); to use them set adsb.sources.adsb_fi=true")

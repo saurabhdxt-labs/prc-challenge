@@ -65,11 +65,13 @@ class Knob:
     unique: bool = False                 # list knobs: no repeats
     #: False only for an output location: it cannot change a prediction, so it stays out of the model hash (FM1 notes N6)
     hashed: bool = True
-    #: True for a knob added after stored artefacts existed (the first: modules.eobt_clip.*, 2026-10-02). While EVERY late
-    #: knob holds its default, the late knobs stay out of the hash, so each earlier config and artefact keeps its hash;
-    #: once any late knob differs, all of them are hashed (parse_config). A late knob's default must be the behaviour
-    #: before it existed (a module that is off); the defaults are pinned by tests/fm1/test_fm1_eobt_clip.py.
-    late: bool = False
+    #: The generation of a knob added after stored artefacts existed (1 = modules.eobt_clip.*, 2 = adsb.train_dropout.*,
+    #: both 2026-10-02); 0 = present from the start. With h = the highest generation holding a knob off its default,
+    #: parse_config hashes the late knobs of generations 1 ... h and leaves later ones out, which is exactly the hash a
+    #: config had when it was written: a new generation never moves a stored hash (BC-41). A late knob's default must be
+    #: the behaviour before it existed (a module that is off); defaults and generations are pinned by
+    #: tests/fm1/test_fm1_eobt_clip.py.
+    late: int = 0
 
 
 def _K(*a, **k) -> Knob:
@@ -178,11 +180,11 @@ SCHEMA: tuple = (
        "unheard flight (joined 0, coverage 1, flight-level ADS-B columns NaN; the airport-level counts kept), so the model "
        "learns to predict without the flight's own track at every airport and season. Fit only; predict never hides ADS-B. "
        "Why: which flights have ADS-B differs by airport-month between 2025 and 2026 (LIRF July 93 % -> 0.2 %).",
-       "plans/PREREG_acr_adsb_coverage_regime_2026_10_02.md", lo=0.0, hi=0.9, late=True),
+       "plans/PREREG_acr_adsb_coverage_regime_2026_10_02.md", lo=0.0, hi=0.9, late=2),
     _K("adsb.train_dropout.day", "float", 0.0,
        "Training-time ADS-B dropout, network level: every matched training row of a seeded random share of (airport, UTC "
        "day) groups is fitted as a network blackout (the flight-level state plus ground_seen_mvt_m10 = 0 and "
-       "moving_mvt_m10 = NaN), the state of LIRF in July 2026. Fit only.", "plans/PREREG_acr_adsb_coverage_regime_2026_10_02.md", lo=0.0, hi=0.9, late=True),
+       "moving_mvt_m10 = NaN), the state of LIRF in July 2026. Fit only.", "plans/PREREG_acr_adsb_coverage_regime_2026_10_02.md", lo=0.0, hi=0.9, late=2),
     _K("adsb.stack.enabled", "bool", True,
        "Serve the ADS-B stack residual (LightGBM + MLP; MLP in its worker, BC-5) on covered, gated matched rows: "
        "value = rint(max(proxy - (F + resid), 1)).", "plans/PREREG_adsb_ship_v11_2026_09_11.md"),
@@ -335,19 +337,19 @@ SCHEMA: tuple = (
        "in modules.eobt_clip.airports with AOBT_3, EOBT_1, LOBT and MVT_TIME present. Predict time only (the model was "
        "trained on the unclipped field). A batch of the scored file is decided on the scored file's whole cell. Why: from "
        "July 2026 LFPG's EOBT_1 carries revisions it did not carry in 2025 (35.1 % vs 3.9 - 7.1 %); priced on a held-out "
-       "2025 simulation at about +195 ... +290 bmse (LightGBM only).", "plans/PREREG_clp_lfpg_eobt_clip_2026_10_02.md", late=True),
+       "2025 simulation at about +195 ... +290 bmse (LightGBM only).", "plans/PREREG_clp_lfpg_eobt_clip_2026_10_02.md", late=1),
     _K("modules.eobt_clip.airports", "str_list", ["LFPG"],
        "Airports the EOBT clip may act on. Default LFPG only: elsewhere EOBT_1 > LOBT is 8 - 35 % in both 2025 and 2026 "
        "(normal practice the model trained on), and the clip was priced at LFPG only. Each must be in airports.codes "
-       "while the clip is on.", "plans/PREREG_clp_lfpg_eobt_clip_2026_10_02.md", unique=True, late=True),
+       "while the clip is on.", "plans/PREREG_clp_lfpg_eobt_clip_2026_10_02.md", unique=True, late=1),
     _K("modules.eobt_clip.min_share", "float", 0.15,
        "Share of a cell's eligible departures with EOBT_1 > LOBT at or above which the clip acts in that cell. 0.15 is "
        "more than twice the highest unrevised LFPG month (7.1 % in 2025, 6.1 % in January 2026) and less than half of "
-       "the revised one (35.1 %, July 2026).", "plans/PREREG_clp_lfpg_eobt_clip_2026_10_02.md", lo=0.0, hi=1.0, late=True),
+       "the revised one (35.1 %, July 2026).", "plans/PREREG_clp_lfpg_eobt_clip_2026_10_02.md", lo=0.0, hi=1.0, late=1),
     _K("modules.eobt_clip.min_rows", "int", 1000,
        "Fewest eligible departures a cell needs before the clip's share test is read; a cell with 1 ... min_rows - 1 is "
        "refused (DetectorError), never passed through. At 1,000 rows the share's standard error near 0.15 is 1.1 points.",
-       "plans/PREREG_clp_lfpg_eobt_clip_2026_10_02.md", lo=1, hi=100_000_000, late=True),
+       "plans/PREREG_clp_lfpg_eobt_clip_2026_10_02.md", lo=1, hi=100_000_000, late=1),
     # ---- calibration --------------------------------------------------------------------------------------------
     _K("calibration.mtx.enabled", "choice", "auto",
        "MTX monthly calibration (shift each airport-month mean toward the published EUROCONTROL taxi-out mean). `auto` = "
@@ -541,6 +543,8 @@ def check_schema(schema) -> None:
             raise E.ConfigError(f"{k.path}: choice knob without choices or with a default outside them")
         if k.status == "not_ported" and k.activates is None:
             raise E.ConfigError(f"{k.path}: a not_ported knob must say which values activate it")
+        if isinstance(k.late, bool) or not isinstance(k.late, int) or k.late < 0:
+            raise E.ConfigError(f"{k.path}: late generation {k.late!r} must be a whole number >= 0 (0 = not late)")
         if k.late and not k.hashed:
             raise E.ConfigError(f"{k.path}: a late knob changes predictions, so it must be hashed")
         validate_value(k, k.default)
@@ -702,6 +706,8 @@ def _cross_checks(v: dict) -> None:
         raise E.ConfigValueError("adsb.stack.enabled needs features.adsb (the stack reads the ADS-B block)")
     if v["features.adsb"] and not v["adsb.sources.adsb_lol"]:
         raise E.ConfigValueError("features.adsb needs adsb.sources.adsb_lol (the R12 tables are adsb.lol)")
+    if v["adsb.sources.adsb_fi"] and not v["features.adsb"]:
+        raise E.ConfigValueError("adsb.sources.adsb_fi needs features.adsb (it declares what the ADS-B tables hold)")
     if v["matched.learner"] == "catboost" and v["matched.blend.catboost_weight"] != 0.0:
         raise E.ConfigValueError("matched.blend.catboost_weight must be 0 when matched.learner is catboost (the half-blend "
                                  "partner would be the base model itself)")
@@ -789,8 +795,9 @@ def parse_config(raw: Mapping, root: pathlib.Path | None = None, overrides=(), s
     _cross_checks(values)
     frozen = types.MappingProxyType(values)
     hashed = {k: v for k, v in values.items() if KNOBS[k].hashed}
-    if all(values[k.path] == normalise_default(k) for k in LATE_KNOBS):
-        for k in LATE_KNOBS:                     # hashes exactly as before the late knobs existed (stored artefacts load)
+    in_use = max((k.late for k in LATE_KNOBS if values[k.path] != normalise_default(k)), default=0)
+    for k in LATE_KNOBS:                         # later generations: the hash the config had before they existed (BC-41)
+        if k.late > in_use:
             del hashed[k.path]
     return FM1Config(values=frozen, hash=canonical_hash(hashed), root=root, overrides=tuple(parsed),
                      source_path=source_path)

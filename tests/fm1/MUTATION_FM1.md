@@ -280,3 +280,69 @@ ported (knobs / stages tests), the reuse allow-list adds `adsb.sources.adsb_fi` 
 BC-40 (r12_build relative source paths): **3 / 3 killed** — M-B40a symlink the path as given · M-B40b resolve_sources keeps
 relative dirs · M-B40c no readability check before the builder. AFI.1: **2 / 2 killed** — M-AFI13 exclude by aircraft
 instead of airport · M-AFI14 gate on lost joins (the registered rule is the share).
+
+## 2026-10-03 — AFB fallback tables (`afi_build.fallback_serve`, `check_tables(..., fallback=True)`)
+
+3 tests in `tests/test_afi_build.py`, written first and seen red (no `fallback_serve`, no `fallback` argument). **4 / 4
+killed (M-AFB7–10)**, 2026-10-03 04:13 EDT: M-AFB7 take the union for every July row (joined rows too) · M-AFB8 take the
+union in January too (`month == 7` dropped) · M-AFB9 the flight-set check off · M-AFB10 the joined-rows check never fails.
+
+## 2026-10-03 — end-of-session audit: tests added this session that carried no rehearsal of their own
+
+Eight tests (positive controls and no-op paths) had no mutant named in their docstring. Rehearsed on a scratch copy of the
+tree (one mutant at a time, a fresh bytecode prefix each, sources restored and sha-verified; each failure read at its
+assertion): **11 / 11 killed.**
+
+| id | file | mutation | test | result |
+|---|---|---|---|---|
+| M-EW1 | `knobs.py` | clip airports cross-checked whatever `enabled` says | `test_an_unknown_airport_is_allowed_while_the_clip_is_off` | KILLED (ConfigValueError) |
+| M-EW2 | `eobt_clip.py` | no early return without eligible rows | `test_serve_without_eligible_rows_is_a_reported_noop` | KILLED |
+| M-EW3 | `features.py` | network draw `>=` for `<` | `test_zero_shares_hide_nothing` | KILLED |
+| M-EW4 | `features.py` | flight draw `>=` for `<` | same | KILLED |
+| M-EW5 | `afi_build.py` | July share comparison reversed | `test_check_passes_when_only_july_serve_rows_gain_good_joins` | KILLED |
+| M-EW6 | `afi_build.py` | join-quality threshold reversed | same | KILLED |
+| M-EW7 | `afi_build.py` | `os.symlink` for `os.link` in `link_store` | `test_link_store_hard_links_are_independent_of_the_working_directory` | KILLED (dangling link) |
+| M-EW8 | `clp_checks.py` | every changed cell counted as outside | `test_scope_passes_when_every_change_is_inside_the_allowed_cells` | KILLED |
+| M-EW9 | `clp_checks.py` | fired-cell comparison always fails | `test_detector_passes_on_the_registered_shape` | KILLED |
+| M-EW10 | `clp_checks.py` | `main` always returns 0 | `test_cli_exit_codes` | KILLED |
+| M-EW11 | `clp_checks.py` | `main` exit code inverted | same | KILLED |
+
+Tests committed this session but written earlier carry their own records: `tests/test_drf_audit.py` and
+`tests/test_epx_price.py` (module docstrings: 13 / 13 and 14 / 14 RED, 2026-10-02); the union tests in
+`tests/test_adsb_union.py` moved unchanged from the AUN harness (35 tests, 13 mutants killed, 2026-09-16).
+
+## 2026-10-03 — BC-41 (late-knob generations) and the end-of-session review's fixes
+
+Tests written first and seen red 2026-10-03 08:25–08:42 EDT (file times) (v54's real config re-hashed to faef96…; a simulated
+generation 3 moved v54 / ACR M1; no `table_report`, `write_fallback_tables`, flight-set check, adsb_fi cross-check, report
+refusal or source comparison; `git_state` read untracked configs as dirty). Rehearsal on a scratch copy (one mutant at a
+time, a fresh bytecode prefix each, sources restored and sha-verified; each failure read at its assertion): **20 / 20 killed.**
+
+| id | file | mutation | killed by |
+|---|---|---|---|
+| M-B41a | `knobs.py` | the old rule: every generation hashed once any late knob is off default | v54 re-validation, generation-3 test, generation rule |
+| M-B41b | `knobs.py` | `late >= in_use` (the generation in use left out) | same |
+| M-B41c | `knobs.py` | dropout knobs in generation 1 | generation pin, v54 re-validation |
+| M-B41d | `knobs.py` | no generation check in check_schema | `test_check_schema_refuses_a_late_generation_that_is_not_a_whole_number` (×3) |
+| M-B41e | `knobs.py` | negative bound `< -1` | same [-1] |
+| M-RV7 | `knobs.py` | no adsb_fi ⇒ features.adsb cross-check | `test_the_adsb_fi_knob_needs_the_adsb_block` |
+| M-RV3 | `features.py` | a table directory without report.json not refused | `test_tables_without_a_report_are_refused` (×2) |
+| M-S5a | `r12_build.py` | resume check ignores the record's sources | `test_regression_bug_41_a_done_day_built_from_other_sources_is_stale` |
+| M-S5b | `r12_build.py` | a key-less record is adsb.lol even when it read no files | `test_a_done_day_recorded_before_source_contains_existed_is_still_done` |
+| M-RV4a | `r12_build.py` | missing days not de-duplicated | `test_table_report_describes_the_table_it_is_given` |
+| M-RV4b | `afi_build.py` | fallback report keeps the union's serve statistics | `test_write_fallback_tables_writes_its_own_report` |
+| M-RV2a | `afi_build.py` | train copied instead of hard-linked | same |
+| M-RV2b | `afi_build.py` | union without adsb.fi accepted | `test_write_fallback_tables_refuses_a_union_that_does_not_declare_adsb_fi` |
+| M-RV5a | `afi_build.py` | flight-set check without the length (duplicates pass) | `test_check_refuses_a_changed_july_flight_set[duplicate…]` |
+| M-RV5b | `afi_build.py` | row checks run on a different flight set | same (×3) |
+| M-RV5c | `afi_build.py` | a check that did not run counts as passed | same (×3) |
+| M-RV5d | `afi_build.py` | `same_flights` not among the checks | same (×3) |
+| M-GS1 | `artifact.py` | the old `-- prc configs` porcelain | `tests/fm1/test_fm1_git_state.py` (×2) |
+| M-GS2 | `artifact.py` | tracked scripts/ not checked | same |
+| M-GS3 | `artifact.py` | untracked files under prc/ ignored | same |
+
+`test_a_late_knob_off_its_default_hashes_its_generation_and_every_earlier_one` passed before the fix only because both
+batches then carried `late=True` (= 1); M-B41a proves it bites. Coverage: no coverage tool is installed (standing waiver
+(c), owner ack 2026-09-26); every changed line carries a killed mutant or an explicit assertion.
+
+M-RV6 (`engine.py`, the support-gate share read from `m.coverage` after the dropout) = the pre-fix code: `test_the_support_gate_share_describes_the_training_data_not_the_dropout` seen red against it 2026-10-03 09:47 EDT (world fit; EDDF 0.658 / LSZH 0.503 vs 0.939 / 0.969), green after the fix 09:49.

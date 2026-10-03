@@ -34,6 +34,7 @@ def _clip(fired=(("LFPG", "2026-07"),), n_clipped=7484, population="scored_file"
 
 
 def test_scope_passes_when_every_change_is_inside_the_allowed_cells():
+    """The positive control. Mutation (2026-10-03): every changed cell counted as outside -> red."""
     r = X.scope(_report(LFPG_7=50), ["LFPG|7"])
     assert r["ok"] and r["changed_cells"] == {"LFPG|7": 50}
 
@@ -50,6 +51,7 @@ def test_scope_fails_when_nothing_changed():
 
 
 def test_detector_passes_on_the_registered_shape():
+    """The positive control. Mutation (2026-10-03): the fired-cell comparison always fails -> red."""
     r = X.detector(_clip())
     assert r["ok"] and r["fired"] == [["LFPG", "2026-07"]] and r["n_clipped"] == 7484
 
@@ -74,6 +76,7 @@ def test_detector_fails_when_the_manifest_has_no_clip_report():
 
 
 def test_cli_exit_codes(tmp_path):
+    """Exit 0 = pass, 1 = fail (the queue reads the code). Mutation (2026-10-03): always 0 -> red; inverted -> red."""
     good, bad = tmp_path / "good.json", tmp_path / "bad.json"
     good.write_text(json.dumps(_report(LFPG_7=5)))
     bad.write_text(json.dumps(_report(LFPG_7=5, EDDF_7=2)))

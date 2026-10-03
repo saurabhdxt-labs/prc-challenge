@@ -86,6 +86,7 @@ def build(out: pathlib.Path, spec: dict) -> dict:
     tab = pq.read_table(ADSB_TRAIN, filters=[("MVT_ID_mvt", "in", ids.tolist())])
     pq.write_table(tab, out / "adsb" / "train.parquet")
     pq.write_table(tab.schema.empty_table(), out / "adsb" / "serve.parquet")
+    (out / "adsb" / "report.json").write_text(json.dumps({"sources": ["adsb.lol"], "slice_of": ADSB_TRAIN.parent.name}))
     info.update(n_adsb_rows=int(tab.num_rows))
     (out / "world.json").write_text(json.dumps(info, indent=1))
     return info

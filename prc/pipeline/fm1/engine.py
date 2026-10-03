@@ -229,6 +229,7 @@ def fit(config, *, save: bool = True, allow_heavy: bool = False, tier_overrides:
     if "base_model" in names:
         m = pd.concat(m_parts, ignore_index=True)
         del m_parts                                      # the per-month frames are a full second copy of m (2.1 GB)
+        coverage_recorded = m.coverage.to_numpy(copy=True)   # the data's coverage, for the support gate (not the dropout's)
         fs, ds = cfg["adsb.train_dropout.flight"], cfg["adsb.train_dropout.day"]
         if fs > 0 or ds > 0:                             # fit only: the model learns to predict without the flight's track
             fl, nb = F.dropout_masks(m, fs, ds, seed=seeds[0])
@@ -264,7 +265,7 @@ def fit(config, *, save: bool = True, allow_heavy: bool = False, tier_overrides:
             absent = [c for c in feats if c not in cols]
             if absent:
                 raise E.SchemaError(f"the stack's features {absent} are not in the ADS-B block of {cfg['adsb.table_dir']}")
-            cov_share = C.covered_share(m.ap.to_numpy(), m.coverage.to_numpy(), cfg["adsb.min_coverage"])
+            cov_share = C.covered_share(m.ap.to_numpy(), coverage_recorded, cfg["adsb.min_coverage"])
         log(f"matched: {len(m):,} rows, base best_iter {base.best_iter} n_ref {base.n_ref}"
             + (f" (learners reused from {donor.key})" if donor is not None else ""))
     if v26:

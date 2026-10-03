@@ -80,11 +80,19 @@ def _cfg(**over):
 
 # ---------------------------------------------------------------------------------------------- knobs, hash, plan
 
+#: the generation each late knob was added in (BC-41): 1 = the EOBT clip (2026-10-02 morning, v54 written with it on),
+#: 2 = the ADS-B dropout (2026-10-02 afternoon, ACR's M1 written with it on). A new late knob takes a new generation.
+LATE_GENERATION = {"modules.eobt_clip.enabled": 1, "modules.eobt_clip.airports": 1, "modules.eobt_clip.min_share": 1,
+                   "modules.eobt_clip.min_rows": 1, "adsb.train_dropout.flight": 2, "adsb.train_dropout.day": 2}
+
+
 def test_late_knobs_and_their_defaults_are_pinned():
     """The late knobs' defaults decide what an artefact written before they existed means when it is re-loaded; changing
-    one silently re-defines v50 ... v53. Mutation: default min_share 0.2 -> red; mark run.threads late -> red."""
+    one silently re-defines v50 ... v53. Their generations decide which stored configs hash them (BC-41). Mutation: default
+    min_share 0.2 -> red; mark run.threads late -> red; the dropout knobs in generation 1 -> red."""
     late = {k.path: K.normalise_default(k) for k in K.SCHEMA if k.late}
     assert late == LATE
+    assert {p: K.KNOBS[p].late for p in late} == LATE_GENERATION
     assert all(K.KNOBS[p].hashed for p in late)
 
 
@@ -100,17 +108,83 @@ def test_every_config_with_the_late_knobs_at_default_hashes_as_before_they_exist
         assert {p: cfg[p] for p in LATE} == LATE
 
 
-def test_any_late_knob_off_its_default_puts_every_late_knob_in_the_hash():
-    """All or none: once one late knob is off its default, every late knob (and every other hashed knob) is hashed.
+def test_a_late_knob_off_its_default_hashes_its_generation_and_every_earlier_one():
+    """BC-41 rule: with h = the highest generation holding a knob off its default, every late knob of generations 1 ... h
+    is hashed (all of a generation, defaults included) and later generations stay out — exactly what the hash was when
+    a config using generation h was written. (Before BC-41: all or none over every generation, which moved v54.)
     Mutation: omit the late knobs always -> on == off -> red; omit each late knob at its OWN default -> the 'on' hash
-    lacks airports / min_share / min_rows -> differs from the all-knobs hash -> red."""
+    lacks airports / min_share / min_rows -> red; hash every generation once any is on (the old rule) -> red."""
     off = _cfg()
     on = _cfg(**{"modules.eobt_clip.enabled": True})
     assert on.hash != off.hash
     assert _cfg(**{"modules.eobt_clip.enabled": True, "modules.eobt_clip.min_share": 0.2}).hash != on.hash
     assert _cfg(**{"modules.eobt_clip.min_rows": 5}).hash != off.hash          # off but not default: in the hash
-    blob_on = {k: v for k, v in on.values.items() if K.KNOBS[k].hashed}
-    assert on.hash == K.canonical_hash(blob_on)                                 # on: every late knob is hashed
+
+    def blob(cfg, upto):
+        return {k: v for k, v in cfg.values.items() if K.KNOBS[k].hashed and K.KNOBS[k].late <= upto}
+    assert on.hash == K.canonical_hash(blob(on, 1))                             # generation 1 in full, 2 out
+    drop = _cfg(**{"adsb.train_dropout.flight": 0.3})
+    assert drop.hash == K.canonical_hash(blob(drop, 2))                         # generation 2 on: 1 and 2 in full
+
+
+#: every stored config whose late knobs are not all at default, with the late-knob generations that existed when it was
+#: written (BC-41): v54 (the clip on, written 2026-10-02 10:04 EDT before the dropout knobs existed) and ACR's M1 (dropout
+#: on, written 17:03 EDT when both generations existed).
+LEGACY_WITH_LATE = ("v54_8e37b9a6bf09.json", "acr_m1_4cd05b46c4d1.json")
+
+
+@pytest.mark.parametrize("name", ("v50_2d29ad344b45.json", "v51_fa14ea853d20.json") + LEGACY_WITH_LATE)
+def test_regression_bug_41_every_stored_config_re_validates_to_its_recorded_hash(name):
+    """BC-41: the REAL stored config of every artefact on disk that holds a late knob off its default re-validates to the
+    hash it was written with (artifact.load refuses it otherwise). Seen red 2026-10-03 08:25-08:42 EDT on v54: the all-or-none
+    rule hashed the dropout knobs, added after v54 was written, into v54's config."""
+    stored = json.loads((LEGACY / name).read_text())
+    assert K.parse_config(stored["values"]).hash == stored["hash"]
+
+
+def test_every_stored_config_using_a_late_knob_has_a_legacy_fixture():
+    """BC-41 tripwire (development tree): every config.json written by an artefact on disk whose late knobs are not all at
+    default is one of the legacy fixtures above, so the re-validation test covers it from a clean clone too. A clean clone
+    holds no artefacts and passes trivially. Mutation: drop v54 from LEGACY_WITH_LATE -> red."""
+    have = {json.loads((LEGACY / n).read_text())["hash"] for n in LEGACY_WITH_LATE}
+    missing = []
+    for root in ("artifacts", "data/fm1"):
+        for f in (ROOT / root).rglob("config.json") if (ROOT / root).is_dir() else ():
+            cj = json.loads(f.read_text())
+            if not isinstance(cj, dict) or not {"values", "hash"} <= set(cj):
+                continue
+            cfg = K.parse_config(cj["values"]) if cj["hash"] not in have else None
+            if cfg is not None and any(cfg[k.path] != K.normalise_default(k) for k in K.LATE_KNOBS):
+                missing.append(str(f.relative_to(ROOT)))
+    assert not missing, f"add these stored configs to tests/fixtures/fm1_legacy_configs: {missing}"
+
+
+def test_regression_bug_41_a_later_late_knob_generation_never_moves_an_existing_hash(monkeypatch):
+    """BC-41, the class: adding a late knob of a NEW generation (at its default, as it is for every config written before
+    it existed) leaves the hash of every stored config unchanged — the all-defaults one and those with earlier late knobs
+    on. Seen red 2026-10-03 08:25-08:42 EDT: the all-or-none rule moved v54 and ACR M1 once a third generation existed."""
+    names = ("v50_2d29ad344b45.json", "v51_fa14ea853d20.json") + LEGACY_WITH_LATE
+    stored = {n: json.loads((LEGACY / n).read_text()) for n in names}
+    before = {n: K.parse_config(s["values"]).hash for n, s in stored.items()}
+    gen = int(max(k.late for k in K.LATE_KNOBS)) + 1
+    future = dataclasses.replace(K.KNOBS["modules.eobt_clip.min_rows"], path="modules.future_module.min_rows", late=gen)
+    monkeypatch.setattr(K, "SCHEMA", K.SCHEMA + (future,))
+    monkeypatch.setattr(K, "KNOBS", {**K.KNOBS, future.path: future})
+    monkeypatch.setattr(K, "LATE_KNOBS", K.LATE_KNOBS + (future,))
+    after = {n: K.parse_config(s["values"]).hash for n, s in stored.items()}
+    assert after == before
+    assert K.parse_config({}).hash == DEFAULTS_HASH_BEFORE_LATE_KNOBS
+    on = K.parse_config({"modules": {"future_module": {"min_rows": 5}}})
+    assert on.hash != K.parse_config({}).hash                       # the new knob off its default is hashed
+
+
+@pytest.mark.parametrize("late", [True, -1, 1.0])
+def test_check_schema_refuses_a_late_generation_that_is_not_a_whole_number(late):
+    """BC-41: a generation orders the late knobs; True / a float / a negative number would order them by accident.
+    Seen red 2026-10-03 08:25-08:42 EDT (no check)."""
+    bad = dataclasses.replace(K.KNOBS["modules.eobt_clip.min_rows"], late=late)
+    with pytest.raises(E.ConfigError, match="late generation"):
+        K.check_schema((bad,))
 
 
 def test_check_schema_refuses_an_unhashed_late_knob():
@@ -145,6 +219,8 @@ def test_clip_knobs_refuse_bad_values(over, err, msg):
 
 
 def test_an_unknown_airport_is_allowed_while_the_clip_is_off():
+    """The off-by-default clip never blocks a config that does not use it (stored configs keep loading). Mutation
+    (2026-10-03): cross-check the airports whatever `enabled` says -> ConfigValueError -> red."""
     _cfg(**{"modules.eobt_clip.airports": ["KJFK"]})
 
 
@@ -249,6 +325,8 @@ def test_a_batch_from_another_file_is_its_own_population_and_a_mixed_batch_is_re
 
 
 def test_serve_without_eligible_rows_is_a_reported_noop():
+    """A batch with no eligible row (another airport) is returned unchanged with an empty report, and no population is
+    decided for it. Mutation (2026-10-03): drop the early return -> a population is decided -> red."""
     rows = _rows()
     egll = rows[rows.ADEP_mvt == "EGLL"].reset_index(drop=True)
     new, ids, rep = _serve(egll, rows)

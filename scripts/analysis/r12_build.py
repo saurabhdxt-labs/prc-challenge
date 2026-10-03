@@ -156,6 +156,17 @@ def source_contains(path) -> list:
     return sorted(man.get("contains", ["adsb.lol"]))
 
 
+def _plan_contains(plan: dict, sources: dict) -> list:
+    """The sources the files of a day plan declare (their directories' MANIFEST.json)."""
+    return sorted({c for d in plan["files"].values() for c in source_contains(sources[d])})
+
+
+def _record_contains(rec: dict) -> list:
+    """What a store record was built from. A record written before `source_contains` existed was built from adsb.lol when
+    it read files (every store before AFI) and from nothing when it read none."""
+    return rec.get("source_contains", ["adsb.lol"] if rec.get("files") else [])
+
+
 def store_sources(store_dir, days) -> list:
     """The union of the sources the store's records of `days` were built from (a record without the key: adsb.lol)."""
     out = set()
@@ -290,6 +301,9 @@ def build_store(universe: pd.DataFrame, sources: dict, store_dir, version: str, 
             if have.get("files") != now["files"] or have.get("status") != now["status"]:
                 raise RuntimeError(f"{jp.name} is stale: built from {have.get('files')} ({have.get('status')}), now "
                                    f"{now['files']} ({now['status']}); move it aside (mv) to rebuild")
+            if _record_contains(have) != _plan_contains(now, sources):        # same day files, other sources (BC-41)
+                raise RuntimeError(f"{jp.name} is stale: built from sources {_record_contains(have)}, the source "
+                                   f"directories now declare {_plan_contains(now, sources)}; move it aside (mv) to rebuild")
             counts["done"] += 1
             continue
         if pp.exists():
@@ -303,7 +317,7 @@ def build_store(universe: pd.DataFrame, sources: dict, store_dir, version: str, 
                "n_flights": int(len(fl)), "flights_sha": fsha, "files": plan["files"],
                "source_paths": {k: str(sources[d]) for k, d in plan["files"].items()},
                "source_bytes": {k: int(sources[d].stat().st_size) for k, d in plan["files"].items()},
-               "source_contains": sorted({c for d in plan["files"].values() for c in source_contains(sources[d])}),
+               "source_contains": _plan_contains(plan, sources),
                "missing_neighbours": plan["missing_neighbours"], "git_sha": git_sha}
         if plan["status"] == "ready":
             out = _build_one(day, fl, plan, sources, store, builder, git_sha)
@@ -322,6 +336,16 @@ def build_store(universe: pd.DataFrame, sources: dict, store_dir, version: str, 
 
 
 # ---------------------------------------------------------------- tables (one function for train AND serve)
+
+def table_report(t: pd.DataFrame) -> dict:
+    """The per-table part of a tables directory's report.json: rows, rows on days without ADS-B data (and those days),
+    coverage counts, and the coverage-3 share per (airport, month)."""
+    cov3 = t.assign(c3=(t.coverage == 3).astype(float)).groupby(["ap", "month"]).c3.mean()
+    return {"n_rows": int(len(t)), "n_missing_day_rows": int((t.adsb_day_present == 0).sum()),
+            "missing_days": sorted(t.loc[t.adsb_day_present == 0, "mvt_day"].unique().tolist()),
+            "coverage_counts": {str(k): int(v) for k, v in t.coverage.value_counts().sort_index().items()},
+            "cov3_share": {f"{ap}|{m}": float(v) for (ap, m), v in cov3.items()}}
+
 
 def assemble(universe: pd.DataFrame, store_dir, version: str) -> pd.DataFrame:
     """The table for `universe` (training or serve), in the universe's order, columns TABLE_COLS. A 'missing' day ->
@@ -529,11 +553,7 @@ def _main_body(a, days, version, t0, log, G) -> int:  # pragma: no cover - real-
             continue
         t = assemble(part.reset_index(drop=True), a.store, version)
         t.to_parquet(out / f"{name}.parquet", index=False)
-        cov3 = (t.assign(c3=(t.coverage == 3).astype(float)).groupby(["ap", "month"]).c3.mean())
-        rep[name] = {"n_rows": int(len(t)), "n_missing_day_rows": int((t.adsb_day_present == 0).sum()),
-                     "missing_days": sorted(t.loc[t.adsb_day_present == 0, "mvt_day"].unique().tolist()),
-                     "coverage_counts": {str(k): int(v) for k, v in t.coverage.value_counts().sort_index().items()},
-                     "cov3_share": {f"{ap}|{m}": float(v) for (ap, m), v in cov3.items()}}
+        rep[name] = table_report(t)
         log(f"{name}: {len(t):,} rows, {rep[name]['n_missing_day_rows']:,} on missing days -> {out / (name + '.parquet')}")
     (out / "report.json").write_text(json.dumps(rep, indent=1))
     log(f"tables done wall {time.time() - t0:.0f}s peak RSS {G.peak_rss() / 1024 ** 3:.2f} GiB")

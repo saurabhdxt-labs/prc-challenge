@@ -96,6 +96,8 @@ def test_dropout_masks_are_seeded_disjoint_and_hit_their_shares():
 
 
 def test_zero_shares_hide_nothing():
+    """The default (0, 0) changes no training row. Mutation (2026-10-03): `>=` for `<` in either draw -> every group /
+    joined row hidden -> red."""
     fl, nb = F.dropout_masks(_big(), 0.0, 0.0, seed=0)
     assert not fl.any() and not nb.any()
 
@@ -126,18 +128,25 @@ def test_the_dropout_knobs_refuse_bad_values(over, msg):
 
 # ---------------------------------------------------------------- fit wiring (slow)
 
-@pytest.mark.slow
-def test_fit_hides_adsb_on_training_rows_only_and_reports_it(e2e_world, fm1_world_mod, monkeypatch):
-    """A fit with dropout reports how many rows it hid and trains a different model; predict never hides ADS-B (the
-    rows are served as they are). Mutation: skip the dropout in fit -> no report, identical model -> red; call it in
-    predict -> red."""
+@pytest.fixture(scope="module")
+def dropout_fits(e2e_world, fm1_world_mod):
+    """(world, fit without dropout, fit with flight 0.3 / day 0.15) — one pair of world fits for the slow tests below."""
     from prc import api
     world = e2e_world[0]
     quiet = lambda *a, **k: None  # noqa: E731
     base = K.parse_config(fm1_world_mod.config_raw(world))
     on = base.replace(**{"adsb.train_dropout.flight": 0.3, "adsb.train_dropout.day": 0.15})
-    a0 = api.fit(base, save=False, log=quiet)
-    a1 = api.fit(on, save=False, log=quiet)
+    return world, api.fit(base, save=False, log=quiet), api.fit(on, save=False, log=quiet)
+
+
+@pytest.mark.slow
+def test_fit_hides_adsb_on_training_rows_only_and_reports_it(dropout_fits, monkeypatch):
+    """A fit with dropout reports how many rows it hid and trains a different model; predict never hides ADS-B (the
+    rows are served as they are). Mutation: skip the dropout in fit -> no report, identical model -> red; call it in
+    predict -> red."""
+    from prc import api
+    world, a0, a1 = dropout_fits
+    quiet = lambda *a, **k: None  # noqa: E731
     rep = a1.fit_report["adsb_dropout"]
     assert rep["n_flight"] > 0 and rep["n_network"] > 0 and rep == {**rep, "flight_share": 0.3, "day_share": 0.15}
     assert "adsb_dropout" not in a0.fit_report
@@ -148,3 +157,14 @@ def test_fit_hides_adsb_on_training_rows_only_and_reports_it(e2e_world, fm1_worl
     scored = pd.read_parquet(world / "raw" / "scored.parquet")
     p0, p1 = api.predict(a0, scored, log=quiet), api.predict(a1, scored, log=quiet)
     assert (p0.TAXITIME_SEC_mvt.to_numpy() != p1.TAXITIME_SEC_mvt.to_numpy()).any()
+
+
+@pytest.mark.slow
+def test_the_support_gate_share_describes_the_training_data_not_the_dropout(dropout_fits):
+    """End-of-session review 2026-10-03 (finding 6, owner: "fix the dropout one now"): the support gate's training
+    coverage share (coverage_ratio rule) is the share of the data as recorded — the dropout hides tracks to teach the
+    base model, it does not change which coverage regime the stack was trained on. Before the fix the share was read
+    after set_unheard rewrote `coverage`, so a dropout fit stored a lower share and shifted the gate (seen red
+    2026-10-03 09:47 EDT on the world: EDDF 0.658 / LSZH 0.503 stored vs 0.939 / 0.969 as recorded). Mutation: read the share from m.coverage after the dropout -> red."""
+    _, a0, a1 = dropout_fits
+    assert a0.train_covered_share and a1.train_covered_share == a0.train_covered_share

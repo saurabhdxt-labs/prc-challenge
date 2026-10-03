@@ -697,3 +697,52 @@ def test_regression_bug_40_a_source_the_builder_cannot_read_is_refused_not_score
     with pytest.raises(RuntimeError, match="cannot read .*adsb_2025-03-11.parquet"):
         B._build_one("2025-03-10", _flights([("2025-03-10", 2)]), plan, sources, store, fb, "abc")
     assert fb.calls == [] and list(store.iterdir()) == []
+
+
+def test_table_report_describes_the_table_it_is_given():
+    """End-of-session review 2026-10-03 (finding 4): the per-table statistics of report.json come from one tested function
+    (they sat inline under the main body's pragma, so the AFB fallback copied another table's numbers instead). Seen red
+    2026-10-03 08:25-08:42 EDT (no function). Rows: missing-day rows counted and their days listed once each, coverage counts
+    keyed by the code as a string, the coverage-3 share per (airport, month)."""
+    t = pd.DataFrame({"ap": ["EDDF", "EDDF", "EDDF", "LIRF", "LIRF"], "month": [7, 7, 7, 7, 1],
+                      "mvt_day": ["2026-07-01", "2026-07-01", "2026-07-02", "2026-07-02", "2026-01-05"],
+                      "adsb_day_present": [0, 0, 1, 1, 1], "coverage": [0, 0, 3, 1, 3]})
+    r = B.table_report(t)
+    assert r == {"n_rows": 5, "n_missing_day_rows": 2, "missing_days": ["2026-07-01"],
+                 "coverage_counts": {"0": 2, "1": 1, "3": 2},
+                 "cov3_share": {"EDDF|7": pytest.approx(1 / 3), "LIRF|1": 1.0, "LIRF|7": 0.0}}
+    assert list(r["cov3_share"]) == ["EDDF|7", "LIRF|1", "LIRF|7"]
+
+
+def test_regression_bug_41_a_done_day_built_from_other_sources_is_stale(src, tmp_path):
+    """BC-41 sibling (r12_build's resume check): a day built from adsb.lol, then requested from a directory that declares
+    adsb.fi with the same day files, was counted "done" — the record's sources were never compared, so a rebuild from a
+    union directory kept the adsb.lol features silently. Seen red 2026-10-03 08:25-08:42 EDT."""
+    sources, _ = B.resolve_sources(src)
+    u = _flights([("2025-01-31", 2)])
+    B.build_store(u, sources, _store(tmp_path), version=V, final=True, git_sha="x", builder=FakeBuilder(), root=tmp_path)
+    for d in src:
+        m = json.loads((d / "MANIFEST.json").read_text())
+        m["contains"] = ["adsb.fi", "adsb.lol"]
+        (d / "MANIFEST.json").write_text(json.dumps(m))
+    sources, _ = B.resolve_sources(src)
+    with pytest.raises(RuntimeError, match="stale.*adsb.fi"):
+        B.build_store(u, sources, _store(tmp_path), version=V, final=True, git_sha="x", builder=FakeBuilder(),
+                      root=tmp_path)
+
+
+def test_a_done_day_recorded_before_source_contains_existed_is_still_done(src, tmp_path):
+    """BC-41 (b): records written before the key existed hold no `source_contains`; a record with files was built from
+    adsb.lol (every store before AFI) and one without files has no sources, so resuming over such a store must count
+    both as done, not stale (the protecting invariant of the default)."""
+    sources, _ = B.resolve_sources(src)
+    u = _flights([("2025-01-31", 2), ("2025-02-03", 1)])              # 02-03 has no source file: a "missing" record
+    store = _store(tmp_path)
+    first = B.build_store(u, sources, store, version=V, final=True, git_sha="x", builder=FakeBuilder(), root=tmp_path)
+    assert first["built"] == 1 and first["missing"] == 1
+    for jp in store.glob("day_*.json"):
+        rec = json.loads(jp.read_text())
+        del rec["source_contains"]
+        jp.write_text(json.dumps(rec))
+    counts = B.build_store(u, sources, store, version=V, final=True, git_sha="x", builder=FakeBuilder(), root=tmp_path)
+    assert counts["done"] == 2 and counts["built"] == 0
