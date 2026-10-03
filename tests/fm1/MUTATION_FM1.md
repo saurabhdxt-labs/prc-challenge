@@ -266,3 +266,17 @@ M-ACR8 no features.adsb cross-check · M-ACR9 fit skips the dropout (slow world 
 `scripts/analysis/acr_price.py` (tests written after the code — stated; they caught a tuple / dict defect in `stats`):
 **7 / 8 killed**, M-ACP2 (Frankfurt's share drawn from all rows instead of joined rows) equivalent on the real tables —
 unjoined rows already hold the unheard state, so re-applying it changes nothing.
+
+## 2026-10-03 — adsb.fi into FM1 (AFI): train-only ADS-B read at fit, declared table sources, the adsb_fi knob, learner inputs
+
+`tests/fm1/test_fm1_adsb_sources.py` (3 fast + 1 slow), seen red first; `tests/test_r12_build.py` 4 new; `tests/test_adsb_union.py`
+(union tests moved from the local AUN script unchanged + the manifest test); `tests/test_afi_build.py` 7. **12 / 12 killed
+(M-AFI):** fit reads both files · one direction of the source check dropped (×2) · `adsb/` back as a learner input · knob
+out of the allow-list · predict skips the source check · fit skips it · day record without `source_contains` · default
+sources [] · `store_sources` reads one day · manifest status "done" · manifest without `contains`. **6 / 6 (M-AFB):** store
+copy excludes nothing · each of the five acceptance checks forced true. Spec changes, deliberately re-pinned: adsb.fi is
+ported (knobs / stages tests), the reuse allow-list adds `adsb.sources.adsb_fi` and `adsb.table_dir` (data-guarded by the
+`adsb/train.parquet` input hash), the reuse test's ADS-B input key is `adsb/train.parquet` and a differing serve table is free.
+BC-40 (r12_build relative source paths): **3 / 3 killed** — M-B40a symlink the path as given · M-B40b resolve_sources keeps
+relative dirs · M-B40c no readability check before the builder. AFI.1: **2 / 2 killed** — M-AFI13 exclude by aircraft
+instead of airport · M-AFI14 gate on lost joins (the registered rule is the share).

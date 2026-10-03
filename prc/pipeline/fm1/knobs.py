@@ -151,8 +151,10 @@ SCHEMA: tuple = (
        "adsb.lol globe_history (ODbL 1.0), the only source the R12 tables hold; required by features.adsb.",
        "plans/PREREG_adsb_nn_2026_09_10.md:5"),
     _K("adsb.sources.adsb_fi", "bool", False,
-       "adsb.fi fallback/union (non-commercial, no redistribution; a July-2026 live capture only). Optional per owner "
-       "decision 3; not ported into FM1.", f"{PREREG} §2", status="not_ported", activates=_on),
+       "Declares that the ADS-B tables hold adsb.fi points (the owner's July-2026 opendata.adsb.fi capture, merged with "
+       "adsb.lol by rule AUN.1; non-commercial terms, never redistributed, cannot be re-fetched by others). Checked against "
+       "the tables' report both ways at fit and predict. Off in the documented forecaster; a scored-period build may turn "
+       "it on with tables built from the union (docs/fm1/REPRODUCE.md).", "plans/PREREG_afi_adsbfi_into_fm1_2026_10_03.md"),
     _K("adsb.table_dir", "path", "data/r12/tables_801f9bcac9a5",
        "Directory with the ADS-B tables train.parquet (2025) and serve.parquet (scored rows), keyed by MVT_ID_mvt.",
        "data/r12/tables_801f9bcac9a5/report.json"),
@@ -381,8 +383,10 @@ LATE_KNOBS: tuple = tuple(k for k in SCHEMA if k.late)
 #: Knobs a derived fit (`fit(..., reuse_from=donor)`) may change relative to its donor: predict-time or light-fit settings
 #: only (plans/PREREG_bsv_board_selected_variants_2026_10_01.md, "Mechanism"). A `.`-terminated entry covers a group. A
 #: knob that feeds the matched learners' X, y, masks or parameters must never be listed (tests/fm1/test_fm1_reuse.py).
+#: adsb.table_dir is listed because what the learners read from it is guarded by DATA, not by the path: the
+#: adsb/train.parquet input hash, the design-column check and the encodings check (a new serve table only, AFI).
 _REUSE_FREE_PREFIXES = ("run.purpose", "run.artifacts_dir", "calibration.mtx.", "modules.", "matched.blend.catboost_weight",
-                        "adsb.stack.", "adsb.support_gate.", "adsb.min_coverage")
+                        "adsb.stack.", "adsb.support_gate.", "adsb.min_coverage", "adsb.sources.adsb_fi", "adsb.table_dir")
 REUSE_FREE_KNOBS = frozenset(p for p in KNOBS
                              if any(p == q or (q.endswith(".") and p.startswith(q)) for q in _REUSE_FREE_PREFIXES))
 

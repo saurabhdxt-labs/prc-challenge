@@ -596,3 +596,104 @@ def test_table_and_store_contract_carry_the_dwg_visibility_and_provenance_column
     for c in ("stand_visible", "stand_ref_parked_share"):
         assert c in B.FEATURES and c in B.TABLE_COLS
     assert "DWG" in AF.FEATURES_VERSION and B.stamp_of(AF.FEATURES_VERSION) != "801f9bcac9a5"
+
+
+# ---------------------------------------------------------------- declared sources (plans/PREREG_afi_adsbfi_into_fm1_2026_10_03.md)
+
+def test_source_contains_reads_the_manifest_declaration_and_defaults_to_adsb_lol(tmp_path):
+    """A source directory's MANIFEST.json may declare what it contains; a manifest without the key is adsb.lol (every
+    directory before AFI). Mutation: default to [] -> red; ignore the key -> red."""
+    a, b = tmp_path / "a", tmp_path / "b"
+    for d in (a, b):
+        _day_file(d, "2026-07-01")
+        _manifest(d, [_ok("2026-07-01")])
+    man = json.loads((b / "MANIFEST.json").read_text())
+    man["contains"] = ["adsb.lol", "adsb.fi"]
+    (b / "MANIFEST.json").write_text(json.dumps(man))
+    assert B.source_contains(a / "adsb_2026-07-01.parquet") == ["adsb.lol"]
+    assert B.source_contains(b / "adsb_2026-07-01.parquet") == ["adsb.fi", "adsb.lol"]
+
+
+def test_build_store_records_what_each_day_was_built_from(src, tmp_path):
+    """Day 2025-01-31 reads its own file and 01-30 from the root dir (declared adsb.lol + adsb.fi) and 02-01 from
+    y2025_other (undeclared = adsb.lol): the record holds the union. Mutation: drop source_contains -> red."""
+    m = src[0] / "MANIFEST.json"
+    man = json.loads(m.read_text())
+    man["contains"] = ["adsb.lol", "adsb.fi"]
+    m.write_text(json.dumps(man))
+    sources, _ = B.resolve_sources(src)
+    store = _store(tmp_path)
+    B.build_store(_flights([("2025-01-31", 3)]), sources, store, version=V, final=True, git_sha="abc",
+                  builder=FakeBuilder(), root=tmp_path)
+    assert json.loads((store / "day_2025-01-31.json").read_text())["source_contains"] == ["adsb.fi", "adsb.lol"]
+
+
+def test_store_sources_is_the_union_over_the_tables_days(tmp_path):
+    """A day record without the key is adsb.lol (stores built before AFI); a day without a record is refused.
+    Mutation: read only the first day -> red; skip missing records -> red."""
+    d = tmp_path / "store"
+    d.mkdir()
+    (d / "day_2026-01-05.json").write_text(json.dumps({"day": "2026-01-05", "status": "ready"}))
+    (d / "day_2026-07-05.json").write_text(json.dumps({"day": "2026-07-05", "status": "ready",
+                                                       "source_contains": ["adsb.fi", "adsb.lol"]}))
+    assert B.store_sources(d, ["2026-01-05"]) == ["adsb.lol"]
+    assert B.store_sources(d, ["2026-01-05", "2026-07-05"]) == ["adsb.fi", "adsb.lol"]
+    with pytest.raises(FileNotFoundError, match="2026-07-06"):
+        B.store_sources(d, ["2026-07-06"])
+
+
+def test_features_takes_the_source_directories_on_the_command_line():
+    """Mutation: drop --sources -> red."""
+    assert B.parse_args(["features", "--store", "x", "--sources", "d1,d2"]).sources == ["d1", "d2"]
+    assert B.parse_args(["features", "--store", "x"]).sources is None
+
+
+class ReadingBuilder(FakeBuilder):
+    """As adsb_features.build_period does, opens every day file it is shown; a link it cannot follow is an error."""
+    def __call__(self, flights, adsb_dir, git_sha):
+        for name in sorted(os.listdir(adsb_dir)):
+            pd.read_parquet(pathlib.Path(adsb_dir) / name)
+        return super().__call__(flights, adsb_dir, git_sha)
+
+
+def test_regression_bug_40_relative_source_directories_reach_the_builder_as_readable_files(tmp_path, monkeypatch):
+    """BC-40 (2026-10-03): `features --sources data/adsb/union/y2026_r12` gave relative source paths; the store's per-day
+    link directory symlinked them as relative targets, which resolve from the link's own directory — every link broken,
+    and the real builder silently scored all 6,037 flights of each day as 'no ADS-B'. A source given relative to the
+    working directory must reach the builder as a readable file. Mutation: symlink the path as given -> red."""
+    monkeypatch.chdir(tmp_path)
+    for day in ("2025-03-09", "2025-03-10", "2025-03-11"):
+        _day_file(tmp_path / "rel_src", day, rows=3)
+    _manifest(tmp_path / "rel_src", [_ok("2025-03-09"), _ok("2025-03-10"), _ok("2025-03-11")])
+    sources = {d: pathlib.Path("rel_src") / f"adsb_{d}.parquet" for d in ("2025-03-09", "2025-03-10", "2025-03-11")}
+    fb = ReadingBuilder()
+    c = B.build_store(_flights([("2025-03-10", 2)]), sources, _store(tmp_path), version=V, final=True, git_sha="abc",
+                      builder=fb, root=tmp_path)
+    assert c["built"] == 1 and fb.calls[0]["files"] == ["adsb_2025-03-09.parquet", "adsb_2025-03-10.parquet",
+                                                        "adsb_2025-03-11.parquet"]
+
+
+def test_resolve_sources_returns_absolute_paths_for_a_relative_directory(tmp_path, monkeypatch):
+    """BC-40 origin: the paths leave resolve_sources absolute, whatever the caller passed. Mutation: return them as
+    given -> red."""
+    monkeypatch.chdir(tmp_path)
+    _day_file(tmp_path / "rel", "2025-03-10")
+    _manifest(tmp_path / "rel", [_ok("2025-03-10")])
+    sources, _ = B.resolve_sources([pathlib.Path("rel")])
+    assert sources["2025-03-10"].is_absolute() and sources["2025-03-10"] == (tmp_path / "rel" / "adsb_2025-03-10.parquet").resolve()
+
+
+def test_regression_bug_40_a_source_the_builder_cannot_read_is_refused_not_scored_as_no_adsb(tmp_path):
+    """The link step refuses a day file it cannot read instead of handing the builder an empty day, and leaves no link
+    directory behind (build_store already refuses a file that vanished, at its stat; this pins the link step itself).
+    Mutation: drop the readability check -> the builder runs on a broken link -> red."""
+    src = tmp_path / "src"
+    _day_file(src, "2025-03-10", rows=3)
+    store = tmp_path / "store"
+    store.mkdir()
+    plan = {"files": {"cur": "2025-03-10", "next": "2025-03-11"}}
+    sources = {"2025-03-10": src / "adsb_2025-03-10.parquet", "2025-03-11": src / "adsb_2025-03-11.parquet"}
+    fb = FakeBuilder()
+    with pytest.raises(RuntimeError, match="cannot read .*adsb_2025-03-11.parquet"):
+        B._build_one("2025-03-10", _flights([("2025-03-10", 2)]), plan, sources, store, fb, "abc")
+    assert fb.calls == [] and list(store.iterdir()) == []

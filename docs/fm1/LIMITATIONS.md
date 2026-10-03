@@ -64,5 +64,10 @@
 14. **ADS-B coverage moved between 2025 and 2026** (share of matched departures with ground coverage, stack training months →
     2026: EDDF 0.909 → 0.623, EGLL 0.384 → 0.902, LIRF 0.405 → 0.299; METHOD §6). The stack keeps its stored gate; the
     label-free `coverage_ratio` gate would switch EDDF off, and the board measured that as no better (v52, −10.6 MSE).
+    The flips are large by airport-month (LIRF July 93.5 % → 0.2 %, EDDF July 89 % → 59 %; EGLL July 21 % → 98 %, LEMD
+    January 0 % → 97 %). Imposing July 2026's losses on held-out July 2025 costs the model about 860 bmse (LIRF 585, EDDF
+    278; plans/PREREG_acr…). Training with ADS-B randomly hidden (`adsb.train_dropout.*`, off) recovers almost none of it
+    and costs accuracy where ADS-B is present: the loss is information, not calibration, so only another track source can
+    restore it.
 15. **Full-fit memory.** The full fit holds ~15 GB in the main process plus ~5 GB in the CatBoost worker; the dry-run memory
     gate measures neither the grown models nor the worker. Plan for ~20 GB or run under a memory guard (REPRODUCE).

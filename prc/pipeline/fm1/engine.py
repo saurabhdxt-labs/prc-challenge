@@ -125,7 +125,8 @@ def _orl(cfg):
 
 #: fit_inputs keys the matched learners were fitted on (the free stages' inputs — stack models, MTX csv, E2 rules — change
 #: with the reuse allow-list's knobs and are not compared)
-_LEARNER_INPUTS = ("raw/", "weather/", "orl_routes", "adsb/")
+#: what a fit reads to train the matched learners; adsb/serve.parquet is not one (fit reads only train.parquet, AFI)
+_LEARNER_INPUTS = ("raw/", "weather/", "orl_routes", "adsb/train.parquet")
 
 
 def _reuse_learners(donor: A.ModelArtifact, cols, enc_m, n_rows: int, n_es: int, need_cat: bool) -> tuple:
@@ -176,6 +177,8 @@ def fit(config, *, save: bool = True, allow_heavy: bool = False, tier_overrides:
         raise E.PipelineError(f"fit over {n_raw:,} raw training rows (> {HEAVY_ROWS:,}) is a heavy job: run the quality gate, "
                               "then pass allow_heavy=True / --allow-heavy (one heavy job at a time, AC power)")
     inputs = fit_inputs(cfg, files)
+    if cfg["features.adsb"]:
+        F.check_table_sources(cfg.path("adsb.table_dir"), cfg["adsb.sources.adsb_fi"])
     if donor is not None:
         diff = sorted(k for k in set(inputs) | set(donor.inputs)
                       if k.startswith(_LEARNER_INPUTS) and inputs.get(k) != donor.inputs.get(k))
@@ -312,6 +315,8 @@ def predict(art: A.ModelArtifact, rows: pd.DataFrame, log=_log) -> pd.DataFrame:
     stages = S.plan(cfg)
     names = {s.name for s in stages}
     R.validate_raw(rows, "serve", cfg["airports.codes"])
+    if cfg["features.adsb"]:
+        F.check_table_sources(cfg.path("adsb.table_dir"), cfg["adsb.sources.adsb_fi"])
     given = rows                                        # the caller's rows: their digest identifies the input
     clipped = clip_rep = None
     if "eobt_clip" in names:                            # before the feature path: every stage sees the repaired field

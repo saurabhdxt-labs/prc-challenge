@@ -165,14 +165,14 @@ def _key(frame: pd.DataFrame, k: str) -> np.ndarray:
 # the ADS-B table and the ORL routes
 # =================================================================================================================
 
-def read_adsb_tables(table_dir, ids, allow_missing: bool = False) -> tuple:
-    """(ADS-B rows for `ids` from train.parquet + serve.parquet indexed by MVT_ID_mvt, ids without a row). An id found in
-    both files is refused; a missing id is refused unless allow_missing (serve time; the caller bounds the share)."""
+def read_adsb_tables(table_dir, ids, allow_missing: bool = False, files=("train.parquet", "serve.parquet")) -> tuple:
+    """(ADS-B rows for `ids` from `files` of the table directory, indexed by MVT_ID_mvt, ids without a row). An id found
+    in two files is refused; a missing id is refused unless allow_missing (serve time; the caller bounds the share)."""
     table_dir = pathlib.Path(table_dir)
     ids = np.unique(np.asarray(ids, dtype="float64"))
     cols = adsb_columns(table_dir)
     parts = []
-    for name in ("train.parquet", "serve.parquet"):
+    for name in files:
         p = table_dir / name
         have = pq.read_table(p, columns=["MVT_ID_mvt"]).column(0).to_numpy()
         if not np.isin(ids, have).any():
@@ -246,10 +246,12 @@ def raw_day(raw: pd.DataFrame, ids) -> np.ndarray:
 
 
 def attach_adsb(frame: pd.DataFrame, table_dir, serve: bool = False, max_missing_share: float = 0.0) -> tuple:
-    """(frame + the ADS-B columns, number of rows served as 'no ADS-B data'). Training rows must all be in the table;
-    a scored row without one gets coverage 0, adsb_day_present 0 and NaN features (FM1 notes N1), up to the share."""
+    """(frame + the ADS-B columns, number of rows served as 'no ADS-B data'). Training rows are read from train.parquet
+    ONLY and must all be there (so serve.parquet is never a learner input); a scored row is read from either file, and one
+    without a row gets coverage 0, adsb_day_present 0 and NaN features (FM1 notes N1), up to the share."""
     ids = frame.MVT_ID_mvt.to_numpy(dtype="float64")
-    t, missing = read_adsb_tables(table_dir, ids, allow_missing=serve)
+    files = ("train.parquet", "serve.parquet") if serve else ("train.parquet",)
+    t, missing = read_adsb_tables(table_dir, ids, allow_missing=serve, files=files)
     share = len(missing) / max(len(ids), 1)
     if serve and share > max_missing_share:
         raise E.SchemaError(f"{len(missing):,} of {len(ids):,} scored matched rows ({share:.4%}) have no ADS-B table row in "
@@ -263,6 +265,21 @@ def attach_adsb(frame: pd.DataFrame, table_dir, serve: bool = False, max_missing
         out.loc[miss, "coverage"] = 0.0
         out.loc[miss, "adsb_day_present"] = 0.0
     return out, int(len(missing))
+
+
+def check_table_sources(table_dir, adsb_fi: bool) -> list:
+    """The sources the ADS-B tables declare (report.json `sources`; tables without the key or the file: adsb.lol), checked
+    against adsb.sources.adsb_fi both ways: adsb.fi points (non-commercial, not redistributable) are never used unawares,
+    and the knob never claims a source the tables do not hold."""
+    p = pathlib.Path(table_dir) / "report.json"
+    sources = sorted(json.loads(p.read_text()).get("sources", ["adsb.lol"])) if p.exists() else ["adsb.lol"]
+    if "adsb.fi" in sources and not adsb_fi:
+        raise E.ConfigValueError(f"the ADS-B tables in {table_dir} hold adsb.fi points (non-commercial, not "
+                                 "redistributable); to use them set adsb.sources.adsb_fi=true")
+    if adsb_fi and "adsb.fi" not in sources:
+        raise E.ConfigValueError(f"adsb.sources.adsb_fi is true but the ADS-B tables in {table_dir} declare no adsb.fi "
+                                 f"points (sources {sources})")
+    return sources
 
 
 def set_unheard(frame: pd.DataFrame, adsb_cols, rows, network: bool) -> None:

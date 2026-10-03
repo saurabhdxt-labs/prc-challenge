@@ -84,6 +84,15 @@ weather (DATA_SOURCES.md) and the derived inputs below, each rebuilt by code in 
 | ORL route table (`features.orl_routes_file`) | `scripts/analysis/orl_build.py fetch`, then `build` | `data/osm/orl_routes.parquet` |
 | MTX CSVs (`calibration.mtx.*_csv`) | `scripts/analysis/mtx_source.py` | `data/mtx/raw/` (sha256 manifest) |
 
+**Optional second source (scored-period build only).** `scripts/analysis/afi_build.py days` merges the owner's adsb.fi
+capture of July 2026 into the adsb.lol day files (rule AUN.1, `scripts/analysis/adsb_union.py`; the union directory's
+MANIFEST.json declares both sources), `afi_build.py store` copies the R12 store without July 2026, `r12_build features
+--sources <union dir> --days <July 2026>` rebuilds those days with the same feature code, and `r12_build tables` writes
+tables whose `report.json` declares `["adsb.fi", "adsb.lol"]`. FM1 refuses such tables unless `adsb.sources.adsb_fi=true`
+(and the reverse). Only the serve table changes (fit reads `train.parquet` only), so a derived fit reuses the full fit's
+learners. The adsb.fi archive is non-commercial, never redistributed and cannot be re-fetched by others: this step is
+reproducible only on the machine that holds the capture.
+
 The stack's MLP half trains and predicts in `scripts/adsb_nn_worker.py` (a separate process; torch never shares a process
 with LightGBM), and the CatBoost learner runs in `~/.venvs/prc-catboost` (`prc/pipeline/fm1/catboost_worker.py`). A fitted
 artefact carries its own copy of the stack models, so predicting with a saved artefact needs only the tables and raw files.

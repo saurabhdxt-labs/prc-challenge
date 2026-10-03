@@ -39,11 +39,11 @@ def test_plan_follows_the_switches():
 
 def test_plan_refuses_unported_components():
     """plans/PREREG_fm1_2026_09_28.md §2 + Amendment A3: Rome, ARC and the storm anchor are ported (the default fm1.yaml
-    plans), LDI too (owner decision 2026-09-29); the storm-as-feature form and adsb.fi are not, and are refused by name
-    while switched on."""
+    plans), LDI too (owner decision 2026-09-29), adsb.fi too (AFI, 2026-10-03); the storm-as-feature form is not, and is
+    refused by name while switched on."""
     names = [s.name for s in S.plan(K.parse_config({}))]
     assert names[names.index("unmatched_body"):] == ["unmatched_body", "rome", "arc", "rome_e2", "rome_e2w", "finalise"]
-    with pytest.raises(E.ComponentNotPortedError, match=r"adsb\.sources\.adsb_fi, modules\.storm\.feature"):
+    with pytest.raises(E.ComponentNotPortedError, match=r"not ported to FM1: modules\.storm\.feature \("):
         S.plan(_cfg(**{"modules.storm.feature": True, "adsb.sources.adsb_fi": True}))
     assert "storm" in [s.name for s in S.plan(_cfg(**{"modules.storm.mode": "anchor"}))]
     assert "ldi" in [s.name for s in S.plan(_cfg(**{"modules.ldi.enabled": True}))]

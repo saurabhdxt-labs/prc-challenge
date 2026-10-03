@@ -21,7 +21,8 @@ from prc.pipeline.fm1 import learners as L
 QUIET = lambda *_a, **_k: None          # noqa: E731
 #: the registered allow-list, as knob-path prefixes (a `.`-terminated prefix covers a whole group)
 FREE_PREFIXES = ("run.purpose", "run.artifacts_dir", "calibration.mtx.", "modules.", "matched.blend.catboost_weight",
-                 "adsb.stack.", "adsb.support_gate.", "adsb.min_coverage")
+                 "adsb.stack.", "adsb.support_gate.", "adsb.min_coverage",
+                 "adsb.sources.adsb_fi", "adsb.table_dir")       # AFI 2026-10-03: data-guarded (adsb/train.parquet hash)
 
 
 def _is_free(path: str) -> bool:
@@ -40,7 +41,7 @@ def test_the_reuse_allow_list_is_exactly_the_registered_groups():
     assert set(K.REUSE_FREE_KNOBS) == {p for p in K.KNOBS if _is_free(p)}
     for must_block in ("features.weather", "features.adsb", "matched.lightgbm.learning_rate", "matched.catboost.depth",
                        "matched.learner", "matched.target", "matched.es_months", "data.train_months", "data.raw_dir",
-                       "run.seeds", "run.threads", "adsb.table_dir", "airports.codes", "lanes.matched",
+                       "run.seeds", "run.threads", "airports.codes", "lanes.matched",
                        "unmatched.learner"):
         assert must_block in K.KNOBS and must_block not in K.REUSE_FREE_KNOBS, must_block
 
@@ -148,7 +149,7 @@ def test_reuse_refuses_different_input_data_encodings_or_design(cfg, donor):
     # the inputs the matched learners were fitted on: raw training files, weather, routes, the ADS-B tables. A donor
     # whose record of ANY of them differs is refused; inputs of the free stages (stack models, MTX csv, E2 rules) are not
     # compared (they change with the allow-listed knobs).
-    for key in ("raw/", "weather/", "orl_routes", "adsb/"):
+    for key in ("raw/", "weather/", "orl_routes", "adsb/train.parquet"):
         name = next(k for k in sorted(donor.inputs) if k.startswith(key))
         other_data = dataclasses.replace(donor, inputs={**donor.inputs, name: "0" * 64})
         with pytest.raises(E.ReuseError, match=f"input data differ.*{name}"):
@@ -156,6 +157,9 @@ def test_reuse_refuses_different_input_data_encodings_or_design(cfg, donor):
     stack_key = next(k for k in sorted(donor.inputs) if k.startswith("stack/"))
     free_only = dataclasses.replace(donor, inputs={**donor.inputs, stack_key: "0" * 64})
     assert api.fit(v, save=False, log=QUIET, reuse_from=free_only).base is donor.base
+    # the serve table is not a learner input (fit reads only train.parquet; AFI): a donor whose serve table differs is free
+    serve_only = dataclasses.replace(donor, inputs={**donor.inputs, "adsb/serve.parquet": "0" * 64})
+    assert api.fit(v, save=False, log=QUIET, reuse_from=serve_only).base is donor.base
     e = donor.enc_matched
     te = next(iter(e.priors))
     other_enc = dataclasses.replace(donor, enc_matched=F.EncodingTables(

@@ -51,7 +51,7 @@ features:
 adsb:
   sources:
     adsb_lol: true
-    adsb_fi: false   # NOT PORTED
+    adsb_fi: false
   table_dir: data/r12/tables_801f9bcac9a5
   serve_missing_max_share: 0.001
   min_coverage: 2

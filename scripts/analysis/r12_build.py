@@ -132,7 +132,7 @@ def resolve_sources(dirs=SOURCE_DIRS, legacy=None) -> tuple:
     legacy = LEGACY_UNLISTED if legacy is None else legacy
     sources, unverified, orphans, accepted = {}, [], [], []
     for d in dirs:
-        d = pathlib.Path(d)
+        d = pathlib.Path(d).resolve()                  # every returned path is absolute (BC-40)
         listed = manifest_days(d)
         on_disk = {m.group(1) for m in (DAY_RE.match(p.name) for p in d.iterdir()) if m}
         for day in sorted((on_disk - listed) & set(legacy)):
@@ -147,6 +147,24 @@ def resolve_sources(dirs=SOURCE_DIRS, legacy=None) -> tuple:
         orphans += sorted(listed - on_disk)
     return sources, {"unverified_files": sorted(unverified), "manifest_without_file": sorted(orphans),
                      "legacy_accepted": sorted(accepted), "n_sources": len(sources)}
+
+
+def source_contains(path) -> list:
+    """The sources a day file holds, as its directory's MANIFEST.json declares them (`contains`); a manifest without the key
+    is adsb.lol (every directory before plans/PREREG_afi_adsbfi_into_fm1_2026_10_03.md)."""
+    man = json.loads((pathlib.Path(path).parent / "MANIFEST.json").read_text())
+    return sorted(man.get("contains", ["adsb.lol"]))
+
+
+def store_sources(store_dir, days) -> list:
+    """The union of the sources the store's records of `days` were built from (a record without the key: adsb.lol)."""
+    out = set()
+    for day in days:
+        p = pathlib.Path(store_dir) / f"day_{day}.json"
+        if not p.exists():
+            raise FileNotFoundError(f"{p}: no store record for {day}")
+        out.update(json.loads(p.read_text()).get("source_contains", ["adsb.lol"]))
+    return sorted(out)
 
 
 def source_universe() -> set:
@@ -225,8 +243,10 @@ def _build_one(day: str, fl: pd.DataFrame, plan: dict, sources: dict, store: pat
     try:
         for d in plan["files"].values():
             q = links / f"adsb_{d}.parquet"
-            os.symlink(sources[d], q)
+            os.symlink(pathlib.Path(sources[d]).resolve(), q)     # absolute: a relative target resolves from `links` (BC-40)
             made.append(q)
+            if not q.is_file():                                     # a link the builder could not read would score as "no ADS-B"
+                raise RuntimeError(f"{day}: cannot read {sources[d]} through {q}; the day is not built (BC-40)")
         out = builder(fl[AF.FLIGHT_COLS].reset_index(drop=True), links, git_sha)
     finally:
         for q in made:
@@ -283,6 +303,7 @@ def build_store(universe: pd.DataFrame, sources: dict, store_dir, version: str, 
                "n_flights": int(len(fl)), "flights_sha": fsha, "files": plan["files"],
                "source_paths": {k: str(sources[d]) for k, d in plan["files"].items()},
                "source_bytes": {k: int(sources[d].stat().st_size) for k, d in plan["files"].items()},
+               "source_contains": sorted({c for d in plan["files"].values() for c in source_contains(sources[d])}),
                "missing_neighbours": plan["missing_neighbours"], "git_sha": git_sha}
         if plan["status"] == "ready":
             out = _build_one(day, fl, plan, sources, store, builder, git_sha)
@@ -416,11 +437,11 @@ def check_universes(train_u: pd.DataFrame, serve_u: pd.DataFrame) -> None:
 
 # ---------------------------------------------------------------- CLI
 
-def _resolve_with_retry(tries: int = 3, wait_s: float = 2.0, sleep=time.sleep):
+def _resolve_with_retry(dirs=SOURCE_DIRS, tries: int = 3, wait_s: float = 2.0, sleep=time.sleep):
     """The fetcher rewrites MANIFEST.json in place (not atomically): a torn read is retried, then raised."""
     for i in range(tries):
         try:
-            return resolve_sources(SOURCE_DIRS)
+            return resolve_sources(dirs)
         except ValueError as e:
             if "unreadable manifest" not in str(e) or i == tries - 1:
                 raise
@@ -438,6 +459,8 @@ def parse_args(argv=None) -> argparse.Namespace:
         if name == "features":
             p.add_argument("--final", action="store_true",
                            help="record missing days / neighbours instead of deferring (after the fetch finished)")
+            p.add_argument("--sources", default=None, type=lambda v: [x.strip() for x in v.split(",") if x.strip()],
+                           help="comma-separated day-file directories instead of the default three (e.g. a union directory)")
         else:
             p.add_argument("--out", required=True)
     return ap.parse_args(argv)
@@ -487,7 +510,7 @@ def _main_body(a, days, version, t0, log, G) -> int:  # pragma: no cover - real-
     log(f"universe {len(u):,} flights on {u.mvt_day.nunique()} days ({len(tr_u):,} training, {len(sv_u):,} serve); "
         f"stamp {stamp_of(version)}")
     if a.cmd == "features":
-        sources, diag = _resolve_with_retry()
+        sources, diag = _resolve_with_retry(tuple(pathlib.Path(x) for x in a.sources) if a.sources else SOURCE_DIRS)
         log(f"sources {diag['n_sources']} days; legacy accepted {diag['legacy_accepted']}; unverified "
             f"{diag['unverified_files']}; "
             f"manifest-without-file {diag['manifest_without_file']}")
@@ -499,7 +522,8 @@ def _main_body(a, days, version, t0, log, G) -> int:  # pragma: no cover - real-
     if out.exists():
         raise SystemExit(f"refusing to overwrite {out}")
     out.mkdir(parents=True)
-    rep = {"features_version": version, "stamp": stamp_of(version), "store": str(a.store), "days": days}
+    rep = {"features_version": version, "stamp": stamp_of(version), "store": str(a.store), "days": days,
+           "sources": store_sources(a.store, sorted(set(u.mvt_day)))}
     for name, part in (("train", tr_u), ("serve", sv_u)):
         if not len(part):
             continue

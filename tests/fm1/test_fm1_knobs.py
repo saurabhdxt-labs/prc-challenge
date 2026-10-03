@@ -302,7 +302,7 @@ def test_not_ported_lists_every_enabled_unported_component():
     assert cfg.not_ported() == []
     raw = _set(_set(_set(_raw(), "modules.storm.feature", True), "modules.ldi.enabled", True),
                "adsb.sources.adsb_fi", True)
-    assert K.parse_config(raw).not_ported() == ["adsb.sources.adsb_fi", "modules.storm.feature"]
+    assert K.parse_config(raw).not_ported() == ["modules.storm.feature"]      # adsb.fi ported 2026-10-03 (AFI)
     for path in ("modules.rome.enabled", "modules.arc.enabled", "modules.rome.e2", "modules.rome.e2w",
                  "unmatched.learner", "modules.storm.mode", "modules.ldi.enabled"):
         assert K.KNOBS[path].status == "implemented", path
