@@ -1,7 +1,8 @@
-# FM1 — method report (2026-09-28; §5 filled 2026-09-30; §6, §8 and the EOBT clip 2026-10-02)
+# FM1 — method report (2026-09-28; §5 filled 2026-09-30; §6, §8 and the EOBT clip 2026-10-02; corrections 2026-10-04)
 
 Every number below comes from a registered study (its registration is named where it is used); none is a result
-from an unregistered look.
+from an unregistered look. Registrations (`plans/…`), reports (`reports/…`) and run logs are the project's development
+record, cited by name; the model needs none of them to run or to be rebuilt.
 
 ## 1. Problem and row classes
 
@@ -20,16 +21,18 @@ Built per calendar-month chunk through the shipped builders' public functions (n
 
 | block | builder | columns | note |
 |---|---|---|---|
-| base | `stand_ab.build_features` | BASELINE_FEATS minus `aobt_sec`, `mvt_sec`, `sched_sec` | NSC: the label-seconds leak is dropped |
-| queue | `stand_ab.build_queue` | 12 `q_*` | push-anchored surface congestion |
+| base | `stand_ab.build_features` | BASELINE_FEATS minus `aobt_sec`, `mvt_sec`, `sched_sec` | NSC drops the explicit seconds-of-minute columns; the schedule offset `sp` still carries the take-off's seconds (SCHED is minute-precise) |
+| queue | `stand_ab.build_queue` | 12 `q_*` | push-anchored surface congestion; `q_next_arr_onblock_gap` uses the next arrival's on-block time at the same stand, a later event of another flight in the supplied file (other supplied rows may be used: DATA_SOURCES) |
 | order | `stand_ab.build_order` | `o_dev_mvt`, `o_dev_flt`, `o_n_line` | per-airport id line |
 | weather | `stand_ab.build_weather` | 10 `w_*` | METAR as of AOBT_3 |
 | ORL | `orl_build.attach` | 6 `orl_*` | static OSM stand→runway route |
 | ADS-B | the R12 tables, by MVT id | the table's features + `coverage`, `adsb_day_present` | the table defines the block (33 for stamp 801f9bcac9a5) |
-| encodings | package `EncodingTables` | 24 `te_*` / `de_*` | fitted on training rows only; bit-equal to `stand_ab.infold_encodings` (tested) |
+| encodings | package `EncodingTables` | 24 `te_*` / `de_*` | fitted on training rows only — all of them, early-stopping months included, so each row's encoding holds its own label (LIMITATIONS 17); bit-equal to `stand_ab.infold_encodings` (tested) |
 
 Every block is airport-local (verified: `sched_day`, the order line and the stand chains group by airport), which is what
-lets the AT14 gate rebuild one airport-month at a time.
+lets the AT14 gate rebuild one airport-month at a time. Some features count over the whole chunk they are built on
+(`sched_day` is the airport's departures in the calendar-month chunk, not in a day), so they assume the scored file
+holds whole months, as the 2026 file does.
 
 Forbidden inputs (refused at every boundary, AT2): `TAXITIME_SEC_mvt`, `BLOCK_TIME_UTC_mvt`, `y`, `delta`, `taxi`, `label`,
 `target`, any `*_sec`. A scored departure carrying a label is refused (`LabelLeakError`).
@@ -69,7 +72,7 @@ EOBT clip (`prc/pipeline/fm1/eobt_clip.py`, `modules.eobt_clip`, off by default)
 run before the feature path (stage `eobt_clip`). In an (airport, UTC month) cell of the served rows where the share of
 eligible departures with EOBT_1 later than LOBT is at least 0.15 (on at least 1,000 rows; fewer is refused), every eligible
 departure takes EOBT_1 := min(EOBT_1, LOBT); a batch of the scored file is decided on the scored file's whole cell. Fit never
-applies it. On the 2026 scored file it fires at LFPG July only (35.1 %; LFPG January 6.1 % and every 2025 month 3.9 – 7.1 %
+applies it. On the 2026 scored file it fires at LFPG July only (35.1 %; LFPG January 6.1 % and every 2025 month 3.8 – 7.1 %
 do not). Why and what it is worth: LIMITATIONS 9 / 9b. The provenance marks each clipped row (`eobt_clipped`) and the
 predict report lists every cell's share and decision. **It is not part of the final configuration:** served on the board as
 v54 (v51 + clip) it scored −214 MSE worse than v51 (§8), so it stays off.
@@ -140,7 +143,7 @@ predicts: the swap's weather gain is an extrapolation artefact, and the final mo
 
 All numbers are RMSE in seconds on held-out 2025 months, screen tier (learning rate 0.05, one seed), **ADS-B stack off**
 (it was trained on January + July 2025 and cannot be validated on them) and, in the swap folds, E2W off. They are a floor
-for the final configuration, not its score.
+for a reduced configuration, not the final model's score (a reference point, not a bound).
 
 | protocol | fold | held out | n | RMSE | worst airports (RMSE) |
 |---|---|---|---|---|---|
@@ -170,9 +173,12 @@ rule that would switch it off where the share moved outside [0.7, 1.43] × train
 
 **Not validated here:** the ADS-B stack, E2W, MTX and the storm anchor (no clean 2025 fold exists for them; their evidence
 is the board history in §8); the full-tier learners (validated only through the determinism slice and the consistency
-check above); the CatBoost half reached its round cap in the final fit (REPRODUCE.md).
+check above); the CatBoost half reached its round cap in the final fit (REPRODUCE.md). The unmatched lane's frozen
+constants (E2, E1, date-slip, local-day rule, ARC, the day-check thresholds) and LDI's shifts were chosen on 2025 data
+that includes the held-out months, so the fold figures overstate them (LIMITATIONS 17); the stored stack is served on
+a differently made F than it was trained on (LIMITATIONS 16).
 
-## 7. Ablations, including every NOT WORKING result
+## 7. Ablations and NOT WORKING results of the final three weeks
 
 The swap-study arms (§5) are the ablations of the final configuration. Below are the other levers tried in the last three
 weeks, each registered before it was measured, with its verdict as recorded. Units as recorded: **s** = paired RMSE gain on
@@ -198,8 +204,8 @@ the lever helped. Sources: `reports/MSE_LEDGER.md` and each registration's hash 
 | 09-25 | ODX | off-block time detected from ADS-B | −779,498 [−813,210, −745,285] | NOT WORKING |
 | 09-26 | BLX | blind airports (LFPG / LTFM) residual model | forward +4.98 [−3.9, +13.5]; swap +13.83 [−0.6, +27.9] | NOT WORKING (first sight of the LFPG EOBT drift) |
 | 09-29 | RC-1 | best-of-8-clocks oracle on stale off-block rows | −47.2 bmse net of a permutation null (raw 904 < 1,000 bar) | NOT WORKING |
-| 09-30 | HPX-S (v48) | Rome delayed-departure rule | −702.9 board MSE vs v46 (registered +120) | NOT WORKING |
-| 09-30 | MOVE (v49) | movement-only ADS-B base | −1,120.8 board MSE vs v43 (null −398.5) | NOT WORKING |
+| 09-30 | HPX-S (v48) | Rome delayed-departure rule | −703.0 board MSE vs v46 (registered +120) | NOT WORKING |
+| 09-30 | MOVE (v49) | movement-only ADS-B base | −1,120.7 board MSE vs v43 (null −398.5) | NOT WORKING |
 | 10-01 | WSC | weather off, same-season protocol S | −269.0 bmse [−423.9, −120.5] | weather kept (§5) |
 | 10-02 | DRF | label-free drift audit of the 133 inputs | LFPG July EOBT field 6.6 % → 35.1 % revised | TRUE (LIMITATIONS 9) |
 | 10-02 | EPX | price of that change on a held-out 2025 July | damage 265.6 [196.2, 339.0]; clip net ≈ +195 … +290 | NOT established (LIMITATIONS 9b) |
@@ -227,7 +233,7 @@ for unseen data (the final-model audit of 2026-09-28 put about 28 % of the cumul
 | v36 | full R12 at five airports | 251.3146 | +381 vs v35 |
 | v40 | R12 at EGLL / LIRF / LEMD | 251.1991 | +58 |
 | v41 | LDI (LTFM January de-icing) | 251.0977 | +51 |
-| v46 | LightGBM + CatBoost stack base at the R12 cells (with MTX) | **250.7314** | +38.5 vs v43 — best file |
+| v46 | LightGBM + CatBoost stack base at the R12 cells (with MTX) | **250.7314** | +38.5 vs v43 — best file until v55 |
 | v48 | Rome delayed-departure rule (HPX-S) | 252.1294 | −703 (worse); not kept |
 | v49 | movement-only ADS-B base (MOVE) | 253.0326 | −1,121 vs v43 (worse); not kept |
 | **v50** | **FM1, the final model (forecaster, full fit)** | 251.4767 | −374 vs v46 (registered band met: +0.745 RMSE) |
@@ -240,6 +246,5 @@ for unseen data (the final-model audit of 2026-09-28 put about 28 % of the cumul
 
 Rows read from the project's board records (v50–v53 from the scoring service's result files, 2026-10-02); v42's MTX gain
 (+124) and the individual Rome steps v7 / v10 are quoted in the ledger and not repeated here. v51–v53 are board-selected
-whole-model variants of v50: each differs in one documented knob and changes at least 10,000 rows (fewer would turn the
-board into a label probe). The documented forecaster is v50; v51 adds MTX, which reads the target period's published
+whole-model variants of v50: each differs in one documented knob and changes at least 10,000 rows. The documented forecaster is v50; v51 adds MTX, which reads the target period's published
 monthly aggregates and is disclosed as such (LIMITATIONS 8). Change in MSE = difference of the squared board RMSEs.

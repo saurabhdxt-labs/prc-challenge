@@ -123,6 +123,15 @@ def test_rss_a_pause_in_an_earlier_guard_run_does_not_void_this_runs_footprint()
     assert r["paused"] is True and r["footprint_used"] is False
 
 
+def test_a_pause_before_the_guard_was_restarted_still_belongs_to_the_run():
+    """The queue driver restarts a guard that died while the step runs (`mem_guard.py --restart`, logged RESTART): the
+    run continues, so a pause logged before the restart still voids this run's footprint."""
+    restarted = GUARD_PAUSED.replace("MEMGUARD END target exited", "MEMGUARD RESTART pid=1 pause<350M") + \
+        "[2026-10-01 16:40:00] MEMGUARD END target exited\n"
+    assert C.guard_paused(restarted) is True
+    assert C.guard_paused(restarted + GUARD_QUIET) is False            # a new START is a new run
+
+
 def test_rss_refuses_an_implausible_footprint_when_no_pause_explains_it():
     """A footprint under a quarter of the resident set cannot be a peak (every credible pair measured: 0.93 – 1.53);
     without a pause on record the block is refused, never silently gated on RSS alone."""
@@ -298,7 +307,7 @@ def test_accept_refuses_submission_ids_without_a_cell():
         _accept(sub, prov, template, base, cells.iloc[1:])
 
 
-# ---------------------------------------------------------------- min_changed (BSV: the probing line)
+# ---------------------------------------------------------------- min_changed (BSV: the variant size rule)
 
 def test_min_changed_gates_the_registered_ten_thousand_rows():
     """plans/PREREG_bsv_board_selected_variants_2026_10_01.md: a variant must change >= 10,000 scored rows against its

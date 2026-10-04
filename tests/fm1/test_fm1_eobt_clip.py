@@ -403,6 +403,7 @@ def test_world_predict_with_the_clip_equals_predict_on_clipped_rows_and_fit_neve
 
 # ---------------------------------------------------------------------------------------------- the REAL files
 
+@pytest.mark.devtree
 @pytest.mark.slow
 def test_on_the_real_files_the_detector_fires_at_lfpg_july_2026_only():
     """Label-free acceptance 1-2 (CLP): with the registered knobs, LFPG 2026-07 fires (share 0.351), LFPG 2026-01 does not

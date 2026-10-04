@@ -1,0 +1,79 @@
+"""The two final-model configs resolve to exactly the configurations of the stored artefacts behind the board files.
+
+configs/fm1.yaml holds every knob at its documented default (tests/fm1/test_fm1_knobs.py). The final runs were made from
+it with command-line overrides, which a reader of the repository could not see. configs/fm1_v50.yaml (the forecaster,
+board 251.4767) and configs/fm1_v55.yaml (the scored-period build, board 249.9168) write those overrides into files. The
+config hash is computed over the resolved values, so each file must reproduce its artefact's recorded hash exactly and
+must differ from fm1.yaml in exactly the recorded overrides. Parsing needs no data, so a fresh clone runs these tests.
+
+Written first and seen red 2026-10-04 (the two files did not exist). Mutation rehearsal 2026-10-04 on the config files
+(scratch copy, one at a time): 4 / 4 killed — FC1 v55 threads 12 -> 4, FC2 v55 adsb_fi true -> false, FC3 v55 seeds
+[0, 1, 2] -> [0, 1] (a knob outside the overrides), FC4 v50 serving the adsb.fi table; each fails the hash test and the
+exact-overrides test.
+"""
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+import yaml
+
+from prc import api
+
+ROOT = Path(__file__).resolve().parents[2]
+
+#: (config file, config hash recorded in the stored artefact's config.json, the overrides recorded with it)
+FINAL = {
+    "v50": ("configs/fm1_v50.yaml", "2d29ad344b458eddb8286de25fc41308b13008943cdcb9872c3cee5fcc56f4d0", {
+        "adsb.stack.f_model": "lgbcat",
+        "adsb.stack.models_dir": "data/r12/r13_stack_full/models_lgbcat",
+        "adsb.table_dir": "data/r12/tables_51348d3e1cb3",
+        "modules.storm.mode": "anchor",
+        "run.purpose": "forecaster",
+        "run.threads": 12,
+        "modules.ldi.enabled": True,
+    }),
+    "v55": ("configs/fm1_v55.yaml", "d811c69dc93e4ba214c54438bdfcc48474673c0eb1cc60e6201fcf8b9b5d3327", {
+        "adsb.stack.f_model": "lgbcat",
+        "adsb.stack.models_dir": "data/r12/r13_stack_full/models_lgbcat",
+        "adsb.table_dir": "data/r12/tables_51348d3e1cb3_afi",
+        "modules.storm.mode": "anchor",
+        "run.threads": 12,
+        "modules.ldi.enabled": True,
+        "run.purpose": "scored_period",
+        "adsb.sources.adsb_fi": True,
+    }),
+}
+
+
+def _flat(d: dict, prefix: str = "") -> dict:
+    out = {}
+    for k, v in d.items():
+        key = f"{prefix}{k}"
+        out.update(_flat(v, key + ".") if isinstance(v, dict) else {key: v})
+    return out
+
+
+@pytest.mark.parametrize("name", sorted(FINAL))
+def test_the_final_config_resolves_to_the_stored_artefacts_hash(name):
+    path, recorded_hash, _ = FINAL[name]
+    assert api.load_config(ROOT / path).hash == recorded_hash
+
+
+@pytest.mark.parametrize("name", sorted(FINAL))
+def test_the_final_config_differs_from_the_defaults_in_exactly_the_recorded_overrides(name):
+    path, _, overrides = FINAL[name]
+    base = _flat(yaml.safe_load((ROOT / "configs" / "fm1.yaml").read_text()))
+    final = _flat(yaml.safe_load((ROOT / path).read_text()))
+    assert final.keys() == base.keys()
+    changed = {k: final[k] for k in final if final[k] != base[k]}
+    expected = {k: v for k, v in overrides.items() if base[k] != v}
+    assert changed == expected
+
+
+@pytest.mark.parametrize("name", sorted(FINAL))
+def test_the_overrides_on_the_defaults_give_the_same_hash(name):
+    """The recorded command line (fm1.yaml + --set ...) and the file are the same configuration."""
+    _, recorded_hash, overrides = FINAL[name]
+    sets = [f"{k}={'true' if v is True else v}" for k, v in overrides.items()]
+    assert api.load_config(ROOT / "configs" / "fm1.yaml", overrides=sets).hash == recorded_hash

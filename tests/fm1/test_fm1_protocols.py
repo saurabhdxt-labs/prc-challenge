@@ -210,6 +210,7 @@ def test_validate_refuses_mtx(pcfg):
         api.validate(pcfg.replace(**{"calibration.mtx.enabled": "on"}), "S", log=QUIET)
 
 
+@pytest.mark.devtree
 def test_dry_run_reports_without_fitting():
     rep = api.validate(K.parse_config({}), "dry-run")
     assert rep["stages"][-2:] == ["rome_e2w", "finalise"] and "plan_refused" not in rep

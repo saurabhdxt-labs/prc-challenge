@@ -12,7 +12,7 @@ verified restored after every round. Runners in the session scratchpad (msw_muta
   m=5/10 gates masked it and the test only matched "GATE" -> test strengthened to pin WHICH gate fires.
   Round 2: M9 re-run KILLED; M14 (m>20 nested gate deleted), M15 (m<20 containment gate deleted) KILLED.
   Round 3: M16 (registration marker back to one newline -> hashes original + '\n') KILLED.
-  End-work round, WITHOUT -x (every failing test recorded): M1-M34 all KILLED, incl. M17 unpadded cell key,
+  End-of-session round, WITHOUT -x (every failing test recorded): M1-M34 all KILLED, incl. M17 unpadded cell key,
   M18 schedule-fill filter dropped, M19 modulus validation removed, M20 airline slice drift, M21 find() for
   index(), M22a/b weight validation removed, M23 design check removed, M24 equal_nan dropped, M25 wrong
   bootstrap base, M26 swapped args, M27 c2 on the upper bound, M28 no winner -> WORKING, M29 leg check
@@ -441,7 +441,7 @@ def test_pick_winner_takes_the_largest_passing_delta_and_never_the_incumbent():
 
 
 def test_oracle_passes_every_clause_through_the_real_code_path():
-    """Run the oracle through the acceptance clauses (feedback_run_the_oracle_through_your_acceptance_clause)."""
+    """Run the oracle through the acceptance clauses."""
     y, day, month = _days()
     inc = y + np.random.default_rng(5).normal(0, 300, len(y))
     oracle = W.delta_stats(y, inc, y, day, month)
@@ -489,7 +489,7 @@ VOLATILE_REPORT_KEYS = {"seconds", "peak_rss_gib", "pred_sha256", "prereg_file_s
 def _run_main_into(tmp_path):
     """main() in a FRESH interpreter with its two outputs redirected. A subprocess, not an in-process call:
     main() asserts the process's lifetime peak RSS (`ru_maxrss`) < 2 GiB, which inside a long pytest session
-    depends on whichever tests ran first -- an order-dependent failure (testing.md Part 1 rule 25)."""
+    depends on whichever tests ran first -- an order-dependent failure."""
     report, preds = tmp_path / "msw_report.json", tmp_path / "msw_cell_predictions.parquet"
     code = ("import sys; from pathlib import Path; sys.path.insert(0, sys.argv[1]); "
             "from scripts.analysis import msw_build as W; "
@@ -505,7 +505,7 @@ def _run_main_into(tmp_path):
 def test_main_end_to_end_reproduces_the_persisted_run(tmp_path):
     """main() re-run on the real data (~2 min, hence `slow`) must reproduce the registered run.
 
-    Snapshot INVARIANT (testing.md Part 1 rule 24): every cell's per-row predictions, every seed column, and
+    Snapshot INVARIANT: every cell's per-row predictions, every seed column, and
     every reported number (grid deltas and CIs, per-seed deltas, outlier deltas, fit records, null, oracle,
     verdict) are bit-identical to reports/msw_cell_predictions.parquet and reports/msw_report.json. Exact
     equality is the claim, not a tolerance choice: the harness is deterministic (fixed HGB random_state, sklearn

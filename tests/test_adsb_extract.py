@@ -82,7 +82,10 @@ def test_parse_member_handles_gzip_and_refuses_to_crash_on_junk():
     lat, lon = ax.APTS["LIRF"]
     blob = json.dumps(_trace([[0.0, lat, lon, "ground", 0.0, 0, 0, 0, None]])).encode()
     assert len(ax.parse_member(gzip.compress(blob))) == 1
-    assert ax.parse_member(b"not json at all") == []
+    bad = []
+    assert ax.parse_member(b"not json at all", bad) == [] and bad == [1]          # counted, so the run reports it
+    assert ax.parse_member(b"\xff\xfe not utf-8", bad) == [] and bad == [1, 1]
+    assert ax.parse_member(json.dumps({"icao": "x"}).encode(), bad) == [] and bad == [1, 1]   # valid JSON: not counted
     assert ax.parse_member(json.dumps({"icao": "x"}).encode()) == []       # no trace key
     assert ax.parse_member(json.dumps(_trace([])).encode()) == []          # empty trace
     assert ax.parse_member(json.dumps(_trace([[0.0, None, None, 0]])).encode()) == []

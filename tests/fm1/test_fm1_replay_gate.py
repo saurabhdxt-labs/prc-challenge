@@ -2,7 +2,7 @@
 
 The gate's own logic (stratified sampling, the noise-floor verdict, reference consistency) is tested on constructed inputs;
 its real path is exercised by the smoke run in a CHILD process (it builds real features and runs two 0.7 GB v34 boosters,
-each in its own child; memory feedback_prc_heavy_tests_inflate_pytest_peak_rss)."""
+each in its own child)."""
 from __future__ import annotations
 
 import importlib.util
@@ -102,6 +102,7 @@ def _run_child(code: str, timeout=900):
     return r.stdout
 
 
+@pytest.mark.devtree
 @pytest.mark.slow
 def test_reference_is_consistent_and_complete():
     """v36 = R12 serve at its five airports, v34 elsewhere, v33 on the 5,290 unmatched rows (asserted by load_reference).
@@ -120,6 +121,7 @@ print(json.dumps({{"n": len(ref), "by_source": ref.source.value_counts().to_dict
     assert rep["by_source"]["r12"] == meta["n_given"]
 
 
+@pytest.mark.devtree
 @pytest.mark.slow
 def test_reference_inconsistency_is_refused(tmp_path):
     """A v36 copy with one value changed is refused before any comparison. Mutation: drop the consistency assertion -> red."""
@@ -139,6 +141,7 @@ except AssertionError as e:
     assert "REFUSED reference inconsistent" in out and ("1 R12 rows" in out or "1 other rows" in out)
 
 
+@pytest.mark.devtree
 @pytest.mark.slow
 def test_gate_smoke_passes_on_real_rows(tmp_path):
     """The real path end to end on LSZH-January R12 rows (package features -> encodings -> design -> the saved v34
@@ -187,6 +190,7 @@ def test_population_check_fails_non_exception_rows_and_lists_the_dropped_ones():
     assert rep["n_fail"] == 1 and rep["fail_ids"] == [4.0] and rep["by_airport"]["EDDF"]["n_fail"] == 1
 
 
+@pytest.mark.devtree
 @pytest.mark.slow          # > 1 s (rule 26): package_values loads the METAR archive and the ORL route table first
 def test_unmatched_rows_are_served_by_the_package_lane():
     """The unmatched strata run the package's unmatched lane (fit from raw + serve): package_values takes each v33 row's
@@ -240,6 +244,7 @@ def test_regression_bug_32_exceptions_must_be_unmatched_rows():
         GATE.check_exceptions(ref, pd.Series({2.0: "ARN", 3.0: "ARN"}))
 
 
+@pytest.mark.devtree
 @pytest.mark.slow
 def test_dropped_rows_are_the_shipped_arn_rows():
     """The exception list is read from the shipped files: the rows whose value changed from v20 to v21 — ARN's own step

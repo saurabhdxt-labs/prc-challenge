@@ -12,7 +12,7 @@
     config-reference  --write | --check: docs/fm1/CONFIG_REFERENCE.md from the schema
 
 There is no `--base`: FM1 never splices a previous submission. A fit or validation over more than the heavy-row threshold
-needs --allow-heavy (quality gate first; one heavy job at a time). Exit 0 = done, 1 = refused (a named FM1 error), 2 = usage.
+needs --allow-heavy (the pre-run checks first; one heavy job at a time). Exit 0 = done, 1 = refused (a named FM1 error), 2 = usage.
 """
 from __future__ import annotations
 
@@ -112,7 +112,7 @@ def main(argv=None) -> int:
             print(_dump(rep if args.protocol == "dry-run" else {k: v for k, v in rep.items() if k != "folds"}))
             return 0
         target = args.artifact or args.config
-        ov = [] if args.artifact else args.overrides
+        ov = args.overrides                          # refused by name with --artifact (api._artifact)
         if args.cmd == "predict":
             import pandas as pd
             out = pathlib.Path(args.out)

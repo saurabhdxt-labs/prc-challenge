@@ -34,6 +34,7 @@ def test_dry_run_of_the_default_config():
                                                                "finalise"]
 
 
+@pytest.mark.devtree
 def test_unported_component_and_heavy_default_fit_are_refused_with_the_named_errors():
     """A switched-on unported component exits 1 with ComponentNotPortedError before any read; the default config's
     12-month fit exits 1 as a heavy job without --allow-heavy (no compute starts)."""
@@ -144,7 +145,11 @@ def test_compare_command(tmp_path):
              "--out", tmp_path / "c.json")
     assert r.returncode == 0, r.stderr
     rep = json.loads((tmp_path / "c.json").read_text())
-    assert rep["gain_bmse"] > 0 and rep["ci95"][0] > 0
+    want = float(((base.y - base.pred) ** 2).sum()) / 344_841.0               # b is exact: its gain is a's whole SSE
+    assert rep["n"] == n and rep["gain_bmse"] == pytest.approx(want, rel=1e-9)
+    assert sum(rep["by_airport_bmse"].values()) == pytest.approx(want, rel=1e-9) and set(rep["by_airport_bmse"]) == \
+        {"EDDF", "LSZH"}
+    assert rep["ci95"][0] > 0 and rep["ci95"][0] < want < rep["ci95"][1]
 
 
 def test_compare_and_blend_commands_take_several_files(tmp_path):
@@ -163,8 +168,31 @@ def test_compare_and_blend_commands_take_several_files(tmp_path):
     r = _prc("compare", "--a", tmp_path / "a1.parquet", tmp_path / "a2.parquet", "--b", tmp_path / "b1.parquet",
              tmp_path / "b2.parquet", "--n-boot", 200)
     assert r.returncode == 0, r.stderr
-    assert json.loads(r.stdout)["n"] == 200
-    r = _prc("blend", "--a", tmp_path / "a1.parquet", "--b", tmp_path / "b1.parquet", "--w", 0.5, "--out",
+    rep = json.loads(r.stdout)
+    # a misses by 80 s on every row, b by 48 s (moved 40 % toward the label): each row gains 80^2 - 48^2 = 4,096
+    assert rep["n"] == 200 and rep["gain_bmse"] == pytest.approx(200 * 4096 / 344_841.0, rel=1e-9)
+    r = _prc("blend", "--a", tmp_path / "a1.parquet", "--b", tmp_path / "b1.parquet", "--w", 0.3, "--out",
              tmp_path / "ab.parquet")
     assert r.returncode == 0, r.stderr
-    assert len(pd.read_parquet(tmp_path / "ab.parquet")) == 100
+    ab = pd.read_parquet(tmp_path / "ab.parquet").set_index("MVT_ID_mvt").sort_index()
+    a1 = pd.read_parquet(tmp_path / "a1.parquet").set_index("MVT_ID_mvt").sort_index()
+    b1 = pd.read_parquet(tmp_path / "b1.parquet").set_index("MVT_ID_mvt").sort_index()
+    assert len(ab) == 100 and (ab.decided_by == "blend_oof").all()
+    # w weights b (asymmetric w, so swapped weights fail): rint(0.3 (y + 48) + 0.7 (y + 80)) = rint(y + 70.4)
+    assert (ab.pred == np.rint(0.3 * b1.pred + 0.7 * a1.pred)).all()
+    assert (ab.pred - (ys[1] + 70.4)).abs().max() <= 0.5 + 1e-9
+
+
+def test_overrides_with_an_explicit_artefact_are_refused_not_dropped(tmp_path):
+    """Line-by-line audit 2026-10-04 (C4): `build-submission --artifact DIR --set k=v` silently dropped the --set (an
+    artefact carries its own configuration), so the user believed a knob had changed. Now refused by name, at the API
+    boundary, before anything is loaded. Seen red 2026-10-04 (an ArtifactError about the missing manifest, i.e. the
+    override was ignored). Mutation rehearsal (scratch copy with the whole package): 2 / 2 killed by this test — the
+    check removed; the check limited to ModelArtifact objects (a directory path slipped through)."""
+    from prc import api
+    with pytest.raises(api.errors.ConfigValueError, match=r"overrides do not apply to an artefact"):
+        api.build_submission(tmp_path, tmp_path / "out", overrides=["modules.ldi.enabled=false"])
+    r = _prc("build-submission", "--config", FM1, "--artifact", tmp_path, "--set", "modules.ldi.enabled=false",
+             "--out", tmp_path / "o")
+    assert r.returncode == 1
+    assert "fm1 refused: ConfigValueError: overrides do not apply to an artefact" in r.stderr

@@ -12,7 +12,7 @@ rss     the dry run's peak memory (the larger of /usr/bin/time -l's maximum resi
         over every time block of the log's CURRENT run — the queue appends) <= 16 GB; a log without a resident-set
         line is refused. With --guard-log: a mem_guard pause voids the footprint (time -l snapshots it at the first
         stop) and max RSS is gated at 16 / 1.6 = 10 GB instead (FMF.6).
-rows    BSV: a variant's change report vs its base shows >= 10,000 changed rows (fewer = label probing, refused).
+rows    BSV: a variant's change report vs its base shows >= 10,000 changed rows (a whole-model variant, not a row edit).
 same    determinism (A2): two predict outputs have the same columns, dtypes and rows, and every cell is identical (floats
         compared bit for bit; NaN only where the other side has the same NaN).
 accept  A3 the submission's ids are the template's in its order, every value >= 1; A4 every provenance row has a
@@ -42,7 +42,7 @@ RSS_RE = re.compile(r"^\s*(\d+)\s+maximum resident set size\s*$", re.M)
 FOOT_RE = re.compile(r"^\s*(\d+)\s+peak memory footprint\s*$", re.M)
 RUN_RE = re.compile(r"^\[\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\] (?:lock|light|r12) ", re.M)   # prc_queue._execute's header
 PAUSE_RATIO = 1.6                   # FMF.6: footprint / max RSS, worst measured 1.53 (run 1: 17.80 / 11.65 GB)
-MIN_CHANGED = 10_000                # BSV: a variant changing fewer scored rows is label probing (registered 2026-10-01)
+MIN_CHANGED = 10_000                # BSV: a variant is a whole-model change of at least this many scored rows (2026-10-01)
 IMPLAUSIBLE = 0.25                  # credible footprint / max RSS pairs measured 2026-10-01: 0.93 – 1.53
 
 
@@ -54,7 +54,8 @@ def last_run(log_text: str) -> str:
 
 
 def guard_paused(guard_text: str) -> bool:
-    """True when mem_guard paused the tree during its last run (the lines after the last MEMGUARD START)."""
+    """True when mem_guard paused the tree during its last run (the lines after the last MEMGUARD START; a RESTART line,
+    a guard replaced while the same run continues, does not begin a new run)."""
     i = guard_text.rfind("MEMGUARD START")
     return "MEMGUARD PAUSED" in (guard_text[i:] if i >= 0 else guard_text)
 
@@ -83,7 +84,7 @@ def rss(log_text: str, *, limit: int = RSS_LIMIT, guard_text=None) -> dict:
 
 
 def min_changed(report: dict, *, minimum: int = MIN_CHANGED) -> dict:
-    """BSV's probing line on a dwl_checks change report: a variant must change >= `minimum` scored rows vs its base."""
+    """BSV's variant size rule on a dwl_checks change report: a variant must change >= `minimum` scored rows vs its base."""
     if "n_changed" not in report:
         raise ValueError("no n_changed in the change report")
     n = int(report["n_changed"])

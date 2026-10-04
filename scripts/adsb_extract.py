@@ -47,13 +47,16 @@ def which_airport(lat, lon):
     return None
 
 
-def parse_member(raw: bytes):
-    """One trace_full_*.json -> rows inside any airport box. Tolerant of shape drift."""
+def parse_member(raw: bytes, unparseable=None):
+    """One trace_full_*.json -> rows inside any airport box. Tolerant of shape drift. A member that is not JSON yields no
+    rows and, when `unparseable` (a list) is given, is counted there so the run can report it."""
     if raw[:2] == b"\x1f\x8b":
         raw = gzip.decompress(raw)
     try:
         d = json.loads(raw)
-    except Exception:
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        if unparseable is not None:
+            unparseable.append(1)
         return []
     base = d.get("timestamp")
     tr = d.get("trace")
@@ -149,7 +152,7 @@ def fetch(day: str, probe: bool) -> list[pathlib.Path]:
 
 def extract(paths, probe: bool) -> pd.DataFrame:
     cat = subprocess.Popen(["cat", *map(str, paths)], stdout=subprocess.PIPE)
-    rows, n_members, diagnosed = [], 0, False
+    rows, n_members, diagnosed, unparseable = [], 0, False, []
     try:
         with tarfile.open(fileobj=cat.stdout, mode="r|") as tf:
             for m in tf:
@@ -169,7 +172,7 @@ def extract(paths, probe: bool) -> pd.DataFrame:
                               f"points={len(j.get('trace', []))}", flush=True)
                     except Exception as e:
                         raise SystemExit(f"trace member is not parseable JSON: {e!r}")
-                rows.extend(parse_member(blob))
+                rows.extend(parse_member(blob, unparseable))
                 n_members += 1
                 if n_members % 20000 == 0:
                     print(f"    {n_members:,} traces, {len(rows):,} in-box samples",
@@ -181,7 +184,7 @@ def extract(paths, probe: bool) -> pd.DataFrame:
     finally:
         cat.stdout.close()
         cat.wait()
-    print(f"    parsed {n_members:,} trace files -> {len(rows):,} in-box samples")
+    print(f"    parsed {n_members:,} trace files -> {len(rows):,} in-box samples; {len(unparseable):,} not JSON (skipped)")
     if not probe and n_members == 0:
         raise SystemExit("no trace members found - archive layout changed?")
     if not probe and not rows:

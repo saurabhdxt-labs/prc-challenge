@@ -34,6 +34,7 @@ def test_imported_module_is_the_one_under_test():
 
 
 # ---- constants and the registration -------------------------------------------------------------------------
+@pytest.mark.devtree
 def test_registration_hash_matches_the_log():
     """The runner's PREREG_SHA is the REGISTERED line's full hash; the file's pre-RESULT text still hashes to it."""
     log = (ROOT / "reports/dfc2_prereg_hashes.log").read_text().splitlines()
@@ -67,6 +68,7 @@ def test_constants_match_the_registration():
     assert B.REPORT2.name == "dfc2_stage2_report.json" and B.PREDS2.name == "dfc2_fold_predictions.parquet"
 
 
+@pytest.mark.devtree
 def test_rcr2_base_rmse_constants_match_the_stored_report():
     """Item 4 of the baseline read: the CHR forward-leg incumbents are read from the artifact, never asserted."""
     import json
@@ -94,6 +96,7 @@ def test_arm_feats_refuses_an_unknown_arm():
         B.arm_feats("A8")
 
 
+@pytest.mark.devtree
 def test_arrival_paths_are_the_twelve_2025_files():
     p = B.arrival_paths()
     assert len(p) == 12 and all("training_2025-" in str(x) for x in p) and p == sorted(p)
@@ -378,6 +381,7 @@ def test_guards_take_and_release_a_private_lock(tmp_path, monkeypatch):
     fh2 = G.acquire_lock(); G.release_lock(fh2)
 
 
+@pytest.mark.devtree
 def test_arrival_stream_from_the_real_files_is_2025_and_ten_airports():
     """The real 2025 arrival stream (12 files): declared year asserted, the ten scored airports present."""
     a = B.load_arrivals_2025()
@@ -386,6 +390,7 @@ def test_arrival_stream_from_the_real_files_is_2025_and_ten_airports():
         D.load_arrivals(B.arrival_paths()[:1], year=2026)
 
 
+@pytest.mark.devtree
 @pytest.mark.slow
 def test_load_frame_keeps_the_dfc_inputs_and_the_leg_columns():
     """The frame loader must keep INPUT_COLS (hr, tmin, mvt_sec are NOT among the 93) or the block cannot be built."""
@@ -483,6 +488,7 @@ def test_serve_guards_fire_only_counts_an_f1_assertion(monkeypatch):
     assert B.serve_guards_fire(f26, s, s, {}) == (False, False)
 
 
+@pytest.mark.devtree
 @pytest.mark.slow
 def test_serve_frame_2026_is_the_339551_serve_rows_with_a_consistent_clock():
     f = B.serve_frame_2026()
@@ -491,6 +497,7 @@ def test_serve_frame_2026_is_the_339551_serve_rows_with_a_consistent_clock():
     assert set(f.doy.unique()) <= set(range(1, 32)) | set(range(182, 213)) and (f.ADES_mvt == "NA").sum() == 7
 
 
+@pytest.mark.devtree
 @pytest.mark.slow
 @ISO.isolated
 def test_fold_a_frame_reproduces_lgbm_ab_counts_and_keeps_the_dfc_inputs():
@@ -503,6 +510,7 @@ def test_fold_a_frame_reproduces_lgbm_ab_counts_and_keeps_the_dfc_inputs():
     assert len(d) == 2_062_440
 
 
+@pytest.mark.devtree
 @pytest.mark.slow
 @ISO.isolated
 def test_fold_a_frame_refuses_a_fold_whose_counts_differ_from_lgbm_ab(monkeypatch):
@@ -513,9 +521,11 @@ def test_fold_a_frame_refuses_a_fold_whose_counts_differ_from_lgbm_ab(monkeypatc
 
 
 # ---- BC-34 (2026-09-29): real-data tests run in a child pytest (tests/isolation.py) -----------------------------
-import os as _os, resource as _resource
+import importlib.util
+import os as _os
 
 
+@pytest.mark.devtree
 @pytest.mark.slow
 def test_regression_bug_34_real_fold_a_tests_do_not_raise_the_pytest_peak_rss():
     """In-process, the two fold-A tests above raised the suite's peak RSS 1.77 -> 4.12 GB, and a later unit test's 2 GB
@@ -523,6 +533,15 @@ def test_regression_bug_34_real_fold_a_tests_do_not_raise_the_pytest_peak_rss():
     where it was."""
     if _os.environ.get(ISO.CHILD_ENV) == "1":
         pytest.skip("runs only in the parent process (the child is where the load happens, by design)")
-    before = _resource.getrusage(_resource.RUSAGE_SELF).ru_maxrss
+    before = _peak_rss_bytes()
     test_fold_a_frame_reproduces_lgbm_ab_counts_and_keeps_the_dfc_inputs()
-    assert _resource.getrusage(_resource.RUSAGE_SELF).ru_maxrss - before < 300 * 1024 ** 2
+    assert _peak_rss_bytes() - before < 300 * 1024 ** 2
+
+
+def _peak_rss_bytes() -> int:
+    """This process's peak resident set in bytes on every platform (scripts/run_guards.peak_rss: ru_maxrss is bytes on
+    macOS, KiB on Linux, so a raw ru_maxrss bound would be 1024 x loose on Linux)."""
+    spec = importlib.util.spec_from_file_location("run_guards_for_rss", ROOT / "scripts" / "run_guards.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.peak_rss()

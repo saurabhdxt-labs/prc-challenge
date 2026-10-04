@@ -8,7 +8,7 @@ Mutation rehearsal (ARS-CAT), __pycache__ purged between mutants (BC-16):
   EXECUTED 2026-09-21, all KILLED: M1, M3, M8, M9, M10, M11, M12, M13
   NOT EXECUTED (intended set, design notes only -- NOT evidence): M2, M4, M5, M6, M7
 An earlier revision of this file asserted "KILLED" for every mutant in the list without
-having run them. That was a false record; it was corrected at end-work after an adversarial
+having run them. That was a false record; it was corrected at the end-of-session review after an adversarial
 reviewer caught it, and three of the unexecuted mutants were then found to ESCAPE and the
 corresponding tests strengthened.
 """
@@ -102,7 +102,7 @@ def test_refuses_raw_ars_as_a_numeric_feature():
 
 
 def test_regression_numeric_design_never_contains_the_label():
-    """Caught by the quality gate dry run 2026-09-21: deriving the design by exclusion leaked score_y."""
+    """Caught by the pre-run dry run 2026-09-21: deriving the design by exclusion leaked score_y."""
     with pytest.raises(ValueError, match="score_y"):
         A.assert_no_label_columns(["proxy", "sp", "score_y"])
 

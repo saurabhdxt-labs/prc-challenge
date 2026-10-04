@@ -86,6 +86,7 @@ def _deltas() -> dict:
 
 # ---------------------------------------------------------------------------------------------- knobs + plan
 
+@pytest.mark.devtree
 def test_knobs_default_to_the_registered_constants_and_ldi_is_ported():
     """The defaults are LDI's registered Delta_apply (result.json jan26.delta_apply), exactly; the switch is implemented,
     so switching it on is no longer refused. Mutation: round a default to 8.0 -> red."""
@@ -305,14 +306,18 @@ def test_world_predict_serves_ldi_through_the_engine(e2e_world, fm1_world_mod, m
     hit = pred.index[pred.decided_by == "ldi"]
     assert len(hit) == rep["n_target"] > 0
     b = base.set_index("MVT_ID_mvt")
-    assert (pred.TAXITIME_SEC_mvt[hit] - b.TAXITIME_SEC_mvt[hit]).isin([8, 35, 122]).all()
-    assert (pred.ldi_delta[hit] > 0).all() and pred.ldi_band[hit].isin(["<30", "30-60", ">60"]).all()
+    want = pred.ldi_band[hit].map({band: art.config[knob] for band, knob in L.DELTA_KNOBS.items()})
+    assert want.notna().all() and len(set(want)) == 3                        # every row in a named band; all three hit
+    assert (pred.ldi_delta[hit] == want).all()                              # each row's shift is ITS band's delta
+    # the base values are whole seconds, so the rounded output moves by the delta rounded (8 / 35 / 122 s)
+    assert ((pred.TAXITIME_SEC_mvt[hit] - b.TAXITIME_SEC_mvt[hit]) == np.rint(want)).all()
     same = pred.index.difference(hit)
     assert (pred.TAXITIME_SEC_mvt[same] == b.TAXITIME_SEC_mvt[same]).all()
 
 
 # ---------------------------------------------------------------------------------------------- the REAL replay
 
+@pytest.mark.devtree
 @pytest.mark.slow
 def test_ldi_replays_v41_on_every_ltfm_matched_departure_of_the_2026_scored_file():
     """FM1's own features on the raw 2026 scored rows (LTFM, January + July), the pre-LDI value = v40's (v40 == v36 on

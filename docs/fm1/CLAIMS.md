@@ -1,0 +1,38 @@
+# FM1 — load-bearing claims and their verdicts (2026-10-04)
+
+Each claim was stated with what TRUE and FALSE would look like before it was measured; the registrations are part of the
+development record. Verdicts: **WORKING** (with the evidence tier and what it does not cover), **NOT WORKING** (with the
+cause), or **NOT ESTABLISHED** when the evidence cannot decide — an ambiguous result never counts as WORKING. Evidence
+tiers: *held-out 2025* (labels the arm never trained or selected on), *in-sample 2025* (2025 folds, but the constants were
+chosen on data that includes the held-out months), *board* (the public 2026 board: one evaluation of the same scored set
+every time, no seed variance, and the set every step was selected on), *construction* (a test on built inputs). Units:
+s = paired RMSE gain on a 2025 holdout; bmse = SSE / 344,841; board MSE = change on the public board. Positive = the
+claim's direction. A board change of a few hundred MSE from one evaluation cannot be told apart from run-to-run noise.
+
+| # | claim | TRUE / FALSE shape | evidence (tier) | verdict | not covered |
+|---|---|---|---|---|---|
+| 1 | Modelling `delta = BLOCK − AOBT_3` beats modelling the duration directly on matched rows | TRUE: direct target loses with CI below 0 | RCR2, January 2025: direct −1.73 s [−3.15, −0.35] (held-out 2025) | WORKING | July, other seeds |
+| 2 | The ADS-B features carry the largest single contribution | TRUE: removing them loses with CI below 0 | swap arm A8: −9,960.1 bmse [−11,174.4, −8,774.5] (held-out 2025) | WORKING | the 2026 coverage shift (#16) |
+| 3 | Queue, order and route-length features each help across seasons | TRUE: each removal loses with CI below 0 | swap arms A4 −824.6, A5 −1,499.7, A7 −947.1 bmse, CIs below 0 (held-out 2025) | WORKING | same-season effect not measured separately |
+| 4 | Weather helps within season | TRUE: weather off loses under protocol S with CI below 0 | WSC: −269.0 bmse [−423.9, −120.5] (held-out 2025); the season swap said the opposite (+493.6), an extrapolation artefact | WORKING (protocol S) | season extrapolation |
+| 5 | LightGBM is the better matched base learner | TRUE: CatBoost as base loses with CI below 0 | A9: −1,759.6 bmse [−2,161.8, −1,405.7] (held-out 2025) | WORKING | CatBoost at its round cap (LIMITATIONS 13) |
+| 6 | ARC and E2 transfer across seasons | TRUE: removal loses with CI below 0 | A1 ARC −1,028.1, A3 E2 −2,970.5 bmse, CIs below 0 (in-sample 2025: thresholds and coefficients chosen on all 2025 months); board v17 ARC +501, v31 E2 +1,057 | NOT ESTABLISHED on held-out data | a held-out test |
+| 7 | The Rome module helps | TRUE: removal loses with CI below 0 | A2: −3,089.3 bmse [−19,650.6, +10,586.9]; ≤ 3 rows carry its net (in-sample 2025) | NOT ESTABLISHED | a clean held-out verdict |
+| 8 | The ADS-B stack improves the matched rows it serves | TRUE: serving the stack lowers error | registered 2025 check of the lgbcat stack (R13): screen tier +223.3 bmse [157.6, 290.9]; full tier +32.1 [−25.6, +80.2] at the five airports, below its +100 bar (+244 [136, 356] over all airports); board: v35 (12-month ADS-B refit) +1,015, v36 (five airports) +381, v46 (lgbcat) +38.5 | NOT ESTABLISHED (board tier only) | held-out data; served on a differently made F (LIMITATIONS 16) |
+| 9 | The CatBoost half-blend helps | TRUE: removing it worsens the board | v53 (v50 without it): −166.1 board MSE vs v50 (board) | NOT ESTABLISHED (one board evaluation) | seed variance; a held-out measure |
+| 10 | MTX monthly calibration helps the scored-period build | TRUE: v51 better than v50 | +172.5 board MSE (board) | NOT ESTABLISHED (one board evaluation) | uses 2026 published aggregates by design |
+| 11 | adsb.fi in the July-2026 serve table helps | TRUE: v55 lower board MSE than v51 (registered prediction +150 … +600) | +609.6 board MSE, above the predicted band (board) | NOT ESTABLISHED (one board evaluation) | a future period; join quality (LIMITATIONS 20); eligibility (DATA_SOURCES) |
+| 12 | The storm anchor helps the unmatched rows it shifts | TRUE: v16 better than v14 | +2,432 board MSE (board); form from 2025 tables, threshold from 2025 bins; switched on for the final fit on 2026-09-30 | NOT ESTABLISHED (board tier only) | held-out data |
+| 13 | LDI's de-icing shift helps LTFM's severe January days | TRUE: shifted rows closer to the label | constants from 2025 February (leave-one-storm-day-out); board v41 +51 (board) | NOT ESTABLISHED (one board evaluation) | refit of the constants (LIMITATIONS 2b) |
+| 14 | E2W's refitted coefficients improve on E2 | TRUE: v33 better than v31-era values | 2025 fit; the 2025 test's CI included 0; board +359.9 (board) | NOT ESTABLISHED | a held-out test |
+| 15 | adsb.fi only where adsb.lol had no track beats the full merge | TRUE: v56 better than v55 | −205.8 board MSE (board) | NOT WORKING | — |
+| 16 | Training with ADS-B randomly hidden repairs the 2026 coverage loss | TRUE: recovery G ≥ 100 with CI above 0 | the loss costs 862.7 bmse [671.7, 1,124.8]; G = 25.7 [−120.5, 163.9] (held-out 2025) | NOT WORKING (information, not calibration) | — |
+| 17 | The LFPG EOBT clip repairs the July-2026 field change | TRUE: v54 better than v51 (registered prediction +100 … +300) | −214.0 board MSE (board) | NOT WORKING (off) | — |
+| 18 | The label-free coverage-ratio gate improves on the stored gate | TRUE: v52 better than v50 | −10.6 board MSE (board) | NOT WORKING | — |
+| 19 | FM1 is deterministic | TRUE: two fits serve identical predictions | 344,841 × 30 cells, 0 different (construction, real data) | WORKING | shown on a three-month slice; the twelve-month fit was run once; across machines not claimed |
+| 20 | The committed code reproduces the uploaded v55 file | TRUE: rebuild sha256 equals the upload's | 2026-10-04 rebuild from `configs/fm1_v55.yaml` and the stored artefact: sha256 `225ab0be…` equal; no input changed since the fit (construction, real data; REPRODUCE.md) | WORKING | the full fit itself (~10 h) is not re-run; other machines |
+| 21 | No label reaches a design column | TRUE: every forbidden name refused; a scored row with a label refused | AT2 negative-invariant tests over every feature-switch combination; input contract (construction) | WORKING for names and scored rows | in-sample target encodings on training rows (LIMITATIONS 17) |
+| 22 | FM1 runs from a clean clone | TRUE: imports, configs, CLI and the clone tier work from tracked files only | `tests/fm1/test_fm1_clean_checkout.py`; `tools/clone_check.py` on the committed files, 2026-10-04: 2,883 passed, 76 skipped, 137 devtree deselected (construction) | WORKING | fitting needs the data (DATA_SOURCES); the 137 devtree tests run only on the development machine |
+| 23 | FM1 transfers to an unseen period better than the board suggests | — | no evidence: the board is the only 2026 measure and every step was selected on it | NOT CLAIMED | — |
+
+Other levers tried in the final three weeks, and their verdicts, are listed in METHOD §7.

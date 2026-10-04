@@ -62,6 +62,7 @@ def test_prereg_sha_accepts_the_logged_file_and_refuses_an_unlogged_one(tmp_path
         T.prereg_sha(p, log)
 
 
+@pytest.mark.devtree
 def test_prereg_sha_on_the_real_registration():
     """The on-disk registration's current sha is logged (every append was hashed)."""
     assert len(T.prereg_sha()) == 64
@@ -80,6 +81,7 @@ def test_stage1_t1_is_g1_plus_matched_rows_nonnegative_both_legs():
     assert T.stage1_t1(_s1(g_jan=0.0, t3_jan=0.0, m_jul=0.0))["pass"] is True
 
 
+@pytest.mark.devtree
 def test_stage1_t1_on_the_real_stage1_report():
     s1 = json.loads(T.REPORT1.read_text())
     assert T.stage1_t1(s1)["pass"] is True and s1["gate_G1_pass"] is True

@@ -123,6 +123,7 @@ def test_lightgbm_refuses_a_forbidden_feature_name():
 
 # ---------------------------------------------------------------------------------------------- CatBoost worker
 
+@pytest.mark.devtree       # needs the CatBoost environment (~/.venvs/prc-catboost, requirements-catboost.txt)
 @pytest.mark.slow          # > 1 s (rule 26): real fits / a worker process / loading lgbm_fold
 def test_catboost_runs_in_the_worker_and_round_trips(tmp_path):
     """AT11: CatBoost only in ~/.venvs/prc-catboost; this process never imports catboost. AT3 + AT4 for the worker learner.
@@ -167,6 +168,7 @@ def test_catboost_worker_error_output_is_surfaced(tmp_path, monkeypatch):
     fake = tmp_path / "fake_worker.py"
     fake.write_text("import sys\nsys.stderr.write('boom: bad matrix\\n')\nsys.exit(3)\n")
     monkeypatch.setattr(L, "CATBOOST_WORKER", fake)
+    monkeypatch.setattr(L, "CATBOOST_PYTHON", sys.executable)       # the fake worker needs no CatBoost environment
     X, y, fit, es = _data(100)
     m = L.CatBoostWorkerLearner(params=dict(learning_rate=0.2, depth=4, l2_leaf_reg=3.0, subsample=0.8), max_rounds=10,
                                 patience=5, threads=1)

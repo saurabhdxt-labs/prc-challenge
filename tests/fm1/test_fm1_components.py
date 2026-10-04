@@ -75,6 +75,7 @@ def test_effective_gate_never_widens_the_manifest():
         C.effective_gate("ess", man, {}, {}, 0.7)
 
 
+@pytest.mark.devtree
 def test_manifest_gate_of_the_v36_stack():
     """The stored gate v36 served: EDDF/EDDM/EHAM/LEBL/LIRF/LSZH allowed; EGLL/LEMD/LFPG/LTFM not
     (data/r12/serve_801f9bcac9a5_full/serve_r12.json)."""

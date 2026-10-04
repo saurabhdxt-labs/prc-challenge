@@ -18,7 +18,7 @@ Mutation rehearsal 2026-09-20, BC-16-safe harness (bytecode purged between mutan
 11/14 = 78.6 %: three escapes, all tests that passed for the WRONG reason -- the month-CI boundary was
 being satisfied by the sign-disagreement clause, the sign clause by the month-CI clause, and the NaN-key
 test by whichever of the two asserts fired first. Tests added to separate them; second pass 14/14.
-Extended at the end-work gate with the four mutants the first set missed -- both `max(..., 1)` clamps,
+Extended at the end-of-session review with the four mutants the first set missed -- both `max(..., 1)` clamps,
 squared-error -> absolute-error, and a disabled trim -- **final 18/18 = 100 %**.
 `day_block_bootstrap` carries no unit mutant: it is guarded at runtime by X1, an independent second
 implementation of the same statistic in the other unit (opc_screen.bootstrap_stats), asserted to 1e-6.
@@ -274,7 +274,7 @@ def score_arm(d: pd.DataFrame, base: np.ndarray, cand: np.ndarray, OPC) -> dict:
     stats["by_airport_gain_weighted_mse"] = opc["by_airport_gain_weighted_mse"]
     # X1: cross-check the CI -- NOT the point estimate. `opc["gain_weighted_mse"] * n / 339551`
     # reduces algebraically to `gain.sum()/344841`, so comparing point estimates can never fail and
-    # guards nothing (found at the end-work gate 2026-09-20). The CI bounds, by contrast, come from
+    # guards nothing (found at the end-of-session review 2026-09-20). The CI bounds, by contrast, come from
     # an independent resampling implementation in opc_screen.bootstrap_stats -- its own groupby, its
     # own rng, its own accumulation -- so agreement there does test this module's bootstrap path.
     k = len(d) / WEIGHT_DENOM

@@ -358,8 +358,8 @@ def band_split(delta, sp) -> dict:
 
 
 def move_split(pred_ref, pred_new, delta) -> dict:
-    """The gain split by how far the prediction moved (feedback_prc_tail_driven_levers: gains living in a few
-    large moves are a bet on those rows)."""
+    """The gain split by how far the prediction moved (gains living in a few large moves
+    are a bet on those rows)."""
     mv = np.abs(np.asarray(pred_new, float) - np.asarray(pred_ref, float))
     d = np.asarray(delta, float)
     return {"le300s": float(d[(mv > 0) & (mv <= 300)].sum()), "300_3600s": float(d[(mv > 300) & (mv <= 3600)].sum()),

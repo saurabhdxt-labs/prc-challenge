@@ -47,7 +47,7 @@ EXPECTED_EXTRA_AT_20 = 93_165
 TARGET_CAP_S = 3000            # mau_build.py:185,194 -- unchanged
 # The two LFPG label outliers (84,240 s and 58,206 s of "taxi"); audit_mau_mav_rcv_2026_09_20.py:35.
 MONSTER_IDS = (182378789.0, 182377662.0)
-ALARM_S = 300                  # the registration's 5-minute bar; a longer run needs a quality-gate token
+ALARM_S = 300                  # the registration's 5-minute bar; a longer run needs the pre-run checks
 RSS_LIMIT_GIB = 2.0            # the box has ~6 GB reclaimable and Phantom's aggregate spikes 6.2-6.6 GB
 
 

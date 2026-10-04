@@ -3,6 +3,7 @@ last, on the real path), AT9 (raw -> fit -> predict -> build-submission). The wo
 Jan + Feb 2025 and a scored Jan-16 file whose departures' labels are hidden (no 2026 label anywhere)."""
 from __future__ import annotations
 
+import dataclasses
 import json
 import pathlib
 import shutil
@@ -188,8 +189,10 @@ def test_fit_refuses_unported_components_and_heavy_runs(cfg, monkeypatch):
 
 
 def test_catboost_never_loads_in_this_process(pred):
-    """AT11 negative invariant after a real fit + predict with the CBV blend on."""
+    """AT11 negative invariant after a real fit + predict with the CBV blend on. Not vacuous: the CatBoost learner did
+    serve rows (its output is in the provenance) — it ran in its worker process, never in this one."""
     import sys
+    assert pred.catboost_C.notna().any() and pred.decided_by.str.contains("blend").any()
     assert "catboost" not in sys.modules
     assert "torch" not in sys.modules          # the stack's MLP ran in its worker (BC-5)
 
@@ -212,6 +215,29 @@ def test_build_submission_writes_the_template_order(art, world, tmp_path, pred):
         api.build_submission(art, tmp_path / "out", version=99, log=QUIET)
 
 
+def test_the_manifest_records_every_input_the_build_read_and_none_changed_since_the_fit(art, tmp_path, pred):
+    """C2 (2026-10-04 audit): the manifest named the scored file and the template only, so the ADS-B tables, weather,
+    routes and MTX file a build read were on no record. It now holds their hashes (as fit_inputs takes them), and the
+    keys whose hash differs from the artefact's fit-time record — none here: the build read what the fit read.
+    Mutation rehearsal 2026-10-04 (engine.build_inputs replaced in a child pytest, source untouched): BI1 the published
+    MTX file compared with the fit record -> the calibration test; BI2 no change ever reported -> the changed-input test;
+    BI3 inputs not recorded -> this test. 3 / 3 RED (BI1 survived until the calibration test was added)."""
+    res = api.build_submission(art, tmp_path / "out", version=98, log=QUIET)
+    man = json.loads(res["manifest"].read_text())
+    assert man["inputs_changed_since_fit"] == []
+    assert {k: v for k, v in man["inputs_at_build"].items() if k != "mtx/published"} == art.inputs
+    assert ("mtx/published" in man["inputs_at_build"]) is art.config.mtx_enabled
+    assert any(k.startswith("weather/") for k in art.inputs) and "adsb/serve.parquet" in art.inputs
+
+
+def test_an_input_changed_since_the_fit_is_named(art):
+    """A build on a different weather archive (here: the artefact's record altered instead, so no shared file changes)
+    names the key; the build still runs (prediction is unchanged by the record), and the manifest says so."""
+    key = next(k for k in sorted(art.inputs) if k.startswith("weather/"))
+    other = dataclasses.replace(art, inputs={**art.inputs, key: "0" * 64})
+    assert G.build_inputs(art.config, other)["changed_since_fit"] == [key]
+
+
 def test_build_submission_refuses_a_previous_submission_as_input(art, tmp_path):
     fake = tmp_path / "submissions" / "x.parquet"
     fake.parent.mkdir()
@@ -222,14 +248,31 @@ def test_build_submission_refuses_a_previous_submission_as_input(art, tmp_path):
 
 # ---------------------------------------------------------------------------------------------- MTX on the real path
 
-def test_mtx_runs_last_and_hits_its_designed_means(cfg, scored, world):
+MTX_PUBLISHED_2025 = K.ROOT / "data/mtx/raw/taxi_out_additional_time_2025.csv"
+
+
+@pytest.fixture(scope="module")
+def mtx_fit(cfg):
+    """(config, artefact) with MTX on: scored-period purpose, the PUBLISHED 2025 file (the world is a 2025 day)."""
+    c = K.parse_config(K.nest({**cfg.values, "run.purpose": "scored_period",
+                               "calibration.mtx.published_csv": str(MTX_PUBLISHED_2025),
+                               "calibration.mtx.lambda_rule": "full"}))
+    return c, api.fit(c, save=False, log=QUIET)
+
+
+def test_a_build_with_calibration_records_the_published_file_beside_the_fit_inputs(mtx_fit):
+    """The published MTX file is read at build time only, so it is recorded but never counted as changed since the fit."""
+    c, a = mtx_fit
+    bi = G.build_inputs(c, a)
+    assert bi["inputs"]["mtx/published"] == A.sha256_file(MTX_PUBLISHED_2025)
+    assert bi["changed_since_fit"] == [] and "mtx/published" not in a.inputs
+
+
+def test_mtx_runs_last_and_hits_its_designed_means(mtx_fit, scored, world):
     """AT6 on the real path: scored-period purpose turns MTX on; it fits the 2025 excess mapping on the training rows and
     shifts each (airport, month) mean toward the PUBLISHED 2025 cell (the world is a 2025 day). After finalise, each
     calibrated cell's pre-rint mean equals its designed mean; decided_by carries +mtx on moved rows."""
-    ref = str(K.ROOT / "data/mtx/raw/taxi_out_additional_time_2025.csv")
-    c = K.parse_config(K.nest({**cfg.values, "run.purpose": "scored_period", "calibration.mtx.published_csv": ref,
-                               "calibration.mtx.lambda_rule": "full"}))
-    a = api.fit(c, save=False, log=QUIET)
+    c, a = mtx_fit
     p = api.predict(a, scored, log=QUIET)
     rep = p.attrs["fm1_report"]["mtx"]
     assert rep, "no calibrated cell"
@@ -257,3 +300,20 @@ def test_regression_subset_airports_fit_on_multi_airport_files(cfg, scored):
     assert len(p) == int(((only.PHASE_mvt == "DEP")).sum()) and (p.TAXITIME_SEC_mvt >= 1).all()
     with pytest.raises(E.UnknownAirportError, match="LSZH"):
         api.predict(art, scored, log=QUIET)
+
+
+
+def test_an_existing_artefact_is_refused_before_any_fitting(art, cfg, monkeypatch):
+    """Protocol B review 2026-10-04: the "never overwrites" refusal came at the save, so REPRODUCE's ~10 h donor fit run
+    twice failed only after fitting. The artefact's name (config hash + input digest) is known once the inputs are
+    hashed, so the refusal now comes first and nothing is read or fitted. Rehearsed RED (the early refusal removed in a
+    child pytest): "fitting started before the existing artefact was refused"."""
+    from prc.pipeline.fm1 import features as F
+
+    def no_fit(*a, **k):
+        raise AssertionError("fitting started before the existing artefact was refused")
+    monkeypatch.setattr(G, "_weather", no_fit)
+    monkeypatch.setattr(F, "build_frames", no_fit)
+    assert art.directory is not None and art.directory == A.artifact_dir(cfg, art.inputs)
+    with pytest.raises(E.ArtifactError, match="already exists; FM1 never overwrites an artefact"):
+        api.fit(cfg, log=QUIET)

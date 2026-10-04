@@ -29,7 +29,7 @@ import sys
 import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-PY = "/opt/homebrew/bin/python3.11"
+PY = sys.executable                 # the interpreter running this tool runs its children
 SCRATCH, REAL = ROOT / "logs" / "r12_scratch", ROOT / "data" / "r12"     # smoke / real outputs
 LOG_DIR = SCRATCH                         # launch logs and PID files
 PATH_FLAGS = ("--store", "--out", "--tables", "--val", "--stack", "--f26")
@@ -221,9 +221,7 @@ def _run(step: str, smoke: bool, runner_args, log_path_: pathlib.Path) -> int:  
             log(f"START {' '.join(cmd)}")
             t0 = time.time()
             p = subprocess.Popen(cmd, cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT)
-            g = V.memguard_cmd(p.pid, log_path_)
-            subprocess.Popen(g, cwd=ROOT, start_new_session=True, stdin=subprocess.DEVNULL,
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            g, _ = V.start_memguard(p.pid, log_path_)
             log(f"mem_guard: {' '.join(g)}")
 
             def rss_of(pid):

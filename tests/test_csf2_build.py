@@ -29,7 +29,7 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
-PY = "/opt/homebrew/bin/python3.11"
+PY = sys.executable
 
 
 def _load(name, rel):

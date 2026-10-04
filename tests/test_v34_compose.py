@@ -39,6 +39,7 @@ V7 = _load("v34_compose", "scripts/analysis/v34_compose.py")
 
 # ---------------------------------------------------------------- registered constants
 
+@pytest.mark.devtree
 def test_k_range_is_the_nsc_fold_result_recomputed():
     """k = sum(D*e)/sum(D^2) on data/nsc_run/nsc_fold_preds.parquet, day-block CI 2,000 draws seed 0 (registered)."""
     got = V7.fold_k(pd.read_parquet(ROOT / "data/nsc_run/nsc_fold_preds.parquet"))

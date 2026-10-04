@@ -65,9 +65,14 @@ def find_artifact(cfg: FM1Config) -> ModelArtifact:
 
 
 def _artifact(config_or_artifact, overrides=()) -> ModelArtifact:
+    is_artifact = isinstance(config_or_artifact, ModelArtifact) or (
+        isinstance(config_or_artifact, (str, pathlib.Path)) and pathlib.Path(config_or_artifact).is_dir())
+    if is_artifact and list(overrides):
+        raise errors.ConfigValueError(f"overrides do not apply to an artefact (it carries its own configuration): "
+                                      f"{list(overrides)}; pass a config instead, or fit a derived artefact")
     if isinstance(config_or_artifact, ModelArtifact):
         return config_or_artifact
-    if isinstance(config_or_artifact, (str, pathlib.Path)) and pathlib.Path(config_or_artifact).is_dir():
+    if is_artifact:
         return _A.load(config_or_artifact)
     return find_artifact(_G.as_config(config_or_artifact, overrides))
 

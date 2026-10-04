@@ -1,12 +1,17 @@
-# FM1 — reproduction guide (updated 2026-10-02 after the first full fit)
+# FM1 — reproduction guide (updated 2026-10-04: final configs, environment pins, clone tier)
 
-Interpreter: `/opt/homebrew/bin/python3.11` (pandas 3.0.1, numpy 2.4.3, lightgbm 4.5.0, sklearn 1.8.0). CatBoost 1.2.10 lives
-only in `~/.venvs/prc-catboost` (numpy 1.26.4) and is used through the worker. Plain `python3` in this shell is the CatBoost
-venv — always call the interpreter above.
+Environment: Python 3.11.15 (`.python-version`) with `requirements.txt` (runtime) and `requirements-dev.txt` (tests);
+CatBoost 1.2.10 lives only in `~/.venvs/prc-catboost` (`requirements-catboost.txt`) and is used through the worker
+process, so its OpenMP runtime never shares a process with LightGBM's. `python tools/env_check.py` compares both
+interpreters with the pins (exit 1 names every difference). On macOS, LightGBM needs the OpenMP runtime
+(`brew install libomp`). On the development machine the project interpreter is
+`/opt/homebrew/bin/python3.11`; there, a bare `python3` resolves to the CatBoost venv.
 
 ## Commands
 
 ```
+python tools/env_check.py                                               # both interpreters match the pins
+python tools/clone_check.py                                             # the clone tier, in a tree of the tracked files
 python -m prc config-reference --check                                  # the reference doc is current
 python -m prc validate --config configs/fm1.yaml --protocol dry-run     # config, plan, every input path; fits nothing
 python -m prc fit --config configs/fm1.yaml [--set path=value ...] [--allow-heavy]
@@ -16,16 +21,35 @@ python -m prc build-submission --config configs/fm1.yaml --out <dir> --version <
 python -m prc validate --config configs/fm1.yaml --protocol S|swap|forward|lomo|forward_monthly --out <dir> [--allow-heavy]
 python -m prc compare --a <oof_A_F1> <oof_A_F2> --b <oof_B_F1> <oof_B_F2> --out <file.json>   # pooled, paired
 python -m prc blend --a <oof_A ...> --b <oof_B ...> --w 0.5 --out <blend.parquet>                # arm A2 offline
-/opt/homebrew/bin/python3.11 -B tools/fm1_replay_gate.py --out <new dir> [--per-stratum 100 --runs 2]   # AT14
-/opt/homebrew/bin/python3.11 -B tools/run_suite.py                                                     # the suite
+python -B tools/fm1_replay_gate.py --out <new dir> [--per-stratum 100 --runs 2]                        # AT14
+python -B tools/run_suite.py                                                                          # the suite
 ```
 
-`configs/fm1.yaml` states the documented forecaster with every component ported (Amendment A3): the v26 unmatched body, the
-Rome module (owner decision 1: on) and ARC at LIRF; the storm anchor is off (owner decision 2). The v36 replay switches it on
-(`--set modules.storm.mode=anchor`); LDI is optional and off (`--set modules.ldi.enabled=true`; it needs the whole scored
-file per predict call); adsb.fi and the storm-as-feature form are refused by name when switched on. A fit
-over the twelve months is a heavy job (`--allow-heavy`, the quality gate first, one heavy job at a time). Validation folds
+`configs/fm1.yaml` holds every knob at its documented default (a test pins this). The final runs are two config files
+that write their command-line overrides in and resolve to the stored artefacts' config hashes
+(`tests/fm1/test_fm1_final_configs.py`): `configs/fm1_v50.yaml`, the forecaster (lgbcat ADS-B stack on the
+`tables_51348d3e1cb3` tables, storm anchor on, LDI on, 12 threads), and `configs/fm1_v55.yaml`, the scored-period build
+(v50 + MTX + the adsb.fi serve table; `adsb.sources.adsb_fi`). The storm-as-feature form is refused by name when
+switched on. LDI needs whole local days per predict call. A fit
+over the twelve months is a heavy job (`--allow-heavy`, the pre-run checks first, one heavy job at a time). Validation folds
 with a single training month must switch E2W off (`--set modules.rome.e2w=false`: its beta_W is fitted leave-one-month-out).
+
+## Reproducing the board file v55
+
+```
+python -m prc fit --config configs/fm1_v50.yaml --allow-heavy                                     # the donor (~10 h)
+python -m prc fit --config configs/fm1_v55.yaml --allow-heavy --reuse-from artifacts/fm1/2d29ad344b45-1c61fcc2
+python -m prc build-submission --config configs/fm1_v55.yaml --out <new dir> --version 55
+```
+
+The uploaded file is `merry-quicksand_v55.parquet`, sha256 `225ab0be205a0a254d0c27e726ec33d6007981b98f937f9b00739499e5ac537d`
+(344,841 rows). The rebuild check — the current code serving the stored v55 artefact
+(`artifacts/fm1/d811c69dc93e-141862a0`) — is recorded below.
+
+**Rebuild check (VERIFIED 2026-10-04 03:38–03:55 EDT, with the committed code).** `python -m prc build-submission
+--config configs/fm1_v55.yaml --out <new dir> --version 55` served the stored artefact and wrote a file with sha256
+`225ab0be205a0a254d0c27e726ec33d6007981b98f937f9b00739499e5ac537d` — identical to the uploaded v55. Its manifest hashes
+204 inputs and names none as changed since the fit. The full fit itself (~10 h) was not re-run for this check.
 
 ## Determinism (VERIFIED on the e2e world, this machine)
 
@@ -36,18 +60,23 @@ manifest and re-checked on load). Cross-machine determinism is NOT claimed.
 ## Artefacts
 
 `run.artifacts_dir/<config hash[:12]>-<input data digest[:8]>/` — never overwritten; the manifest records the git sha,
-library versions, every input file's sha256 and every artefact file's sha256.
+library versions, every input file's sha256 and every artefact file's sha256. A submission's manifest records the
+sha256 of the scored file, the template, the inputs the fit recorded as they are at build time (training files present,
+weather, routes, ADS-B tables, stack models, MTX reference, E2 rules) and the published MTX file, and names every recorded
+input whose hash differs from the artefact's fit-time record (`build_inputs`; a missing training file is named, not refused).
 
 ## Derived variants (no retraining)
 
 `fit --reuse-from <donor artefact dir>` builds a variant artefact from a donor's fitted matched learners when only
 predict-time or light-fit knobs differ (`knobs.REUSE_FREE_KNOBS`: `run.purpose`, `run.artifacts_dir`, `calibration.mtx.*`,
-`modules.*`, `matched.blend.catboost_weight`, `adsb.stack.*`, `adsb.support_gate.*`, `adsb.min_coverage`). Frames, encodings,
+`modules.*`, `matched.blend.catboost_weight`, `adsb.stack.*`, `adsb.support_gate.*`, `adsb.min_coverage`,
+`adsb.sources.adsb_fi`, `adsb.table_dir`). Frames, encodings,
 the unmatched lane and MTX are recomputed; the recomputed design columns, encodings and row counts must equal the donor's,
-and the learners' input files (raw months, weather, routes, ADS-B tables) must be the same — otherwise `ReuseError`.
+and the learners' input files (raw months, weather, routes, the ADS-B training table `train.parquet`) must be the
+same — otherwise `ReuseError`; a new serve table is allowed (that is how v55 was derived).
 A derived artefact predicts bit-identically to a full fit of the same config (tests/fm1/test_fm1_reuse.py, five variants).
 
-## Runtimes and resources (measured 2026-10-01 / 02, this machine: 18 cores, 24 GB)
+## Runtimes and resources (measured 2026-10-01 / 02, this machine: 18 cores, 24 GiB)
 
 Full fit of the final configuration (twelve raw months, 2,062,440 matched rows, 133 features, `run.threads=12`,
 three seeds): wall **9 h 40 min** including 44 pauses for other jobs (LightGBM 5 h 55 min: best_iter 40,550, n_ref 48,691;
@@ -60,17 +89,22 @@ dry run does NOT measure the model-size term or the worker.
 Determinism at scale: two fits of a three-month slice of the final configuration predicted the full scored file
 identically (344,841 × 30 cells, 0 different).
 Measured earlier: AT14 stored-tier gate 158 s, peak 2.6 GB (parent + one booster child); AT9 e2e world: `fit` 4 s,
-`build-submission` 21 s, parent peak 0.31 GB, two independent runs byte-identical (notes N7).
+`build-submission` 21 s, parent peak 0.31 GB, two independent runs byte-identical.
 
-## What a clone of the repository can run (2026-10-02)
+## What a clone of the repository can run (2026-10-04)
 
-A clone carries the package (`prc/`), the config (`configs/fm1.yaml`), the code FM1 loads by path (`scripts/`, the E2
-rules file) and these docs; it never carries data, artefacts or the project's development record (registrations under
-`plans/`, `logs/`, `reports/`). From a clone, FM1 imports, resolves its config to the documented hash and runs its CLI
-(`tests/fm1/test_fm1_clean_checkout.py` checks exactly this in a temporary tree). The knobs' evidence pointers name files
-of the development record: they document why a default was chosen and are checked only in the development tree
-(`knobs.check_evidence_files`). The test suite likewise reads that record (registered results, golden files) and the data;
-it is a development-tree tool.
+A clone carries the package (`prc/`), the configs, the code FM1 loads by path (`scripts/`, the E2 rules file), the tools,
+the tests and these docs. Without data, artefacts or the project's development record (registrations, reports, logs),
+FM1 imports, resolves its configs to the documented hashes and runs its CLI
+(`tests/fm1/test_fm1_clean_checkout.py`). The knobs' evidence pointers name files of the development record: they
+document why a default was chosen and are checked only in the development tree (`knobs.check_evidence_files`).
+
+The test suite has a **clone tier**: every test not marked `devtree` (tests/conftest.py) runs from a fresh clone —
+`python -m pytest -m "not devtree" tests`, or `python tools/clone_check.py`, which builds a tree of exactly the tracked
+files in a new git repository and runs that tier there (2026-10-04, the committed files: 2,883 passed, 76 skipped where
+an optional local file is absent, 137 devtree tests deselected). Tests that read the data, the stored artefacts or the
+development record are marked `devtree` (automatically for every test on the real-data-shaped worlds,
+tests/fm1/conftest.py) and run in the full suite on the development machine.
 
 To fit or predict, a clone also needs the inputs every path knob names (CONFIG_REFERENCE.md): the raw challenge files and
 weather (DATA_SOURCES.md) and the derived inputs below, each rebuilt by code in the repository (heavy steps run through
@@ -79,10 +113,10 @@ weather (DATA_SOURCES.md) and the derived inputs below, each rebuilt by code in 
 | input (knob) | built by | final configuration |
 |---|---|---|
 | ADS-B tables (`adsb.table_dir`) | `scripts/analysis/r12_build.py features`, then `tables` | `data/r12/tables_51348d3e1cb3` |
-| holdout fits feeding the stack | `scripts/analysis/r12_validate.py` (LightGBM base; CatBoost half via `scripts/analysis/r13_cat.py`), assembled by `r13_cat.py assemble` | `data/r12/r13_arms_full` |
+| holdout fits feeding the stack | `scripts/analysis/r12_validate.py` (LightGBM base on the older `tables_801f9bcac9a5`; CatBoost half via `scripts/analysis/r12_validate.py --arms cat --screen --seeds 0,1,2`, learning rate 0.05), assembled by `r13_cat.py assemble` | `data/r12/r13_arms_full` |
 | ADS-B stack models (`adsb.stack.models_dir`) | `scripts/analysis/r12_stack.py oof --val data/r12/r13_arms_full --tables data/r12/tables_51348d3e1cb3 --arms r12,lgbcat --out data/r12/r13_stack_full` | `data/r12/r13_stack_full/models_lgbcat` (MANIFEST.json: seeds 0–2, 5 folds, gate, git sha) |
 | ORL route table (`features.orl_routes_file`) | `scripts/analysis/orl_build.py fetch`, then `build` | `data/osm/orl_routes.parquet` |
-| MTX CSVs (`calibration.mtx.*_csv`) | `scripts/analysis/mtx_source.py` | `data/mtx/raw/` (sha256 manifest) |
+| MTX CSVs (`calibration.mtx.*_csv`) | downloaded from EUROCONTROL's performance data (`taxi_out_additional_time_<year>.csv`; the URLs are in the manifest) and parsed by `scripts/analysis/mtx_source.py` | `data/mtx/raw/` (sha256 manifest; the 2026 file is a live publication) |
 
 **Optional second source (scored-period build only).** `scripts/analysis/afi_build.py days` merges the owner's adsb.fi
 capture of July 2026 into the adsb.lol day files (rule AUN.1, `scripts/analysis/adsb_union.py`; the union directory's
@@ -96,3 +130,11 @@ reproducible only on the machine that holds the capture.
 The stack's MLP half trains and predicts in `scripts/adsb_nn_worker.py` (a separate process; torch never shares a process
 with LightGBM), and the CatBoost learner runs in `~/.venvs/prc-catboost` (`prc/pipeline/fm1/catboost_worker.py`). A fitted
 artefact carries its own copy of the stack models, so predicting with a saved artefact needs only the tables and raw files.
+
+**What HEAD cannot rebuild exactly.** The stored stack (`models_lgbcat`) was trained on a LightGBM holdout built on the
+`tables_801f9bcac9a5` tables, whose feature version the current `scripts/adsb_features.py` no longer produces
+(`r12_validate` refuses a stamp mismatch), so the stack is a stored input of FM1 rather than something a clone can
+regenerate byte for byte; its MANIFEST records seeds, folds and gate, and a git sha that predates its producer scripts
+(LIMITATIONS 18). The OpenStreetMap route table is fetched live (Overpass has no snapshot date in the query; the manifest
+records the OSM base time of the fetch used). The adsb.fi capture cannot be re-fetched (LIMITATIONS 12).
+

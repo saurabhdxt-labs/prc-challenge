@@ -20,7 +20,7 @@ _spec.loader.exec_module(VL)
 
 AC = "Now drawing from 'AC Power'\n -InternalBattery-0 (id=1)\t100%; charged;"
 BATT = "Now drawing from 'Battery Power'\n -InternalBattery-0 (id=1)\t80%; discharging;"
-PY = "/opt/homebrew/bin/python3.11"
+PY = sys.executable                 # the launcher runs its children with its own interpreter
 
 
 @pytest.mark.parametrize("step,abort,kill", [(1, 6, 7), (2, 6, 7), (3, 8, 9), (4, 8, 9), (5, 6, 7), (6, 11, 12), (7, 6, 7)])
@@ -52,8 +52,8 @@ def test_child_cmd_runs_each_steps_runner_with_its_args_and_optional_smoke():
 
 def test_memguard_cmd_carries_the_child_pid_and_the_run_log_stem():
     """Owner requirement: tools/mem_guard.py --pid <the fit child's pid> --log <run log stem>_memguard.log, and
-    --pause-on-phantom on every launched heavy run (owner ruling 2026-09-28: "when phantom starts just pause"; memory
-    feedback_prc_pause_on_memory_pressure). Rehearsed RED: passing the launcher's own pid (os.getpid()) instead of the
+    --pause-on-phantom on every launched heavy run (owner ruling 2026-09-28: "when phantom starts just pause").
+    Rehearsed RED: passing the launcher's own pid (os.getpid()) instead of the
     child's, a fixed log name, and (2026-09-29, seen red before the fix) the guard built without --pause-on-phantom."""
     log = ROOT / "logs/nsc_v34_scratch/v34_step3_run_20260925T010203.log"
     cmd = VL.memguard_cmd(4242, log)
@@ -69,10 +69,30 @@ def test_run_spawns_mem_guard_with_the_child_pid_right_after_the_child_starts():
     """Static check of the orchestration (not unit-runnable): the guard is built from `p.pid` of the runner Popen."""
     src = inspect.getsource(VL._run)
     i_child = src.index("p = subprocess.Popen(cmd")
-    i_guard = src.index("g = memguard_cmd(p.pid, log_path)")
+    i_guard = src.index("start_memguard(p.pid, log_path)")
     i_watch = src.index("watch(p, rss_of")
     assert i_child < i_guard < i_watch
-    assert "start_new_session=True" in src[i_guard:i_watch]
+
+
+def test_the_guard_is_started_detached_with_its_own_output_kept_in_its_log(tmp_path, monkeypatch):
+    """BC-43 sibling (2026-10-04): the launchers started mem_guard with stdout / stderr sent to /dev/null, so a guard that
+    refused its target or crashed left no trace and the run went on unguarded with nothing on record. Its output now goes
+    to its own log. Rehearsed RED: output back to DEVNULL; start_new_session dropped."""
+    run_log = tmp_path / "r12_x.log"
+    monkeypatch.setattr(VL, "memguard_cmd", lambda pid, log: [sys.executable, "-c",
+                        "import os, sys; sys.stderr.write(f'refused: no target; session leader {os.getsid(0) == os.getpid()}')"
+                        "; sys.exit(2)"])
+    g, proc = VL.start_memguard(4242, run_log)
+    assert proc.wait(timeout=30) == 2
+    assert VL.memguard_log(run_log).read_text() == "refused: no target; session leader True"
+
+
+def test_a_replacement_guard_is_started_with_restart(tmp_path):
+    calls = []
+    g, _ = VL.start_memguard(4242, tmp_path / "r.log", restart=True, popen=lambda cmd, **kw: calls.append(cmd))
+    assert g[-1] == "--restart" and calls == [g] and g[:-1] == VL.memguard_cmd(4242, tmp_path / "r.log")
+    g, _ = VL.start_memguard(4242, tmp_path / "r.log", popen=lambda cmd, **kw: calls.append(cmd))
+    assert "--restart" not in g
 
 
 def test_there_is_no_wall_time_kill_so_a_paused_run_is_never_killed_for_time():

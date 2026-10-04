@@ -1,62 +1,73 @@
-# FM1 — model card
+# FM1 — model card (updated 2026-10-04)
 
-Status 2026-09-28 (FM1 day 1–3): **package built; not yet a validated model.** Every metric below is TODO until the day 4–7
-studies run, and no FM1 number counts until the AT14 end-to-end replay gate passes (`plans/PREREG_fm1_2026_09_28.md`,
-Amendment A1). The safe board file meanwhile is `merry-quicksand_v43.parquet` (250.8082), with its defects disclosed
-(`reports/final_model/AUDIT_AND_PLAN_2026_09_28.md` §5).
+Status: **final.** The forecaster (only the challenge files and public open data: no scored-period aggregate, no private capture) is board file v50
+(`configs/fm1_v50.yaml`, public board 251.4767); the team's best
+file is v55, the scored-period build (`configs/fm1_v55.yaml`, 249.9168). Claims and their evidence: CLAIMS.md; risks:
+RISK_REPORT_v55.md.
 
 ## Intended use
 
 Predict the taxi-out time (seconds, `TAXITIME_SEC_mvt`) of each scheduled departure at ten European airports (EDDF, EDDM,
-EGLL, EHAM, LEBL, LEMD, LFPG, LIRF, LSZH, LTFM) from the organiser's movement files, for the PRC Data Challenge 2026. A new
-airport is a config entry (`airports.codes`, `airports.tz`) plus its rows in the data.
+EGLL, EHAM, LEBL, LEMD, LFPG, LIRF, LSZH, LTFM) from the organiser's movement files, for the PRC Data Challenge 2026 —
+a post-operations estimate (the organiser's framing), not a tactical forecast. A new airport needs a config entry
+(`airports.codes`, `airports.tz`), its rows in the data, its weather, route and ADS-B inputs, and a stack-gate entry.
 
 Not intended for: operational ATC decisions; airports without training history; periods whose data-recording rules differ
-from 2025's without a drift check (see LIMITATIONS.md).
+from 2025's without a drift check (LIMITATIONS.md 9, 14).
 
 ## Inputs and outputs
 
 - Inputs: the organiser's raw movement rows (30 columns, one row per DEP or ARR; contract `prc/pipeline/fm1/rows.py`),
-  the METAR archive, the OSM route table, the adsb.lol-derived ADS-B tables, and — only for the scored-period build — the
-  published EUROCONTROL monthly taxi-out CSV. A scored departure never carries a label; no design column is a label, a label
+  the METAR archive, the OpenStreetMap route table and the ADS-B tables built from adsb.lol tracks. The scored-period
+  build (v51, v55) adds EUROCONTROL's published monthly taxi-out means (MTX) and, in v55, the owner's adsb.fi capture of
+  July 2026 in the serve table. A scored departure never carries a label; no design column is a label, a label
   derivative or a `*_sec` column (refused, AT2).
 - Output: one row per scored departure — `MVT_ID_mvt`, `TAXITIME_SEC_mvt` (int32, >= 1), **`decided_by`** (the last value
-  stage that wrote the row: `base_lightgbm`, `adsb_stack`, `cbv_blend`, `unmatched_body`, `rome`, `arc`, `rome_e2`,
-  `rome_e2w`, `storm`, ... with `+mtx` when calibration
-  moved it), `lane`, and every component's own output (`F`, `base_value`, `stack_resid`, `stack_eligible`, `catboost_C`,
-  `unmatched_pred`, `value_before_calibration`, `calibration_shift`; for the unmatched lane also `unm_p_fill`, `unm_nf_cells`,
-  `unm_body`, `rome_p_R`, `rome_v7`, `rome_v10`, `rome_value`, `rome_rule`, `arc_rule`, `arc_value`, `e2_p`, `e2w_p`,
-  `storm_A`, `storm_shift`).
+  stage that wrote the row: `base_lightgbm`, `base_catboost`, `adsb_stack`, `cbv_blend`, `unmatched_body`, `rome`, `arc`, `rome_e2`,
+  `rome_e2w`, `storm`, `ldi`, with `+mtx` when calibration moved it), `lane`, and every component's own output (`F`,
+  `base_value`, `stack_resid`, `stack_eligible`, `catboost_C`, `unmatched_pred`, `value_before_calibration`,
+  `calibration_shift`, `ldi_delta`, `ldi_band`, `eobt_clipped`; for the unmatched lane also `unm_p_fill`, `unm_nf_cells`, `unm_body`, `rome_p_R`, `rome_v7`,
+  `rome_v10`, `rome_value`, `rome_rule`, `arc_rule`, `arc_value`, `e2_p`, `e2w_p`, `storm_A`, `storm_shift`).
 
-## Components (owner decisions of 2026-09-28)
+## Components in the final configuration
 
-| component | class | default | status |
+| component | in v50 | in v55 | rows deciding v55 (`decided_by`, with and without `+mtx`) |
 |---|---|---|---|
-| matched base model (LightGBM; FW-NSC + ORL + ADS-B blocks; delta target) | core | on | implemented |
-| ADS-B support gate + stack residual (LightGBM + MLP) | core | on | implemented (stored stack models) |
-| CatBoost half-blend on matched rows the stack does not serve | core | on (w = 0.5) | implemented |
-| unmatched body (the shipped v26 body: S1 cells + MJS congestion body) | core | on | implemented (replayed exactly on all 4,907 non-LIRF 2026 rows) |
-| ARC arrival-row clock recovery | core | on, LIRF (the shipped scope) | implemented (v17 exact); other airports unvalidated |
-| LIRF / Rome recording-regime module (R2 + date-slip, E1, RLD, E2, E2W) | optional | on | implemented (v7/v10/v12 exact; v31/v33 exact except the 8 ARN rows) |
-| storm anchor | optional | off (on in the v36 replay) | implemented; the storm-as-feature form not ported |
-| ARN | dropped | — | its 8 rows keep their Rome / E2 values |
-| LDI LTFM de-icing | optional | off (on for the scored-period build) | implemented: the registered v41 constants (+8.0 / +35.4 / +122.5 s by MVT - SCHED band), target rows computed in the package; replayed exactly vs v41 (1,885 rows) |
-| MTX monthly calibration (always last) | optional | auto: on only for the scored-period build | implemented |
-| adsb.fi source | optional | off | not ported |
-| XGBoost | — | CUT | refused by name |
+| matched base model (LightGBM, `delta` target; queue, order, weather, ORL, ADS-B blocks) | yes | yes | base of every matched row |
+| ADS-B support gate + stacked residual (LightGBM + MLP; stored lgbcat stack) | yes | yes | 145,538 |
+| CatBoost half-blend on matched rows the stack does not serve | yes | yes | 192,128 |
+| unmatched body (S1 cells + congestion body) | yes | yes | 4,326 |
+| Rome (LIRF) module: R2 + date-slip, E1, local-day rule, E2, E2W | yes | yes | 341 |
+| ARC arrival-row clock recovery (LIRF) | yes | yes | 42 |
+| storm anchor | yes | yes | 581 |
+| LDI LTFM de-icing shift | yes | yes | 1,885 |
+| MTX monthly calibration (last) | no (forecaster) | yes | moved 236,515 rows |
+| adsb.fi July-2026 serve rows | no | yes (serve table only; the learners are v50's) | — |
+| EOBT clip (LFPG July) | off | off | — (lost on the board, v54) |
+| coverage-ratio support gate | off | off | — (no better on the board, v52) |
+| XGBoost | cut | cut | refused by name |
+
+Row counts from `submissions/merry-quicksand_v55.parquet.meta.json` (`decided_by`).
 
 ## Metrics
 
-TODO (days 4–7): per protocol S fold (LOMO-Jan, LOMO-Jul; primary), the strict Jan↔Jul swap (secondary) and forward folds
-(tertiary): RMSE and board MSE with day-block 95 % CIs, by airport-month; standalone numbers for every component and the
-pipeline number (component-validation rule); ≥ 3 seeds on the final comparison.
+| measurement | value | what it is |
+|---|---|---|
+| public board, v55 | 249.9168 s RMSE | the scored-period build; one evaluation of the scored set |
+| public board, v50 | 251.4767 s RMSE | the forecaster |
+| 2025 validation, protocol S (leave one month out), screen tier, ADS-B stack off | January 327.07 s, July 266.21 s (pooled 294.92 s) | a 2025 reference for a reduced configuration, not the final model's score (METHOD §6) |
+| determinism | 344,841 × 30 cells, 0 different | two fits of a three-month slice, served on the full scored file |
 
-## Replay evidence (VERIFIED 2026-09-28)
+No metric has a run-to-run variance estimate: each board number is one run of the three-seed ensemble and each
+screen-tier number one seed (LIMITATIONS 1). Standalone contributions of
+each component: the swap-study ablations (METHOD §5) and the board history of whole-model variants (METHOD §8).
+
+## Replay evidence
 
 - AT7: the package's composition functions reproduce the v36 R12 lane on all 339,551 matched rows exactly.
-- AT14 stored tier: 5,703 / 5,703 sampled matched rows (68 strata, all ten airports × Jan/Jul) reproduce v36 exactly
-  through the package path; the 1,940 sampled unmatched rows are not producible yet → gate FAIL
-  (`reports/final_model/fm1_replay_gate_stored_2026_09_28/`).
+- The unmatched lane reproduces the shipped v26–v33 chain on all 5,290 unmatched scored rows except ARN's 8 (ARN dropped;
+  `tests/fm1/test_fm1_unmatched.py`).
+- The two final configs resolve to the stored artefacts' config hashes (`tests/fm1/test_fm1_final_configs.py`).
 
 ## Licences
 

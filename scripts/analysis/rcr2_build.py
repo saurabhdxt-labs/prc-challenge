@@ -105,7 +105,7 @@ def fit_leg(X, label, fit, es, X_test, params, max_rounds=MAX_ROUNDS, patience=P
     m = lgb.train(params, ds, max_rounds, valid_sets=[dv], callbacks=[lgb.early_stopping(patience, verbose=False)])
     raw = m.predict(X_test, num_iteration=m.best_iteration)
     if not np.all(np.isfinite(raw)):
-        raise RuntimeError("non-finite predictions")            # Part 5 rule 1: in-flight abort
+        raise RuntimeError("non-finite predictions")            # in-flight abort
     return raw, int(m.best_iteration)
 
 

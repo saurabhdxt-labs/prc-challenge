@@ -315,7 +315,7 @@ def test_rwc_holds_hold_exactly_the_disputed_airports_rwc_did_not_ship():
     assert sh.RWC_DISPUTED == ("EDDM", "EDDF", "LEBL", "LSZH")
 
 
-# ---------------------------------------------------------------- end-work review follow-ups (2026-09-11 17:0x)
+# ---------------------------------------------------------------- end-of-session review follow-ups (2026-09-11 17:0x)
 
 def test_ks_uses_finite_values_only_and_needs_thirty_on_the_2026_side_too():
     """Review finding: the isfinite filter and the 2026-side bound were untested. Kills: KS over NaN-padded arrays (NaN

@@ -193,6 +193,7 @@ def test_asof_refusals():
         up.weather_asof(_rows([("EHAM", "2025-01-15 10:10")]).drop(columns=["ADEP_mvt"]), obs)
 
 
+@pytest.mark.devtree
 def test_the_frozen_table_is_the_registered_one_and_a_changed_file_is_refused(tmp_path):
     """Rehearsed 2026-09-11 RED: the sha256 comparison deleted from load_weather_obs (a one-byte-changed copy loads)."""
     assert up.file_sha256(up.WEATHER_OBS) == up.WEATHER_SHA256 == "cb05439b6b9a57c159fd78049821821c6ac828087d2380c12d1c6f7f718022a8"
@@ -1039,6 +1040,7 @@ def test_smoke_paths_never_touch_the_real_outputs_nor_the_parents():
         assert "OMP_NUM_THREADS=1 nice -n 19 /opt/homebrew/bin/python3.11 -B -u scripts/unm_physics.py" in cmd and 'echo "exit $?"' in cmd
 
 
+@pytest.mark.devtree
 def test_registered_constants_are_the_preregs():
     """Rehearsed 2026-09-11 RED: DEICE_AIRPORTS given LFPG as a fifth airport; MAX_OBS_AGE 3 h -> 4 h."""
     assert up.REG_WEATHER == ["temp_c", "dewspread_c", "vis_km", "wind_kt", "gust_kt", "wx_precip", "wx_frozen", "wx_sn", "wx_fzra",

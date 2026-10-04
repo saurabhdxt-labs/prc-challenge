@@ -1,0 +1,5 @@
+# Test tooling for the project interpreter, on top of the runtime packages.
+-r requirements.txt
+pytest==9.0.2
+coverage==7.16.2
+hypothesis==6.168.3

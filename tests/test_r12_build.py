@@ -1,7 +1,7 @@
 """Tests for scripts/analysis/r12_build.py — the R12 ADS-B feature store over any set of days and the train / serve tables.
 
-Synthetic fixtures for every branch; the real-data parity tests run in a CHILD pytest process (memory
-feedback_prc_heavy_tests_inflate_pytest_peak_rss) and skip only when the real files are absent.
+Synthetic fixtures for every branch; the real-data parity tests run in a CHILD pytest process (a heavy load in pytest's
+own process would raise the whole session's peak memory) and skip only when the real files are absent.
 Mutation rehearsals are recorded in each test's docstring ("Fails when ...").
 """
 from __future__ import annotations

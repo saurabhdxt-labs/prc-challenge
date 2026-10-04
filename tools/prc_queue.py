@@ -46,7 +46,7 @@ import sys
 import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-PY = "/opt/homebrew/bin/python3.11"
+PY = sys.executable                 # the interpreter running this tool runs its children
 CAMPAIGN = ROOT / "logs" / "campaign"
 PHANTOM_RUNNER_LOG = pathlib.Path.home() / "Projects" / "Phantom" / "reports" / "batch_runner" / "cron.stdout.log"
 KINDS = ("r12", "lock", "light")
@@ -133,6 +133,91 @@ def load_queue(obj) -> list:
         out.append(Step(id=sid, kind=kind, argv=argv, check=check, r12_step=d.get("step") if kind == "r12" else None,
                         group=group, guard=guard))
     return out
+
+
+GUARD_FAILED_RC = 70          # a guarded step whose mem_guard could not run: stopped, or (if it could not be released or
+                              # would not end) left as it is, still holding the heavy lock so nothing stacks on it
+GUARD_START_S = 3.0           # seconds a fresh guard gets before the driver checks that it is alive
+MAX_GUARD_RESPAWNS = 3
+STOP_WAIT_S = 600.0           # how long a stopped step gets to end after SIGTERM before the driver moves on
+
+
+def _stop_step(p, release, note, why: str, stop_s: float = STOP_WAIT_S) -> int:
+    """Stop a guarded step: release its tree first (a stopped process cannot act on SIGTERM), then terminate the lock
+    wrapper, which forwards the signal to the whole command and holds the lock until it has ended
+    (scripts/run_with_heavy_lock.py). A tree that cannot be released, or a step that has not ended `stop_s` seconds after
+    SIGTERM, is left as it is and said so — never waited on forever. Either way the step still holds the heavy lock, so
+    the next heavy step refuses (and retries) rather than stacking on it."""
+    if not release(p.pid):
+        note(f"{why}; its tree could not be released, so the step is left as it is for inspection")
+        return GUARD_FAILED_RC
+    p.terminate()
+    try:
+        p.wait(timeout=stop_s)
+    except subprocess.TimeoutExpired:
+        note(f"{why}; the step did not end within {stop_s:.0f} s of SIGTERM and is left running for inspection "
+             "(it holds the heavy lock)")
+        return GUARD_FAILED_RC
+    note(f"{why}; the step was stopped rather than run unguarded")
+    return GUARD_FAILED_RC
+
+
+def supervise_guarded(p, start_guard, release, note, poll_s=POLL_S, start_s=GUARD_START_S, sleep=time.sleep,
+                      max_respawns=MAX_GUARD_RESPAWNS) -> int:
+    """Wait for a guarded lock step while watching its mem_guard (BC-43, tooling audit T4).
+
+    `start_guard(restart)` launches a guard (restart=True for a replacement, so its log continues the run instead of
+    starting a new one); `release(pid)` SIGCONTs the step's tree and returns whether it worked. A guard that is gone at
+    the start check stops the step (a step that already ended keeps its own code: a lock refusal must still reach the
+    retry logic). A guard that dies while the step runs has the tree released (it may have died holding it stopped) and
+    is replaced, at most `max_respawns` times; past that the step is stopped. Returns the step's code, or
+    GUARD_FAILED_RC."""
+    guard = start_guard(False)
+    sleep(start_s)
+    rc = p.poll()
+    if rc is not None:
+        return rc
+    if guard.poll() is not None:
+        return _stop_step(p, release, note, f"mem_guard did not start (exit {guard.returncode})")
+    respawns = 0
+    while True:
+        try:
+            return p.wait(timeout=poll_s)
+        except subprocess.TimeoutExpired:
+            pass
+        if guard.poll() is None:
+            continue
+        code = guard.returncode
+        if respawns >= max_respawns:
+            return _stop_step(p, release, note, f"mem_guard died {respawns + 1} times (last exit {code})")
+        if not release(p.pid):
+            note(f"mem_guard exited (exit {code}) and the step's tree could not be released; left as it is for inspection")
+            return GUARD_FAILED_RC
+        respawns += 1
+        guard = start_guard(True)
+        note(f"mem_guard exited (exit {code}) while the step runs: its tree is released and the guard restarted "
+             f"({respawns} of {max_respawns})")
+
+
+def guard_hooks(pid: int, step_log, fh, start=None, run=subprocess.run) -> tuple:
+    """(start_guard, release, note) for supervise_guarded, for the lock step whose wrapper has `pid`: start_guard(restart)
+    starts mem_guard detached with its own output in its log (v34_launch.start_memguard); release(target) runs
+    `mem_guard.py --release target` and says whether it worked; note(msg) writes a timestamped line to the step log."""
+    start = start or V.start_memguard
+
+    def start_guard(restart: bool):
+        return start(pid, step_log, restart=restart)[1]
+
+    def release(target: int) -> bool:
+        r = run([PY, "-B", str(ROOT / "tools/mem_guard.py"), "--release", str(target)], cwd=ROOT, stdout=fh,
+                stderr=subprocess.STDOUT)
+        return r.returncode == 0
+
+    def note(msg: str) -> None:
+        fh.write(f"[{dt.datetime.now():%Y-%m-%d %H:%M:%S}] {msg}\n")
+        fh.flush()
+
+    return start_guard, release, note
 
 
 def guard_cmd(pid: int, step_log) -> list:
@@ -383,11 +468,9 @@ def _execute(d: pathlib.Path, step: Step) -> int:  # pragma: no cover - launches
             p = subprocess.Popen([PY, "-B", str(ROOT / "scripts/run_with_heavy_lock.py"), *step.argv], cwd=ROOT,
                                  stdout=fh, stderr=subprocess.STDOUT)
             if step.guard:                           # mem_guard SIGSTOPs the wrapper's whole tree (tools/mem_guard.py)
-                g = guard_cmd(p.pid, out)
-                subprocess.Popen(g, cwd=ROOT, start_new_session=True, stdin=subprocess.DEVNULL,
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                fh.write(f"mem_guard: {' '.join(g)}\n")
+                fh.write(f"mem_guard: {' '.join(guard_cmd(p.pid, out))}\n")
                 fh.flush()
+                return supervise_guarded(p, *guard_hooks(p.pid, out, fh))
             return p.wait()
         r = subprocess.run([PY, "-B", str(ROOT / "scripts/analysis/r12_launch.py"), "--step", step.r12_step,
                             "--detach", "--", *step.argv], cwd=ROOT, capture_output=True, text=True)

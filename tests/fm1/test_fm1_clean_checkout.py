@@ -29,10 +29,8 @@ SHIPPED_FILES = ("configs/fm1.yaml", "data/rome_hunt_2026_09_23/agent_E_rules.py
 
 
 def _code_files(d: str) -> list:
-    """prc/: every module (a new one ships in the same commit as the code that imports it); scripts/: only what git tracks,
-    so a loader that needs an uncommitted script fails here instead of on a clone."""
-    if d == "prc":
-        return [p for p in (ROOT / d).rglob("*.py") if "__pycache__" not in p.parts]
+    """The .py files git tracks under `d` (the index: committed or staged), so code that needs an untracked module or
+    script fails here instead of on a clone. (Content is the working copy; tools/clone_check.py tests the index's.)"""
     out = subprocess.run(["git", "-C", str(ROOT), "ls-files", "--", f"{d}/*.py"], capture_output=True, text=True,
                          check=True).stdout.split()
     assert out, f"git lists no tracked {d}/*.py"

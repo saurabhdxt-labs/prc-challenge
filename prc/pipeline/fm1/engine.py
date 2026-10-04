@@ -4,11 +4,13 @@ fit(cfg)      raw training months -> features -> encodings -> base learner (+ Ca
               (v26: the shipped chain's training frames + E2W's beta_W, prc/pipeline/fm1/unmatched.py; hgb: the provisional
               body) (+ MTX mapping when calibration is on) -> a ModelArtifact, saved under run.artifacts_dir by default.
 predict(art, rows)  raw scored rows -> the stage plan, in the fixed order, through the value ledger -> one row per scored
-              departure with TAXITIME_SEC_mvt, decided_by and every component's own output (component-validation rule 5).
+              departure with TAXITIME_SEC_mvt, decided_by and every component's own output.
 build_submission(art, scored file, template, out_dir, version) -> <team>_v<N>.parquet in the template's id order, plus the
-              per-row provenance and a manifest. Never overwrites; never reads a previous submission.
+              per-row provenance and a manifest (with the sha256 of the inputs the fit recorded, as they are at build
+              time, and of the published MTX file; and the inputs changed since the fit). Never overwrites; never reads
+              a previous submission.
 
-Heavy guard: a fit over more than HEAVY_ROWS raw training rows needs allow_heavy=True (the quality-gate skill first; one heavy
+Heavy guard: a fit over more than HEAVY_ROWS raw training rows needs allow_heavy=True (the pre-run checks first; one heavy
 job at a time; AC power). The tests' worlds are a few thousand rows.
 """
 from __future__ import annotations
@@ -174,9 +176,11 @@ def fit(config, *, save: bool = True, allow_heavy: bool = False, tier_overrides:
     files = {m: month_file(cfg, m) for m in train_months}
     n_raw = sum(pq.ParquetFile(p).metadata.num_rows for p in files.values())
     if n_raw > HEAVY_ROWS and not allow_heavy:
-        raise E.PipelineError(f"fit over {n_raw:,} raw training rows (> {HEAVY_ROWS:,}) is a heavy job: run the quality gate, "
+        raise E.PipelineError(f"fit over {n_raw:,} raw training rows (> {HEAVY_ROWS:,}) is a heavy job: run the pre-run checks, "
                               "then pass allow_heavy=True / --allow-heavy (one heavy job at a time, AC power)")
     inputs = fit_inputs(cfg, files)
+    if save:                                            # refused now, not after hours of fitting at the save
+        A.refuse_existing(A.artifact_dir(cfg, inputs))
     if cfg["features.adsb"]:
         F.check_table_sources(cfg.path("adsb.table_dir"), cfg["adsb.sources.adsb_fi"])
     if donor is not None:
@@ -229,7 +233,8 @@ def fit(config, *, save: bool = True, allow_heavy: bool = False, tier_overrides:
     if "base_model" in names:
         m = pd.concat(m_parts, ignore_index=True)
         del m_parts                                      # the per-month frames are a full second copy of m (2.1 GB)
-        coverage_recorded = m.coverage.to_numpy(copy=True)   # the data's coverage, for the support gate (not the dropout's)
+        # the data's coverage before any dropout, for the support gate; the column exists only with the ADS-B block (BC-42)
+        coverage_recorded = m.coverage.to_numpy(copy=True) if cfg["features.adsb"] else None
         fs, ds = cfg["adsb.train_dropout.flight"], cfg["adsb.train_dropout.day"]
         if fs > 0 or ds > 0:                             # fit only: the model learns to predict without the flight's track
             fl, nb = F.dropout_masks(m, fs, ds, seed=seeds[0])
@@ -425,6 +430,19 @@ def predict(art: A.ModelArtifact, rows: pd.DataFrame, log=_log) -> pd.DataFrame:
 # build-submission
 # =================================================================================================================
 
+def build_inputs(cfg, art: A.ModelArtifact) -> dict:
+    """The inputs the fit recorded (fit_inputs: training files, weather, routes, ADS-B tables, stack models, MTX
+    reference, E2 rules), hashed as they are at build time, plus the published MTX file when calibration is on; and
+    every recorded input whose hash differs from the artefact's fit-time record (empty = the same files). A build does
+    not need the training files: a configured month missing from data.raw_dir is reported as changed, not refused."""
+    present = {m: ps[0] for m, ps in files_by_month(cfg).items() if m in cfg["data.train_months"] and len(ps) == 1}
+    now = fit_inputs(cfg, present)
+    changed = sorted(k for k in set(now) | set(art.inputs) if now.get(k) != art.inputs.get(k))
+    if cfg.mtx_enabled:
+        now["mtx/published"] = A.sha256_file(cfg.path("calibration.mtx.published_csv"))
+    return {"inputs": now, "changed_since_fit": changed}
+
+
 def build_submission(art: A.ModelArtifact, out_dir, version: int | None = None, scored_file=None, template_file=None,
                      log=_log) -> dict:
     cfg = art.config
@@ -444,6 +462,10 @@ def build_submission(art: A.ModelArtifact, out_dir, version: int | None = None, 
     rows = pd.read_parquet(scored_file)
     template = pd.read_parquet(template_file)
     pred = predict(art, rows, log=log)
+    built_on = build_inputs(cfg, art)
+    if built_on["changed_since_fit"]:
+        log(f"WARNING: {len(built_on['changed_since_fit'])} input(s) differ from the artefact's fit-time hashes "
+            f"(recorded in the manifest): {built_on['changed_since_fit'][:5]}")
     tids = template.MVT_ID_mvt.to_numpy(float)
     if not pd.Index(tids).is_unique or set(tids) != set(pred.MVT_ID_mvt):
         raise E.ValidationError(f"template ids ({len(tids):,}) and predicted departures ({len(pred):,}) differ")
@@ -457,7 +479,8 @@ def build_submission(art: A.ModelArtifact, out_dir, version: int | None = None, 
     report = {**pred.attrs.get("fm1_report", {}), "submission": target.name, "sha256": A.sha256_file(target),
               "scored_file": {"path": str(scored_file), "sha256": A.sha256_file(scored_file)},
               "template_file": {"path": str(template_file), "sha256": A.sha256_file(template_file)},
-              "artifact_dir": str(art.directory) if art.directory else None, "config_hash": cfg.hash}
+              "artifact_dir": str(art.directory) if art.directory else None, "config_hash": cfg.hash,
+              "inputs_at_build": built_on["inputs"], "inputs_changed_since_fit": built_on["changed_since_fit"]}
     man.write_text(json.dumps(report, indent=1, sort_keys=True, default=str))
     log(f"wrote {target} ({len(sub):,} rows), provenance {prov.name}, manifest {man.name}")
     return {"submission": target, "provenance": prov, "manifest": man, "report": report}

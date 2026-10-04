@@ -119,7 +119,7 @@ def fit_arm(X, label, fit, es, X_test, params, feature_names, max_rounds=R.MAX_R
     m = lgb.train(params, ds, max_rounds, valid_sets=[dv], callbacks=[lgb.early_stopping(patience, verbose=False)])
     raw = m.predict(X_test, num_iteration=m.best_iteration)
     if not np.all(np.isfinite(raw)):
-        raise RuntimeError("non-finite predictions")            # Part 5 rule 1: in-flight abort
+        raise RuntimeError("non-finite predictions")            # in-flight abort
     imp = {n: float(v) for n, v in zip(feature_names, m.feature_importance("gain"))}
     return raw, int(m.best_iteration), imp
 

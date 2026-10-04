@@ -334,6 +334,7 @@ def test_rule_rows_empty_scope_returns_empty_frame():
 
 # --------------------------------------------------------------------------- real-data: 2026 ARN never touches ARC's own 42
 
+@pytest.mark.devtree
 def test_rows_2026_never_touches_arcs_42_shipped_rows():
     """SLOW (real data: reads ranking.parquet's needed columns, ~0.5-0.8 s; all other tests in this file are pure/
     synthetic and run in well under 1 s). ARC's own raw join changed 42 rows between v16 and v17 (submissions/merry-quicksand_v{16,17}.parquet) — the

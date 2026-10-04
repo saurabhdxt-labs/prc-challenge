@@ -103,12 +103,23 @@ def _write_json(p: pathlib.Path, obj) -> None:
     p.write_text(json.dumps(obj, indent=1, sort_keys=True, default=str))
 
 
-def save(art: ModelArtifact, parent=None) -> pathlib.Path:
-    parent = pathlib.Path(parent) if parent is not None else art.config.path("run.artifacts_dir")
-    final = parent / art.key
+def artifact_dir(config, inputs: dict, parent=None) -> pathlib.Path:
+    """Where the artefact of this config fitted on these inputs is saved: <parent>/<config hash[:12]>-<input digest[:8]>,
+    known before any fitting (ModelArtifact.key is the same name)."""
+    parent = pathlib.Path(parent) if parent is not None else config.path("run.artifacts_dir")
+    return parent / f"{config.short_hash}-{data_digest(inputs)[:8]}"
+
+
+def refuse_existing(final: pathlib.Path) -> None:
     if final.exists():
         raise E.ArtifactError(f"artefact {final} already exists; FM1 never overwrites an artefact (same config and data "
                               "= same model; remove it deliberately to refit)")
+
+
+def save(art: ModelArtifact, parent=None) -> pathlib.Path:
+    parent = pathlib.Path(parent) if parent is not None else art.config.path("run.artifacts_dir")
+    final = parent / art.key
+    refuse_existing(final)
     parent.mkdir(parents=True, exist_ok=True)
     tmp = parent / f".{art.key}.tmp-{os.getpid()}"
     if tmp.exists():

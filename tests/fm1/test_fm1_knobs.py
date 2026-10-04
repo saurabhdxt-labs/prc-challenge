@@ -1,6 +1,6 @@
 """FM1 config schema (prc/pipeline/fm1/knobs.py) — acceptance test AT1 of plans/PREREG_fm1_2026_09_28.md.
 
-Config is code (testing.md Part 1 rule 11): every knob documented, every value validated, every mistake loud with the
+Config is code: every knob documented, every value validated, every mistake loud with the
 dotted path. Mutation rehearsal (manual, 2026-09-28) is recorded per test and in tests/fm1/MUTATION_FM1.md.
 """
 from __future__ import annotations
@@ -34,6 +34,7 @@ def _set(raw: dict, path: str, value) -> dict:
 
 # ---------------------------------------------------------------------------------------------- the schema itself
 
+@pytest.mark.devtree
 def test_every_knob_is_documented():
     """Mutation: blank one knob's `effect` in knobs.SCHEMA -> check_schema raises -> this test goes red."""
     K.check_schema(K.SCHEMA)          # raises on any gap
@@ -53,6 +54,7 @@ def test_check_schema_refuses_an_undocumented_knob():
         K.check_schema((*K.SCHEMA, bad))
 
 
+@pytest.mark.devtree
 def test_check_evidence_files_refuses_a_missing_evidence_file():
     """The development tree's documentation check (BC-38: it used to run at import, inside check_schema, and broke every
     clone). Mutation: drop the exists() test -> red."""

@@ -3,7 +3,7 @@
 production feature list outside the frozen v33 legacy set.
 
 Nothing here loads real data or takes the heavy lock: the fold loader and the fitter are injected as fakes.
-Mutation rehearsal (2026-09-24, recorded per testing.md rule 22): see each test's docstring.
+Mutation rehearsal (2026-09-24): see each test's docstring.
 """
 from __future__ import annotations
 
@@ -74,7 +74,7 @@ def test_drop_seconds_refuses_duplicates():
 # ---------------------------------------------------------------- the negative invariant
 
 def test_seconds_scanner_flags_a_new_list_and_ignores_non_lists():
-    """The scanner itself must go RED on a planted list (testing.md Part 3: has it ever been red)."""
+    """The scanner itself must go RED on a planted list (a check never seen red proves nothing)."""
     fake = types.SimpleNamespace(GOOD=["proxy", "sp"], BAD=("hr", "mvt_sec"), TEXT="mvt_sec", N=3)
     assert N.lists_with_seconds({"fake": fake}) == {"fake.BAD"}
 
@@ -98,6 +98,7 @@ def test_sklearn_side_production_sources_never_mention_a_seconds_column():
         assert bad == [], (rel, bad)
 
 
+@pytest.mark.devtree
 def test_adsb_stack_manifest_features_hold_no_seconds_column():
     feats = json.loads((ROOT / "data/adsb/v2/models_v4/MANIFEST.json").read_text())["feats"]
     assert len(feats) == 33 and not any(c in SEC for c in feats)

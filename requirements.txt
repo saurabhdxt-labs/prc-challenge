@@ -1,7 +1,11 @@
-pandas==3.0.1
+# FM1 runtime packages for the project interpreter (Python version: .python-version).
+# Exact pins of the versions the final model was fitted and served with; checked by tools/env_check.py.
+# The CatBoost learner runs in its own environment: requirements-catboost.txt.
+lightgbm==4.5.0
 numpy==2.4.3
+pandas==3.0.1
 pyarrow==23.0.1
+PyYAML==6.0.3
 scikit-learn==1.8.0
 scipy==1.17.1
-requests==2.33.0
-lightgbm==4.5.0
+torch==2.11.0

@@ -130,13 +130,30 @@ def test_the_dropout_knobs_refuse_bad_values(over, msg):
 
 @pytest.fixture(scope="module")
 def dropout_fits(e2e_world, fm1_world_mod):
-    """(world, fit without dropout, fit with flight 0.3 / day 0.15) — one pair of world fits for the slow tests below."""
+    """(world, fit without dropout, fit with flight 0.3 / day 0.15, what the dropout fit drew and hid) — one pair of world
+    fits for the slow tests below. `seen`: the (flight, network) masks dropout_masks returned and every set_unheard call
+    as (rows hidden, network)."""
     from prc import api
     world = e2e_world[0]
     quiet = lambda *a, **k: None  # noqa: E731
     base = K.parse_config(fm1_world_mod.config_raw(world))
     on = base.replace(**{"adsb.train_dropout.flight": 0.3, "adsb.train_dropout.day": 0.15})
-    return world, api.fit(base, save=False, log=quiet), api.fit(on, save=False, log=quiet)
+    seen = {"masks": None, "unheard": []}
+    real_masks, real_unheard = F.dropout_masks, F.set_unheard
+
+    def masks(*a, **k):
+        seen["masks"] = real_masks(*a, **k)
+        return seen["masks"]
+
+    def unheard(frame, cols, rows, network):
+        seen["unheard"].append((int(np.asarray(rows).sum()), network))
+        return real_unheard(frame, cols, rows, network=network)
+    a0 = api.fit(base, save=False, log=quiet)
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(F, "dropout_masks", masks)
+        mp.setattr(F, "set_unheard", unheard)
+        a1 = api.fit(on, save=False, log=quiet)
+    return world, a0, a1, seen
 
 
 @pytest.mark.slow
@@ -145,10 +162,13 @@ def test_fit_hides_adsb_on_training_rows_only_and_reports_it(dropout_fits, monke
     rows are served as they are). Mutation: skip the dropout in fit -> no report, identical model -> red; call it in
     predict -> red."""
     from prc import api
-    world, a0, a1 = dropout_fits
+    world, a0, a1, seen = dropout_fits
     quiet = lambda *a, **k: None  # noqa: E731
     rep = a1.fit_report["adsb_dropout"]
-    assert rep["n_flight"] > 0 and rep["n_network"] > 0 and rep == {**rep, "flight_share": 0.3, "day_share": 0.15}
+    fl, nb = seen["masks"]
+    assert rep == {"flight_share": 0.3, "day_share": 0.15, "n_flight": int(fl.sum()), "n_network": int(nb.sum())}
+    assert fl.sum() > 0 and nb.sum() > 0 and not (fl & nb).any()
+    assert seen["unheard"] == [(int(fl.sum()), False), (int(nb.sum()), True)]     # exactly the drawn rows were hidden
     assert "adsb_dropout" not in a0.fit_report
 
     def refuse(*a, **k):
@@ -160,11 +180,32 @@ def test_fit_hides_adsb_on_training_rows_only_and_reports_it(dropout_fits, monke
 
 
 @pytest.mark.slow
+def test_regression_bug_42_a_fit_without_the_adsb_block_reads_no_coverage(e2e_world, fm1_world_mod):
+    """BC-42 (2026-10-04, line-by-line audit; origin prc/pipeline/fm1/engine.py:232, introduced by commit 75943ef):
+    the fix above hoisted `coverage_recorded = m.coverage...` out of the ADS-B stack branch, so every fit with a base
+    model read the `coverage` column — which exists only when the ADS-B block is attached. A legal configuration
+    without ADS-B (features.adsb=false, adsb.stack.enabled=false; the knob cross-checks allow it) then died with an
+    unnamed AttributeError after every frame was built. Seen red 2026-10-04 before the fix. A fit without ADS-B must
+    succeed, record no training coverage share and serve every scored departure."""
+    from prc import api
+    world = e2e_world[0]
+    quiet = lambda *a, **k: None  # noqa: E731
+    cfg = K.parse_config(fm1_world_mod.config_raw(world),
+                         overrides=["features.adsb=false", "adsb.stack.enabled=false"])
+    art = api.fit(cfg, save=False, log=quiet)
+    assert art.train_covered_share == {}
+    scored = pd.read_parquet(world / "raw" / "scored.parquet")
+    pred = api.predict(art, scored, log=quiet)
+    assert len(pred) == int((scored.PHASE_mvt == "DEP").sum())
+    assert not pred.decided_by.astype(str).str.contains("adsb_stack").any()
+
+
+@pytest.mark.slow
 def test_the_support_gate_share_describes_the_training_data_not_the_dropout(dropout_fits):
     """End-of-session review 2026-10-03 (finding 6, owner: "fix the dropout one now"): the support gate's training
     coverage share (coverage_ratio rule) is the share of the data as recorded — the dropout hides tracks to teach the
     base model, it does not change which coverage regime the stack was trained on. Before the fix the share was read
     after set_unheard rewrote `coverage`, so a dropout fit stored a lower share and shifted the gate (seen red
     2026-10-03 09:47 EDT on the world: EDDF 0.658 / LSZH 0.503 stored vs 0.939 / 0.969 as recorded). Mutation: read the share from m.coverage after the dropout -> red."""
-    _, a0, a1 = dropout_fits
+    _, a0, a1, _ = dropout_fits
     assert a0.train_covered_share and a1.train_covered_share == a0.train_covered_share

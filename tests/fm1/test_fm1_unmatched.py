@@ -6,8 +6,7 @@ storm anchor. ARN (v21) is DROPPED (FMA §4.2).
 
 Tiers: pure helpers on constructed arrays (fast); the real-data-shaped e2e world (slow: real fits); the REAL replay of every
 stage against the stored step outputs v7 / v10 / v12 / v17 / v26 / v31 / v33 on all 5,290 scored unmatched rows (slow, in a
-child process: the shipped loader unm_congestion.load_real peaks at 3.3 GB, memory
-feedback_prc_heavy_tests_inflate_pytest_peak_rss).
+child process: the shipped loader unm_congestion.load_real peaks at 3.3 GB).
 
 Mutation rehearsal per test is recorded in its docstring and in tests/fm1/MUTATION_FM1.md (M49+).
 """
@@ -277,6 +276,7 @@ def test_lane_frames_equal_the_shipped_loader(wcfg):
 
 # ---- BC-31 siblings: every other shipped call with a hidden month / row-count precondition
 
+@pytest.mark.devtree
 def test_regression_bug_31_mtx_refuses_a_single_training_month_by_name():
     """BC-31 sibling (a): MTX's leave-month-out (mtx_calib.lmo_targets) fits each month on the OTHER months, so one
     training month gives an empty fit and the shipped `ValueError: fit_excess: empty cells`. FM1 refuses it by name first.
@@ -330,6 +330,7 @@ def test_serve_refuses_scored_rows_without_a_matched_departure(wcfg, wscored):
 
 # ---------------------------------------------------------------------------------------------- the REAL replay
 
+@pytest.mark.devtree
 @pytest.mark.slow
 def test_unmatched_lane_replays_every_shipped_step_on_all_5290_scored_rows():
     """Per-component replay (Amendment A3): FM1 fits the lane from the twelve raw 2025 files and serves the 2026 scored

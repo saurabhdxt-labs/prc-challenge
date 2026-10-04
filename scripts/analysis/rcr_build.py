@@ -153,7 +153,7 @@ def run(smoke: bool = False) -> None:
         m = lgb.train(p, ds, 60 if smoke else MAX_ROUNDS, valid_sets=[dv],
                       callbacks=[lgb.early_stopping(PATIENCE, verbose=False)])
         raw = m.predict(X[is_test], num_iteration=m.best_iteration)
-        if not np.all(np.isfinite(raw)):                         # Part 5 rule 1: in-flight abort
+        if not np.all(np.isfinite(raw)):                         # in-flight abort
             raise RuntimeError(f"{arm}: non-finite predictions")
         yhat = np.maximum(proxy[is_test] - raw, 1.0) if tgt == "delta" else np.maximum(raw, 1.0)
         preds[arm] = yhat

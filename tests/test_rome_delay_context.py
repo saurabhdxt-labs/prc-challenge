@@ -142,7 +142,7 @@ def test_context_scale_guard_refuses_a_year_wide_window():
 def test_month_block_lower_is_a_percentile_interval_over_resampled_months():
     """Decisional for RDC C2 and DPN. Two months of 100 rows, every row +1 priced-unit in month 1 and +3 in month 2: resampling
     MONTHS gives totals {200, 400, 600} so the interval is [200, 600]; resampling ROWS would give ≈ [372, 428]. Fails if the
-    resampling unit is rows or the pricing is dropped (end-work rehearsal: the row-resampling mutation survived the old test)."""
+    resampling unit is rows or the pricing is dropped (end-of-session rehearsal: the row-resampling mutation survived the old test)."""
     k = 344_841.0
     g = np.concatenate([np.full(100, 1.0), np.full(100, 3.0)]) * k
     m = np.repeat([1, 2], 100)
@@ -151,7 +151,7 @@ def test_month_block_lower_is_a_percentile_interval_over_resampled_months():
 
 
 def test_permute_within_month_actually_moves_values():
-    """End-work review: the original test passed for an identity function. Fails if no value moves."""
+    """End-of-session review: the original test passed for an identity function. Fails if no value moves."""
     f = pd.DataFrame({"month": [1] * 50, "x": np.arange(50, dtype=float)})
     p = R.permute_within_month(f, ["x"], seed=0)
     assert (p.x.to_numpy() != f.x.to_numpy()).sum() > 40

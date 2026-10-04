@@ -124,7 +124,8 @@ SCHEMA: tuple = (
        "The airport registry. A scored row at an airport outside it is refused (input contract).",
        "reports/final_model/AUDIT_AND_PLAN_2026_09_28.md", unique=True),
     _K("airports.tz", "tz_map", dict(TEN_TZ),
-       "IANA time zone per airport; must cover exactly airports.codes. Read by dayoff_tz=local and the MTX local month.",
+       "IANA time zone per airport; must cover exactly airports.codes. Read by dayoff_tz=local (the provisional hgb body). "
+       "MTX keys scored rows by UTC month although the published figures are local months (LIMITATIONS 8).",
        "scripts/analysis/mtx_source.py:24"),
     # ---- lanes --------------------------------------------------------------------------------------------------
     _K("lanes.matched", "bool", True,
@@ -229,7 +230,9 @@ SCHEMA: tuple = (
     _K("matched.lightgbm.patience", "int", 200, "Early-stopping patience (rounds without improvement on es_months).",
        "scripts/lgbm_submit.py:178", lo=1, hi=100_000),
     _K("matched.catboost.learning_rate", "float", 0.02,
-       "CatBoost learning rate (0.02 = the R13 full tier; 0.05 screen).", "scripts/analysis/r13_cat.py CB_LR",
+       "CatBoost learning rate of the matched half-blend. The final fit used 0.02 and reached its round cap (LIMITATIONS "
+       "13); the stored ADS-B stack was trained on a CatBoost holdout fitted at 0.05 (the R13 registration's amended full "
+       "tier), so the stack is served on a differently made F (LIMITATIONS 16).", "scripts/analysis/r13_cat.py CB_LR",
        lo=1e-4, hi=1.0),
     _K("matched.catboost.depth", "int", 8, "CatBoost symmetric-tree depth (2^depth leaves per tree).", "scripts/analysis/r13_cat.py CB_BASE", lo=1, hi=16),
     _K("matched.catboost.l2_leaf_reg", "float", 3.0, "CatBoost L2 regularisation of the leaf values (shrinks small leaves).",
@@ -336,7 +339,7 @@ SCHEMA: tuple = (
        "eligible departure takes EOBT_1 := min(EOBT_1, LOBT) before the feature path. Eligible = a departure at an airport "
        "in modules.eobt_clip.airports with AOBT_3, EOBT_1, LOBT and MVT_TIME present. Predict time only (the model was "
        "trained on the unclipped field). A batch of the scored file is decided on the scored file's whole cell. Why: from "
-       "July 2026 LFPG's EOBT_1 carries revisions it did not carry in 2025 (35.1 % vs 3.9 - 7.1 %); priced on a held-out "
+       "July 2026 LFPG's EOBT_1 carries revisions it did not carry in 2025 (35.1 % vs 3.8 - 7.1 %); priced on a held-out "
        "2025 simulation at about +195 ... +290 bmse (LightGBM only).", "plans/PREREG_clp_lfpg_eobt_clip_2026_10_02.md", late=1),
     _K("modules.eobt_clip.airports", "str_list", ["LFPG"],
        "Airports the EOBT clip may act on. Default LFPG only: elsewhere EOBT_1 > LOBT is 8 - 35 % in both 2025 and 2026 "

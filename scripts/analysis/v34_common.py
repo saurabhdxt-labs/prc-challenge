@@ -28,7 +28,6 @@ PREREG = ROOT / "plans" / "PREREG_nsc_no_seconds_2026_09_24.md"
 HASHLOG = ROOT / "reports" / "nsc_prereg_hashes.log"
 OUT_ROOT = ROOT / "data" / "nsc_v34"
 SMOKE_ROOT = ROOT / "logs" / "nsc_v34_scratch"
-PY = "/opt/homebrew/bin/python3.11"
 
 #: the label-seconds channel (scripts/stand_ab.py:198-200); equal to nsc_fold.SECONDS_COLS (tested)
 SECONDS_COLS = ("aobt_sec", "mvt_sec", "sched_sec")

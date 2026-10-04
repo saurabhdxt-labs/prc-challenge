@@ -33,7 +33,10 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 CAT_PY = pathlib.Path.home() / ".venvs" / "prc-catboost" / "bin" / "python3"
 WORKER = ROOT / "scripts" / "analysis" / "r13_cat_worker.py"
 
-#: registered in PREREG R13 (arm 1); the learning rate is set per tier by cat_config
+#: registered in PREREG R13 (arm 1); the learning rate is set per tier by cat_config. CB_LR["full"] = 0.02 is the
+#: pre-amendment value: the registration's AMEND-A1 replaced the full-tier rate by 0.05, and the CatBoost holdout behind
+#: the stored lgbcat stack was run with --screen (0.05, seeds 0-2). The constant is kept as it was when that stack was
+#: built; a rebuild of the stack follows the amendment by running --screen.
 CB_BASE = dict(loss_function="RMSE", depth=8, l2_leaf_reg=3.0, border_count=254, boosting_type="Plain",
                bootstrap_type="Bernoulli", subsample=0.8, thread_count=8)
 CB_LR = {"screen": 0.05, "full": 0.02, "smoke": 0.05}

@@ -13,7 +13,9 @@ through the shipped build_submission.derive): sp, hr, dayoff (data.dayoff_tz), t
 (unm_congestion.airport_hour_witness, label-free) and smoothed y-encodings of build_submission.NF_ENCODED + ars.
 
 Every block is built through the shipped builders' public functions (imported, never copied, never edited). Labels are
-read only on training rows, only into `y` / `delta`, and never into a design column (rows.assert_design_clean).
+read only on training rows: into `y` / `delta`, and into the smoothed target encodings (`te_*` / `de_*`, fitted on every
+training row, so in-sample for those rows; LIMITATIONS 17). No label, label derivative or `*_sec` column is itself a
+design column (rows.assert_design_clean checks the names), and a scored row never carries a label.
 """
 from __future__ import annotations
 

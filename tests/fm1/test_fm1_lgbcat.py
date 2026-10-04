@@ -67,6 +67,7 @@ def test_stack_base_knob_default_and_contract():
 
 # ---------------------------------------------------------------------------------------------- v46's stored parts
 
+@pytest.mark.devtree
 @pytest.mark.slow
 def test_stack_base_reproduces_v46s_blend_and_served_values_from_its_stored_components():
     """On v46's own stored parts: stack_base(pred_r12, pred_cat, lgbcat) == pred_lgbcat on all 339,551 rows, and
@@ -139,6 +140,7 @@ def test_world_lgbcat_fits_the_catboost_even_without_the_half_blend(e2e_world, f
 
 # ---------------------------------------------------------------------------------------------- the REAL stack stage
 
+@pytest.mark.devtree
 @pytest.mark.slow
 def test_lgbcat_stack_stage_on_the_dwg_tables_replays_v46s_residual():
     """FM1's stack stage (C.stack_values: the package frame from the RAW scored rows with adsb.table_dir = the DWG tables,

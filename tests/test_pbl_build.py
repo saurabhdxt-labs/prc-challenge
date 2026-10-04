@@ -362,8 +362,7 @@ def test_decide_still_says_includes_zero_when_the_ci_straddles_zero(M):
 # --- day_block_bootstrap: the function that produces EVERY CI this arm reports -------------------
 # It had NO test. The "X1 cross-check" that was claimed to guard it (pbl_build.py score_arm) is an
 # algebraic identity -- opc's gain_weighted_mse * n / 339551 reduces to gain.sum()/344841 exactly, so
-# it can never fail. Caught by adversarial review at the end-work gate 2026-09-20.
-# Repeat of feedback_public_function_with_no_test.md.
+# it can never fail. Caught by adversarial review at the end-of-session review 2026-09-20.
 
 def _flat(n_days, rows_per_day, gain_per_row, month=1, gain_days=None):
     """y=0, cand=0, base=sqrt(gain) on the chosen days -> per-row gain is exactly gain_per_row."""

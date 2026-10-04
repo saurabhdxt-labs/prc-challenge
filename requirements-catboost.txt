@@ -1,0 +1,4 @@
+# The CatBoost worker's environment (~/.venvs/prc-catboost; Python version: .python-version).
+# CatBoost runs in a separate process so its OpenMP runtime never shares a process with LightGBM's.
+catboost==1.2.10
+numpy==1.26.4

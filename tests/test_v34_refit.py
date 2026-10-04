@@ -75,6 +75,7 @@ def test_booster_files_are_new_paths_under_the_step_dir_never_the_shipped_names(
         R.booster_files(R.design("F"), ROOT / "data" / "cache_stand")
 
 
+@pytest.mark.devtree
 def test_fold_move_bar_is_three_times_the_fw_nsc_fold_rms_move():
     """The FW / ORL tripwire bar: 3 x the RMS taxi move FW-NSC made vs the FW record on fold A (data/nsc_run)."""
     p = pd.read_parquet(ROOT / "data/nsc_run/nsc_fold_preds.parquet", columns=["proxy", "incumbent", "nsc"])

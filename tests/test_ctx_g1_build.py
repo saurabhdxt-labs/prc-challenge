@@ -86,7 +86,7 @@ def test_sha256_matches_hashlib(tmp_path):
 
 
 def test_support_checks_k3_fails_when_scope_rows_leave_the_2025_range():
-    """Protocol/end-work review: K3 was never seen failing in tests, yet it failed in the real build. 2026 ctx_n all above the
+    """End-of-session review: K3 was never seen failing in tests, yet it failed in the real build. 2026 ctx_n all above the
     2025 p99 must FAIL K3 for ctx_n and still PASS for the in-range features. Fails if K3 is hard-coded to pass or its bar is
     loosened below the share observed (0.0 here)."""
     a = _ctx(1, np.full(50, 5000.0), np.linspace(50, 100, 50), np.full(50, 2000.0), np.full(50, 0.2))

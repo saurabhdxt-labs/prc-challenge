@@ -1,10 +1,13 @@
-# FM1 — limitations (first written 2026-09-28; updated 2026-10-02)
+# FM1 — limitations (first written 2026-09-28; updated 2026-10-04 after the line-by-line audit)
 
-1. **Validation is a floor, not a score.** The 2025 validation (METHOD §6) runs at the screen tier with the ADS-B stack
-   off; the full-tier configuration has no clean 2025 fold. Its only 2026 measurement is the public board (v50 251.4767,
-   METHOD §8), which is also where every board-kept step was selected.
-2. **Unported components.** adsb.fi and the storm-as-feature form (owner decision 2's LOEO re-validation) are declared
-   and refused by `fit` when switched on. ARN (v21) is DROPPED: its 8 scored 2026 rows keep their Rome / E2 values.
+1. **Validation is a reference point, not a score.** The 2025 validation (METHOD §6) runs at the screen tier with the ADS-B stack
+   off; the full-tier configuration has no clean 2025 fold. Its only 2026 measurements are the public board (v50 251.4767,
+   v55 249.9168; METHOD §8), which is also where every board-kept step was selected. No number has a run-to-run variance
+   estimate: each board file is one run of the three-seed ensemble (`run.seeds` 0, 1, 2) and the screen tier uses one
+   seed, so board differences of a few hundred MSE may be within run-to-run noise.
+2. **Unported components.** The storm-as-feature form (owner decision 2's LOEO re-validation) is declared and refused by
+   `fit` when switched on. ARN (v21) is DROPPED: its 8 scored 2026 rows keep their Rome / E2 values. (adsb.fi was ported
+   on 2026-10-03: `adsb.sources.adsb_fi`, serve table only; item 12.)
 2b. **LDI's constants are not refitted.** FM1 applies LDI's registered shifts (8.0 / 35.4 / 122.5 s; owner decision
    2026-09-29) and computes the target rows itself. Re-deriving the shifts from raw data needs two extra held-out fits
    (February out; December + March out) and is not done. The severity cut (late share >= 0.5, min temperature <= 1 C) was
@@ -36,7 +39,7 @@
    forecaster and on only for the scored-period build. It keys scored rows by the UTC month of MVT while the published
    cells are local months (as v42 did).
 9. **2026 drift (label-free audit of the 133 inputs, 2026-10-02).** At **LFPG in July 2026 the EOBT_1 field changed how it is
-   produced**: the share of matched departures with EOBT_1 later than LOBT is 3.9 – 7.1 % in every 2025 month and 6.1 % in
+   produced**: the share of matched departures with EOBT_1 later than LOBT is 3.8 – 7.1 % in every 2025 month and 6.1 % in
    January 2026, but 35.1 % in July 2026 (median AOBT_3 − EOBT 600 s → 120 s while delays fell). `aobt_eobt`, the base
    model's largest input (19.9 % of split gain), therefore means something else there. The cell's mean prediction is on
    the published monthly target (gap 2.7 s), so the damage is row-level. Also flagged: LTFM January (later off-blocks
@@ -57,7 +60,11 @@
     rows (measured 2025 rate 0.014 %); above that the run refuses (`adsb.serve_missing_max_share`).
 11. **Stack residual rounding** depends on the batch size at the 1e-7 s level (float32 MLP); a row within 4e-7 s of a .5
     boundary could move by 1 s.
-12. **adsb.fi cannot be re-fetched** (a live capture, July 2026 only; non-commercial terms).
+12. **adsb.fi cannot be re-fetched** (the owner's live capture of July 2026; non-commercial terms, never redistributed),
+    so v55 is reproducible only on the machine that holds the capture. The challenge's eligibility page asks for external
+    data that is openly accessible and usable and for reproducible results; whether a non-commercial live capture meets
+    that is the organiser's call. v51 (251.1335) is the same model without it. Every build also needs the stored ADS-B
+    stack models, which the current code cannot regenerate byte for byte (REPRODUCE.md).
 13. **The CatBoost half is under-trained.** In the final fit CatBoost reached its round cap (best iteration 29,993 of
     `matched.catboost.max_rounds` 30,000 at learning rate 0.02; early stopping never fired). A higher cap needs a new full
     fit (~10 h). The board still measured the half-blend as worth +166 MSE (v53 vs v50).
@@ -66,8 +73,39 @@
     label-free `coverage_ratio` gate would switch EDDF off, and the board measured that as no better (v52, −10.6 MSE).
     The flips are large by airport-month (LIRF July 93.5 % → 0.2 %, EDDF July 89 % → 59 %; EGLL July 21 % → 98 %, LEMD
     January 0 % → 97 %). Imposing July 2026's losses on held-out July 2025 costs the model about 860 bmse (LIRF 585, EDDF
-    278; plans/PREREG_acr…). Training with ADS-B randomly hidden (`adsb.train_dropout.*`, off) recovers almost none of it
+    278; the ACR registration in the development record). Training with ADS-B randomly hidden (`adsb.train_dropout.*`, off) recovers almost none of it
     and costs accuracy where ADS-B is present: the loss is information, not calibration, so only another track source can
     restore it.
 15. **Full-fit memory.** The full fit holds ~15 GB in the main process plus ~5 GB in the CatBoost worker; the dry-run memory
     gate measures neither the grown models nor the worker. Plan for ~20 GB or run under a memory guard (REPRODUCE).
+16. **The stored ADS-B stack is served on a differently made F.** The lgbcat stack models were trained on
+    F = 0.5 × the v36 LightGBM holdout (older ADS-B tables, 125 features, learning rate 0.01) + 0.5 × a CatBoost holdout at
+    learning rate 0.05 (the R13 registration's amended full tier). FM1 serves them on its own 0.5 × LightGBM (133 features)
+    + 0.5 × CatBoost at learning rate 0.02 (which reached its round cap, item 13). F is an input of the stack, so its
+    residual is applied to an F distribution it did not see in training. The only bound is a label-free check against v46
+    (30.5 s RMS per airport-month after removing each cell's mean, registered limit 81.6 s). Retraining the stack on
+    FM1's own out-of-fold F is the remedy; it changes predictions and was not done.
+17. **In-sample choices.** The 24 target encodings (`te_*`, `de_*`) are smoothed label means fitted on every matched
+    training row, including the early-stopping months and the rows the learner then fits (as the shipped pipeline
+    did): each row's encoding contains its own label at weight 1/(n+50), which flatters early stopping on thin keys. The
+    unmatched lane's frozen constants (E2 coefficients, the E1 / date-slip / local-day rules, ARC, the two day-check p99
+    thresholds, LDI's shifts) were chosen on 2025 data that includes the months the validation folds hold out
+    (`scripts/analysis/urp_replay.py` labels those steps IN-SAMPLE). Validation numbers for those components overstate
+    what an unseen month would show (item 3).
+18. **Provenance of the stored artefacts.** v55's artefact was derived (`fit --reuse-from`) at 02:39 EDT on 2026-10-03
+    on 33ee40a plus uncommitted changes that were committed 22 minutes later (0709298); its donor (v50) was fitted at
+    03:16 EDT on 2026-10-02 on b285bda plus uncommitted changes committed later that morning (32aadc1). The artefacts
+    record the git sha and a dirty flag, not the uncommitted diff. The stored stack's MANIFEST records sha
+    fdeb704 with "-dirty", a commit that predates its producer scripts. The rebuild check in REPRODUCE.md (the current
+    code reproduces the v55 file from its artefact) is the evidence that the committed code serves what was uploaded.
+19. **A training file with a one-row spill-over month.** FM1 splits each raw file by the UTC month of take-off; six of the
+    twelve 2025 files hold one row stamped 23:59:5x of the previous month. The shipped feature builder asserts more than
+    100 stand keys per chunk, so a matched departure in such a one-row chunk would stop fit or predict. The 2025 rows there
+    are two unmatched departures and four arrivals, and the 2026 scored file has no such chunk; a new data drop could.
+20. **adsb.fi join checks have two blind spots.** The AFI acceptance's join-quality gate measures take-off time
+    agreement, which is zero by construction for MVT-anchored joins (1,809 of the 11,690 newly joined July rows), and
+    it never examines rows that were joined before and joined differently after the merge (501 callsign changes, 666
+    first-seen times more than 30 min earlier). Misjoins to a previous rotation may remain among the July serve rows.
+21. **Partial batches are refused only by LDI.** LDI refuses a partial local day (PartialDayError); the unmatched lane's
+    set-level rules (item 3c) have no such check, so serve the whole scored file.
+

@@ -436,12 +436,20 @@ def test_regression_bug_34_real_fold_a_record_test_does_not_raise_the_pytest_pea
     """In-process the real fold-A test above raised the suite's peak RSS 0.97 -> 1.55 GB (2026-09-29 suite; BC-34). Calling
     it here must leave ru_maxrss within 300 MiB of where it was."""
     import os
-    import resource
     if os.environ.get(ISO.CHILD_ENV) == "1":
         pytest.skip("runs only in the parent process (the child is where the load happens, by design)")
-    before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    before = _peak_rss_bytes()
     test_fold_flights_on_the_real_fold_a_record()
-    assert resource.getrusage(resource.RUSAGE_SELF).ru_maxrss - before < 300 * 1024 ** 2
+    assert _peak_rss_bytes() - before < 300 * 1024 ** 2
+
+
+def _peak_rss_bytes() -> int:
+    """This process's peak resident set in bytes on every platform (scripts/run_guards.peak_rss: ru_maxrss is bytes on
+    macOS, KiB on Linux, so a raw ru_maxrss bound would be 1024 x loose on Linux)."""
+    spec = importlib.util.spec_from_file_location("run_guards_for_rss", ROOT / "scripts" / "run_guards.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.peak_rss()
 
 
 # ---------------------------------------------------------------- BC-3: no sentinel stands in for "not observed"

@@ -1,82 +1,83 @@
-# PRC Data Challenge 2026 — taxi-out prediction
+# PRC Data Challenge 2026 — taxi-out prediction (team merry-quicksand)
 
-Predicting taxi-out duration for 344,841 departures at ten European airports
-(January and July 2026), scored by RMSE.
+FM1 predicts the taxi-out time (`TAXITIME_SEC_mvt`, seconds) of each departure at ten European airports (EDDF, EDDM,
+EGLL, EHAM, LEBL, LEMD, LFPG, LIRF, LSZH, LTFM) from the organiser's movement files, scored by RMSE on the 344,841
+departures of January and July 2026.
 
-Team **merry-quicksand**.
+| file | what it is | public board (RMSE, s) |
+|---|---|---|
+| `merry-quicksand_v50.parquet` | FM1 as a **forecaster**: only the challenge files and public open data — no scored-period aggregate, no private capture (`configs/fm1_v50.yaml`) | 251.4767 |
+| `merry-quicksand_v51.parquet` | v50 + monthly calibration to EUROCONTROL's published 2026 monthly taxi-out means (MTX) | 251.1335 |
+| `merry-quicksand_v55.parquet` | v51 + the owner's adsb.fi capture of July 2026 in the ADS-B serve table — **the team's best file** (`configs/fm1_v55.yaml`) | 249.9168 |
 
-## The method in one paragraph
+The board is a single evaluation of the same scored set; no seed-variance estimate exists for these differences, and
+the steps kept along the way were kept when the board improved (`docs/fm1/METHOD.md` §8).
 
-The target is `TAXITIME_SEC_mvt = MVT_TIME_UTC_mvt − BLOCK_TIME_UTC_mvt`. Take-off
-(`MVT_TIME_UTC_mvt`) is supplied exactly on every scored row; off-block
-(`BLOCK_TIME_UTC_mvt`) is withheld. Predicting taxi-out is therefore identical to
-predicting off-block. For 98.47% of rows the Network Manager supplies an independent
-second measurement of off-block, `AOBT_3_flt`, so we do not model the duration — we model
-the **disagreement between the two clocks**:
+## The model in brief
 
-```
-y = proxy − delta        proxy = MVT_TIME − AOBT_3   (known exactly)
-                         delta = BLOCK_TIME − AOBT_3 (predicted)
-```
+Take-off (`MVT_TIME_UTC_mvt`) is given exactly on every scored row and off-block (`BLOCK_TIME_UTC_mvt`) is withheld, so
+predicting taxi-out is predicting off-block. For 98.47 % of scored departures (339,551 rows) the Network Manager supplies
+a second off-block clock, `AOBT_3_flt`. FM1 models the **disagreement between the two clocks** rather than the duration:
+`taxi = proxy − delta` with `proxy = MVT − AOBT_3` (known) and `delta = BLOCK − AOBT_3` (predicted). A direct model of
+the duration was measured worse on held-out January 2025 (−1.73 s [−3.15, −0.35]; `docs/fm1/METHOD.md` §7, RCR2).
 
-A gradient-boosted tree cannot represent `y = proxy − f(x)`: it must approximate the
-identity in a wide-range variable by binning it. It can represent `f(x)` directly. On an
-identical fold, features and seed, this reparameterisation moved matched-row RMSE from
-**285.24 to 252.66**. It is the single largest modelling decision in this repository.
+- **Matched lane** (rows with `AOBT_3`): a LightGBM model of `delta` on movement clocks, surface queues, movement order,
+  METAR weather, an OpenStreetMap stand-to-runway route length and features from public ADS-B tracks (adsb.lol);
+  where ADS-B covers the flight at the six airports the stack's gate serves, a stacked residual model (LightGBM + MLP);
+  elsewhere a 50/50 blend with a CatBoost model.
+- **Unmatched lane** (5,290 rows with no flight-plan record): the shipped estimator of schedule-copied off-blocks versus
+  ordinary ones, plus rules for Rome (LIRF), whose labels follow a handler-recording regime.
+- **Calibration** (scored-period build only): each airport-month's mean is pulled toward EUROCONTROL's published monthly
+  taxi-out figure, always as the last step.
 
-The remaining 1.53% of rows have no Network Manager record at all — every `*_flt` column
-is null together — and are handled by a separate estimator keyed on airport and the
-schedule offset, because the reparameterisation above has no second clock to lean on.
+Every output row names the stage that decided it (`decided_by`) and carries every component's own value, so each
+component's contribution is visible. Component ablations, the selection study, validation and the NOT WORKING results
+of the final three weeks are in `docs/fm1/METHOD.md`; load-bearing claims and their verdicts in `docs/fm1/CLAIMS.md`.
 
 ## Reproducing
 
 ```bash
-python3.11 -m venv .venv && . .venv/bin/activate
-pip install -r requirements.txt          # Python 3.11.15
-python scripts/fetch_data.py             # writes data/raw/ + FETCH_MANIFEST.json
-python -m pytest tests -q                # unit tests
-python scripts/build_submission.py       # writes the submission parquet
+python3.11 -m venv .venv && . .venv/bin/activate          # Python version: .python-version
+pip install -r requirements-dev.txt                        # runtime pins in requirements.txt
+python3.11 -m venv ~/.venvs/prc-catboost && ~/.venvs/prc-catboost/bin/pip install -r requirements-catboost.txt
+python tools/env_check.py                                  # both interpreters match the pins, or it says what differs
+python tools/clone_check.py                                # the clone tier of the test suite, in a fresh tree
 ```
 
-`data/` is git-ignored: the challenge data is not ours to redistribute.
-`scripts/fetch_data.py` verifies every object against its bucket ETag and deletes
-anything that fails verification.
+CatBoost runs in its own environment so its OpenMP runtime never shares a process with LightGBM's. The data are not
+redistributed: the challenge files come from the organiser (`scripts/fetch_data.py` checks each object against the
+bucket's ETag or size), and the other inputs are rebuilt by code in this repository from the sources in
+`docs/fm1/DATA_SOURCES.md` — except the stored ADS-B stack models, which the current code cannot regenerate byte for byte,
+and the adsb.fi capture behind v55, which is extracted by a local step that is not shipped (it cannot be redistributed). The commands, the
+derived inputs and what a clone can and cannot rebuild are in `docs/fm1/REPRODUCE.md`; the final model is
 
-## Validation protocol
+```bash
+python -m prc fit --config configs/fm1_v50.yaml --allow-heavy                    # ~10 h, ~20 GB
+python -m prc build-submission --config configs/fm1_v50.yaml --out <dir> --version 50
+```
 
-* Whole **months** are held out, never random rows. Primary fold: January + July 2025
-  held out, trained on the other ten months; replication fold: February + August.
-* Every target encoding is fitted **inside the training fold only**.
-* Every reported RMSE carries a 95% bootstrap interval, and every A-vs-B claim uses a
-  **paired** bootstrap of the difference. A gain whose interval spans zero is reported as
-  not established.
-* The harness was validated against the live leaderboard without spending a submission,
-  by comparing naive predictors reproducible by any team: a constant scores 686.07 on our
-  fold against 689.69 observed; airport-mean 659.9 vs 660.5–663.0; airport×runway 653.1
-  vs 650.6; +stand 629.0 vs 625.3–627.6. Agreement is within ±5 seconds.
-* No threshold, hyper-parameter, feature or fold design is ever selected by comparing
-  leaderboard scores. See `plans/PREREG_taxiout_2026_09_08.md`, Amendment 3.
+## Tests
 
-## What is in `plans/` and `reports/`
+`python tools/run_suite.py` runs the whole suite in two isolated processes (torch and LightGBM never share one). Tests
+that need the project's data or development record are marked `devtree`; a fresh clone runs `pytest -m "not devtree"`
+(`tools/clone_check.py` does this in a tree built from exactly the tracked files). `--random-order=SEED` shuffles the
+collected tests reproducibly.
 
-The pre-registration (frozen before the data was read, with four dated amendments) and
-the measurement reports behind every claim: the column inventory, the airport clock
-artifacts, the unmatched-stratum analysis, the harness calibration, the matched-row model,
-an adversarial red-team review, and the Family-B investigation.
+## Repository layout
 
-Negative results are recorded as prominently as positive ones — weather (+0.49 s),
-queue and surface-state features (+2.72 s), out-of-fold target encoding (−0.96 s),
-winsorised training targets (−30.3 s), absolute-error loss (−14.9 s) and a single
-undivided model (−144 s) are all documented with their intervals.
+| path | contents |
+|---|---|
+| `prc/` | the FM1 package (`prc/pipeline/fm1/`), its API (`prc/api.py`) and CLI (`python -m prc`) |
+| `configs/` | `fm1.yaml` (every knob at its documented default), `fm1_v50.yaml` and `fm1_v55.yaml` (the final runs) |
+| `scripts/` | the shipped feature builders and estimators FM1 loads, and the builders of its derived inputs |
+| `tools/` | suite runner, environment and clone checks, run queue, memory guard, upload verifier |
+| `tests/` | the test suite (`tests/fm1/` for the package) |
+| `docs/fm1/` | method, limitations, model card, risk report, claims, data sources, reproduction, config reference |
 
-## External data
-
-None is used in this baseline. Should ground ADS-B be incorporated, the archives are
-published by [ADSB.lol](https://www.adsb.lol/docs/open-data/historical/) under
-**ODbL 1.0**; every release tag consumed and the full extraction procedure would be
-documented here with the required attribution. ADSB.lol is not affiliated with the
-competition, which is supported by the OpenSky Network.
+The project's development record (registrations, measurement reports, run logs) is not needed to run, test or rebuild
+FM1; the documents above cite it by name where a number comes from it.
 
 ## Licence
 
-GNU General Public License v3.0 — see `LICENSE`.
+Code: GNU General Public License v3.0 (`LICENSE`). Data: see `docs/fm1/DATA_SOURCES.md` (adsb.lol and OpenStreetMap are
+ODbL 1.0; the adsb.fi capture is under non-commercial terms and is never redistributed).

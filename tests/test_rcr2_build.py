@@ -48,6 +48,7 @@ def test_constants_match_the_registration():
     assert R.FLOOR_BIND_MAX == 0.005 and R.SEED_SPREAD_MAX_S == 2.0 and R.RSS_LIMIT == 6 * 1024 ** 3
 
 
+@pytest.mark.devtree
 def test_registration_hash_matches_the_log():
     """Catches the registration being edited after hashing (the runner refuses, and so does this test)."""
     log = (ROOT / "reports/rcr2_prereg_hashes.log").read_text()
@@ -240,6 +241,7 @@ def test_gate_g1_requires_raw_and_minus_top3_on_both_legs(args, want):
     assert R.gate_g1(_stage1(*args)) is want
 
 
+@pytest.mark.devtree
 def test_reproduce_rcr_a2_matches_the_stored_report():
     """The runner's artifact check: A2's gain must reproduce to 1e-6 from reports/rcr_test_predictions.parquet."""
     st = R.reproduce_rcr_a2()
@@ -250,6 +252,7 @@ def test_reproduce_rcr_a2_matches_the_stored_report():
     assert "per_airport_gain_s" not in st
 
 
+@pytest.mark.devtree
 def test_reproduce_rcr_a2_refuses_a_drifted_artifact(tmp_path):
     p = pd.read_parquet(ROOT / "reports/rcr_test_predictions.parquet").iloc[:5000]
     t = tmp_path / "x.parquet"; p.to_parquet(t, index=False)
@@ -421,12 +424,14 @@ def test_guards_take_and_release_a_private_lock(tmp_path, monkeypatch):
     fh2 = G.acquire_lock(); G.release_lock(fh2)
 
 
+@pytest.mark.devtree
 def test_load_fw_all_covers_every_fold_row_with_a_day():
     j = R.load_fw_all()
     assert len(j) == 339_015 and list(j.columns) == ["row", "FW", "doy"] and j.doy.between(1, 212).all()
     assert set(pd.read_parquet(ROOT / "data/cache_stand/fold_preds_queue_order_weather.parquet", columns=["month"]).month.unique()) == {1, 7}
 
 
+@pytest.mark.devtree
 @pytest.mark.slow
 def test_load_incumbent_reproduces_opc_screens_anchor():
     """The incumbent anchor (208.31040447352203, 334,132 rows, pop 161,956) must reproduce or the run aborts."""

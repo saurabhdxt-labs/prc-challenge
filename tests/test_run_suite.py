@@ -29,6 +29,19 @@ Mutation rehearsal (2026-09-17, each break applied to `tools/run_suite.py`, suit
   R16 extra pytest args forwarded to only one pass                             -> RED (extra-args test)
   R17 `run_pass` ignores the returncode it is given                            -> RED (exit-code tests)
   EQ1 dict/set iteration order of the discovered files                         -> equivalent (sorted before use)
+
+2026-10-04 (clean-clone audit): five tests read the real tests directory, whose torch files are development-tree files
+(their modules are not in git), so they failed on a fresh clone. The pass tests now run on a constructed directory
+(`tests_dir`) and assert the exact commands; the real-repo cross-check no longer requires a torch file to exist.
+Re-rehearsed on a scratch copy (one mutant at a time, source sha-verified unchanged after): 8 / 8 killed —
+  RS1 the torch pass never runs              -> two-subprocess, command, random-order, extra-args, both-run tests
+  RS2 the tree pass loses its --ignore list  -> two-subprocess, tree-ignores, extra-args tests
+  RS3 the tree pass names the torch files    -> same
+  RS4 `-p no:randomly` dropped               -> two-subprocess, random-order, extra-args tests
+  RS5 extra arguments reach the tree pass only -> extra-args test
+  RS6 a failing torch pass passes the run    -> failing-torch-pass test
+  RS7 run_pass ignores the returncode        -> failing-tree / failing-torch / both-run tests
+  RS8 the torch pass collects the whole tests directory too -> two-subprocess, extra-args tests
 """
 from __future__ import annotations
 
@@ -83,8 +96,9 @@ def test_files_without_torch_are_not_discovered(tmp_path):
 def test_discovery_is_sorted_and_deterministic(tmp_path):
     for n in ("test_z.py", "test_a.py", "test_m.py"):
         _write(tmp_path, n, "import torch\n")
-    got = R.torch_test_files(tmp_path)
-    assert got == sorted(got)
+    expected = [tmp_path / "test_a.py", tmp_path / "test_m.py", tmp_path / "test_z.py"]
+    assert R.torch_test_files(tmp_path) == expected
+    assert R.torch_test_files(tmp_path) == expected             # deterministic across calls
 
 
 def test_the_real_repo_partition_is_exactly_the_torch_files():
@@ -94,7 +108,9 @@ def test_the_real_repo_partition_is_exactly_the_torch_files():
     file appears (it did, on 2026-09-18, for `test_tree_neural_matched.py`), and it never checks the property
     that matters. So: cross-validate the runner's regex scan against `ast`, which is an independent
     implementation. Any file the scanner isolates must really import a torch-carrying module, and any file it
-    leaves in the tree pass must really not.
+    leaves in the tree pass must really not. The torch test files are development-tree files (their modules are not
+    in git), so a fresh clone has none; the cross-check holds either way, and discovery itself is pinned on a
+    constructed directory (test_a_file_importing_torch_is_discovered).
     """
     import ast
 
@@ -118,7 +134,6 @@ def test_the_real_repo_partition_is_exactly_the_torch_files():
 
     all_tests = sorted((ROOT / "tests").rglob("test_*.py"))
     torch_files = R.torch_test_files(ROOT / "tests")
-    assert torch_files, "no torch test file found at all - the scanner is broken"
     for p in all_tests:
         assert imports_via_ast(p) == (p in torch_files), p.name
     tree, torch = R.split_files(all_tests, torch_files)
@@ -138,6 +153,24 @@ def test_split_files_partitions_without_overlap(tmp_path):
 
 # --------------------------------------------------------------------------- the two passes
 
+@pytest.fixture
+def tests_dir(tmp_path, monkeypatch):
+    """A constructed tests directory: one tree file and two torch files (a direct and a `from` import of torch-carrying
+    modules), so the pass commands are checked independently of which test files the checkout happens to hold."""
+    plain = _write(tmp_path, "test_plain.py", "import numpy\n")
+    tabm = _write(tmp_path, "test_tabm_screen.py", "import tabm_screen\n")
+    tns = _write(tmp_path, "test_tree_neural_stack.py", "from tree_neural_stack import prep\n")
+    monkeypatch.setattr(R, "TESTS_DIR", tmp_path)
+    return tmp_path, plain, tabm, tns
+
+
+def _expected(tests_dir, extra=()):
+    d, _, tabm, tns = tests_dir
+    tree = [sys.executable, "-m", "pytest", str(d), f"--ignore={tabm}", f"--ignore={tns}", "-p", "no:randomly", *extra]
+    torch = [sys.executable, "-m", "pytest", str(tabm), str(tns), "-p", "no:randomly", *extra]
+    return [tree, torch]
+
+
 class _Recorder:
     def __init__(self, codes):
         self.codes, self.calls = list(codes), []
@@ -147,61 +180,64 @@ class _Recorder:
         return subprocess.CompletedProcess(cmd, self.codes[len(self.calls) - 1] if self.codes else 0)
 
 
-def test_main_runs_exactly_two_separate_subprocesses(monkeypatch):
+def test_main_runs_exactly_two_separate_subprocesses(monkeypatch, tests_dir):
     """R8/R11: two passes, two processes - never one command, never one pass."""
     rec = _Recorder([0, 0])
     monkeypatch.setattr(R.subprocess, "run", rec)
     assert R.main([]) == 0
-    assert len(rec.calls) == 2, rec.calls
+    assert rec.calls == _expected(tests_dir)
     for cmd in rec.calls:
         assert " && " not in " ".join(cmd)
-        assert cmd[:3] == [sys.executable, "-m", "pytest"]
 
 
-def test_the_tree_pass_ignores_every_torch_file_and_the_torch_pass_names_them(monkeypatch):
-    """R12/R13: the isolation lives in the commands themselves."""
+def test_the_tree_pass_ignores_every_torch_file_and_the_torch_pass_names_them(monkeypatch, tests_dir):
+    """R12/R13: the isolation lives in the commands themselves — the tree pass ignores exactly the torch files and the
+    torch pass names exactly them, never the tree file."""
     rec = _Recorder([0, 0])
     monkeypatch.setattr(R.subprocess, "run", rec)
     R.main([])
-    tree_cmd, torch_cmd = (" ".join(c) for c in rec.calls)
-    for name in ("test_tabm_screen.py", "test_tree_neural_stack.py"):
-        assert f"--ignore={ROOT / 'tests' / name}" in tree_cmd or f"--ignore" in tree_cmd and name in tree_cmd
-        assert name in torch_cmd
-    assert "--ignore" not in torch_cmd
+    tree_cmd, torch_cmd = rec.calls
+    _, plain, tabm, tns = tests_dir
+    assert [c for c in tree_cmd if c.startswith("--ignore=")] == [f"--ignore={tabm}", f"--ignore={tns}"]
+    assert str(plain) not in torch_cmd and str(tabm) in torch_cmd and str(tns) in torch_cmd
+    assert not any(c.startswith("--ignore") for c in torch_cmd)
 
 
-def test_both_passes_disable_random_order(monkeypatch):
+def test_both_passes_disable_random_order(monkeypatch, tests_dir):
     """R14: order plugins reshuffle collection across the passes and break the isolation contract."""
     rec = _Recorder([0, 0])
     monkeypatch.setattr(R.subprocess, "run", rec)
     R.main([])
+    assert len(rec.calls) == 2
     for cmd in rec.calls:
-        assert "-p" in cmd and "no:randomly" in cmd
+        i = cmd.index("-p")
+        assert cmd[i + 1] == "no:randomly"
 
 
-def test_extra_arguments_reach_both_passes(monkeypatch):
+def test_extra_arguments_reach_both_passes(monkeypatch, tests_dir):
     """R16: `-x`, `-k`, markers must not silently apply to half the suite."""
     rec = _Recorder([0, 0])
     monkeypatch.setattr(R.subprocess, "run", rec)
     R.main(["-x", "-k", "smoke"])
-    for cmd in rec.calls:
-        assert cmd[-3:] == ["-x", "-k", "smoke"] or {"-x", "-k", "smoke"} <= set(cmd)
+    assert rec.calls == _expected(tests_dir, ["-x", "-k", "smoke"])
 
 
-def test_a_failing_tree_pass_fails_the_run(monkeypatch):
+def test_a_failing_tree_pass_fails_the_run(monkeypatch, tests_dir):
     rec = _Recorder([1, 0])
     monkeypatch.setattr(R.subprocess, "run", rec)
-    assert R.main([]) != 0
+    assert R.main([]) == 1
+    assert len(rec.calls) == 2
 
 
-def test_a_failing_torch_pass_fails_the_run(monkeypatch):
+def test_a_failing_torch_pass_fails_the_run(monkeypatch, tests_dir):
     """R10: the second pass is not a courtesy run - its failure is the suite's failure."""
     rec = _Recorder([0, 1])
     monkeypatch.setattr(R.subprocess, "run", rec)
-    assert R.main([]) != 0
+    assert R.main([]) == 1
+    assert len(rec.calls) == 2
 
 
-def test_both_passes_run_even_when_the_first_fails(monkeypatch):
+def test_both_passes_run_even_when_the_first_fails(monkeypatch, tests_dir):
     """A red tree pass must not hide the state of the torch tests."""
     rec = _Recorder([1, 1])
     monkeypatch.setattr(R.subprocess, "run", rec)
@@ -236,5 +272,5 @@ def test_runner_help_runs_in_a_clean_process():
 
 
 @pytest.mark.parametrize("marker", sorted(R.TORCH_MARKERS))
-def test_every_marker_is_a_real_module_name(marker):
+def test_every_marker_is_a_bare_module_name(marker):
     assert marker and not marker.startswith("#") and " " not in marker

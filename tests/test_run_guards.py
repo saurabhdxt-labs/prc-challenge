@@ -22,7 +22,7 @@ if str(ROOT / "scripts") not in sys.path:
 
 import run_guards as G  # noqa: E402
 
-PY = "/opt/homebrew/bin/python3.11"
+PY = sys.executable
 
 
 def test_default_lock_path_is_phantoms_and_env_overrides_it(monkeypatch):

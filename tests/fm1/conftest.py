@@ -1,4 +1,9 @@
-"""Session fixtures for tests/fm1: the real-data-shaped worlds (built once per session, in a child process)."""
+"""Session fixtures for tests/fm1: the real-data-shaped worlds (built once per session, in a child process).
+
+The worlds are cut from the project's raw data, weather, ADS-B tables, stack models and route table (fm1_world.py), none
+of which a fresh clone carries. Every test that requests a world — directly or through a fixture built on one — is
+marked `devtree` here, so `-m "not devtree"` is the clone tier without a hand-kept list (tests/conftest.py).
+"""
 from __future__ import annotations
 
 import importlib.util
@@ -9,6 +14,15 @@ import pytest
 _spec = importlib.util.spec_from_file_location("fm1_world", pathlib.Path(__file__).with_name("fm1_world.py"))
 W = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(W)
+
+#: fixtures that build a world from the project's data (item.fixturenames is the transitive closure)
+WORLD_FIXTURES = frozenset({"e2e_world", "protocol_world"})
+
+
+def pytest_collection_modifyitems(config, items):
+    for item in items:
+        if WORLD_FIXTURES & set(getattr(item, "fixturenames", ())):
+            item.add_marker(pytest.mark.devtree)
 
 
 @pytest.fixture(scope="session")

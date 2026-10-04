@@ -112,7 +112,7 @@ def test_stacker_learns_a_planted_signal_and_is_out_of_fold(arm):
 
 
 def test_nn_aborts_on_a_non_finite_loss():
-    """Part 5 rule 1 runtime guard. Kills: training on through an inf target. The guard is two layers in
+    """In-flight runtime guard. Kills: training on through an inf target. The guard is two layers in
     adsb_nn_worker.train_predict (a target pre-check and the in-loop loss check); removing either ONE alone is an
     equivalent mutant because the other still aborts (rehearsed 2026-09-11: M10 survived by design)."""
     fr = _world()

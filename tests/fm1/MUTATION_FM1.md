@@ -1,6 +1,6 @@
 # FM1 manual mutation rehearsal (AT12) — 2026-09-28
 
-testing.md Part 1 rule 22. Each mutant is ONE targeted edit to an FM1 source file, run against the named test with
+Each mutant is ONE targeted edit to an FM1 source file, run against the named test with
 `python -B -m pytest -x -p no:cacheprovider` and `PYTHONDONTWRITEBYTECODE=1` (no stale bytecode, BC-16), then the file
 restored byte-for-byte (verified afterwards: no mutant text remains in any source).
 
@@ -217,7 +217,7 @@ bytecode prefix per mutant, sources restored and sha-verified; each failure read
 | id | file | mutation | test | result |
 |---|---|---|---|---|
 | M-CLP1 | `knobs.py` | late knobs never left out of the hash | `test_every_config_with_the_late_knobs_at_default_hashes_as_before…` | KILLED |
-| M-CLP2 | `knobs.py` | late knobs always left out | `test_any_late_knob_off_its_default_puts_every_late_knob_in_the_hash` | KILLED |
+| M-CLP2 | `knobs.py` | late knobs always left out | `test_a_late_knob_off_its_default_hashes_its_generation_and_every_earlier_one` (renamed with BC-41) | KILLED |
 | M-CLP3 | `knobs.py` | each late knob left out at its own default (not all-or-none) | same | KILLED |
 | M-CLP4 | `knobs.py` | `min_share` default 0.2 | `test_late_knobs_and_their_defaults_are_pinned` | KILLED |
 | M-CLP5 | `knobs.py` | no ICAO check on the clip's airports | `test_clip_knobs_refuse_bad_values` | KILLED |

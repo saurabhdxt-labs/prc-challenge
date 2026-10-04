@@ -292,6 +292,7 @@ def _run_repro_check_for(world, monkeypatch):
     return v
 
 
+@pytest.mark.devtree
 def test_build_splice_writes_a_candidate_and_never_touches_submissions(tmp_path, monkeypatch):
     """Full synthetic build: G1/G2/G6 pass, R = {1,2,4,5} (id3 excluded: a later lever; id6 excluded: another
     stage), the FW/CBV blend is written only on R, id6 (never in scope) is untouched, the candidate re-reads

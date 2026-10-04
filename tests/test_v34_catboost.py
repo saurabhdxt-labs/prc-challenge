@@ -36,6 +36,7 @@ CB = _load("v34_catboost", "scripts/analysis/v34_catboost.py")
 SEC = ["aobt_sec", "mvt_sec", "sched_sec"]
 
 
+@pytest.mark.devtree
 def test_params_are_the_recorded_cbv_ship_params_and_the_worker_defaults():
     """CBV's worker record (data/cache_stand/cbv_ship_C_2026.json) and the worker's own defaults agree with PARAMS."""
     rec = json.loads((ROOT / "data/cache_stand/cbv_ship_C_2026.json").read_text())["params"]
@@ -49,6 +50,7 @@ def test_src_is_the_shipped_cbv_input_pinned():
     assert CB.SRC_SHA == "a210da02a6bbe4c0f91ae81d1b3512148f6d9f6c4b426dc18914e7a22b482916"
 
 
+@pytest.mark.devtree
 def test_nsc_cols_drop_exactly_the_three_numeric_seconds_and_equal_nsc_fold():
     cols = json.loads((ROOT / "data/cache_stand/cbv_ship_input.parquet.cols.json").read_text())
     got = CB.nsc_cols(cols)

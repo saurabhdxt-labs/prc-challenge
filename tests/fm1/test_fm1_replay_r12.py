@@ -4,7 +4,7 @@ Inputs (read-only): the R12 serve components (data/r12/serve_801f9bcac9a5_full/m
 resid, C, partner_int), the refit's proxy (refit_801f9bcac9a5_full/predictions_2026.parquet) and the served values
 (matched_2026_r12.parquet). TRUE shape: every row within 1 s (predicted exact). FALSE: any row beyond.
 AT8 (the stack stage itself, and the whole package path) is tools/fm1_replay_gate.py's (tests/fm1/test_fm1_replay_gate.py).
-Runs in a child process (memory feedback_prc_heavy_tests_inflate_pytest_peak_rss)."""
+Runs in a child process (a heavy load inside pytest's own process would raise the whole session's peak memory)."""
 from __future__ import annotations
 
 import json
@@ -17,6 +17,7 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
+@pytest.mark.devtree
 @pytest.mark.slow
 def test_composition_reproduces_every_served_r12_value():
     """Mutation: blend weight 0.6 inside blend_value's call below, or drop the rint in staged_value -> rows off -> red."""

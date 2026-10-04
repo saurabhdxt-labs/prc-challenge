@@ -1,6 +1,6 @@
 """The pipeline config: a typed, validated, immutable view of `configs/pipeline.yaml`.
 
-Config is code (CLAUDE.md Part 1 rule 11): every key is known, every type checked, every reference
+Config is code: every key is known, every type checked, every reference
 resolved at load, and a mistake fails loud with a named error that carries the dotted path of the
 offending key -- an unknown key is never ignored, a bool is never accepted as an int, an airport that
 the registry does not carry is never routed silently.

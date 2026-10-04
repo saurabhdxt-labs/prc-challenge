@@ -3,7 +3,7 @@
 
 Unit tests use the SHIPPED pure functions (load_deps) with the fitters replaced by recording fakes, so the orchestration,
 the lane routing, the rule precedence and the leak guard are tested on small synthetic frames; the real-data checks run in a
-CHILD pytest process (the `isolated` pattern of tests/test_cln_build.py, feedback_prc_heavy_tests_inflate_pytest_peak_rss).
+CHILD pytest process (the `isolated` pattern of tests/test_cln_build.py).
 The negative invariant (registration, "Leakage rules"): in fold_a and lomo, no fitter ever receives a training row from a
 held-out month -- asserted twice, once through train_view's own record and once from the fitters' inputs directly.
 

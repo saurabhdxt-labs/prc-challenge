@@ -31,7 +31,7 @@ import sys
 import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-PY = "/opt/homebrew/bin/python3.11"
+PY = sys.executable                 # the interpreter running this tool runs its children
 LOG_DIR = ROOT / "logs" / "nsc_v34_scratch"
 MEM_GUARD = ROOT / "tools" / "mem_guard.py"
 POLL_S = 20.0
@@ -65,7 +65,7 @@ def spec(step: int) -> StepSpec:
 
 
 def on_ac_power(pmset_text: str) -> bool:
-    """`pmset -g batt` must say it draws from AC Power (memory feedback_prc_check_ac_power_before_long_runs)."""
+    """`pmset -g batt` must say it draws from AC Power (a long run on battery can be cut short)."""
     return "'AC Power'" in pmset_text
 
 
@@ -91,6 +91,16 @@ def memguard_cmd(pid: int, run_log) -> list:
         raise ValueError(f"mem_guard needs the runner's pid, got {pid!r}")
     # --pause-on-phantom: owner ruling 2026-09-28 ("when phantom starts just pause"), on every launched heavy run
     return [PY, "-B", str(MEM_GUARD), "--pid", str(pid), "--log", str(memguard_log(run_log)), "--pause-on-phantom"]
+
+
+def start_memguard(pid: int, run_log, restart: bool = False, popen=subprocess.Popen):
+    """Start mem_guard beside the run, detached, with its own output (a refusal, a traceback) appended to its log so a
+    guard that could not run leaves a trace. `restart` marks a guard that replaces one that died during the same run.
+    Returns (command, process)."""
+    g = memguard_cmd(pid, run_log) + (["--restart"] if restart else [])
+    with open(memguard_log(run_log), "a") as out:
+        proc = popen(g, cwd=ROOT, start_new_session=True, stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT)
+    return g, proc
 
 
 def parse_ps(ps_text: str) -> dict:
@@ -227,9 +237,7 @@ def _run(step: int, smoke: bool, log_path: pathlib.Path) -> int:  # pragma: no c
             log(f"START {' '.join(cmd)}")
             t0 = time.time()
             p = subprocess.Popen(cmd, cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT)
-            g = memguard_cmd(p.pid, log_path)
-            subprocess.Popen(g, cwd=ROOT, start_new_session=True, stdin=subprocess.DEVNULL,
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            g, _ = start_memguard(p.pid, log_path)
             log(f"mem_guard: {' '.join(g)}")
 
             def rss_of(pid):

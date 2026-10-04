@@ -105,7 +105,7 @@ def run(cfg, out_dir: pathlib.Path, version: int | None = None, allow_heavy: boo
     heavy = [l.id for l in cfg.lanes.values() if l.kind == "matched" and l.source == "refit"]
     if heavy and not allow_heavy:
         raise E.PipelineError(f"lane(s) {heavy} refit the matched model (~2 h, ~5 GB): pass --allow-heavy after the "
-                              "quality gate (AC power, no other job above 2 GB)")
+                              "pre-run checks (AC power, no other job above 2 GB)")
     scored = ingest.ingest_scored(cfg)
     routing = lanes.route(scored.scored, cfg)
     paths = input_paths(cfg, routing)

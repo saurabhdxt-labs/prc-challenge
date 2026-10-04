@@ -56,6 +56,7 @@ def test_base_columns_equal_nsc_fold_fw():
     assert F.base_columns(True, True, False) == list(nsc.FEATS_NSC_F)
 
 
+@pytest.mark.devtree
 @pytest.mark.slow          # > 1 s (rule 26): loads nsc_fold -> lgbm_fold -> lgbm_submit
 def test_matched_design_without_orl_equals_the_v36_r12_refit_design():
     """The R12 refit that v36 served (data/r12/refit_801f9bcac9a5_full/report.json): FEATS_NSC_FW (90) + its recorded
@@ -68,6 +69,7 @@ def test_matched_design_without_orl_equals_the_v36_r12_refit_design():
     assert len(cols) == rep["fits"]["r12"]["n_features"] == 125
 
 
+@pytest.mark.devtree
 def test_adsb_block_is_defined_by_the_table():
     """801f9bcac9a5 = the 33 features the v36 stack was trained on; 51348d3e1cb3 (DWG) adds stand_visible and
     stand_ref_parked_share, as r12_build.FEATURES now does."""
@@ -96,6 +98,7 @@ def test_orl_list_is_the_builders():
     assert F.ORL_COLS == [*orl.ORL_COLS, orl.ORL_FLAG]
 
 
+@pytest.mark.devtree
 def test_no_design_ever_holds_a_label_or_seconds_column():
     """Negative invariant (AT2) over every combination of the feature switches."""
     import itertools

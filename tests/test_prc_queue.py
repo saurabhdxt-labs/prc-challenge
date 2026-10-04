@@ -15,6 +15,9 @@ reported as all done, last stop reason instead of first — killed after the fil
 group dropped); the 22 above and wait_rc's 2 re-run RED.
 Guard (2026-09-29 ~23:45): seen red (2 failed), then 4 of 4 mutants RED (type check off, kind check off, guard
 dropped, a hand-built mem_guard command without --pause-on-phantom).
+Guard supervision (2026-10-04, BC-43 / tooling audit T4): 5 tests seen red (no supervise_guarded), then 5 of 5 mutants
+RED on a scratch copy — PQ1 a dead guard at the start check ignored, PQ2 the step's own exit code lost to the guard
+check (a lock refusal would stop retrying), PQ3 no release when the guard dies, PQ4 no restart, PQ5 unlimited restarts.
 BC-35 lock race (2026-09-30 00:29): seen red (7 failed), then 4 of 4 RED (lock message always 75, ignored, machine_state
 inverted, lock ignored). Reviewer MAJOR 1/2 (01:1x): seen red (5 failed), then 12 of 12 RED (stale-line > not >=, check
 off, stale/busy swapped, deferral >=, deferred group not held, deferral ignored, heavy clock not reset — killed after
@@ -25,7 +28,9 @@ import datetime as dt
 import importlib.util
 import json
 import pathlib
+import subprocess
 import sys
+import time
 
 import pytest
 
@@ -542,3 +547,183 @@ def test_process_alive_counts_a_process_it_may_not_signal_as_alive():
     assert Q.process_alive(os.getpid()) is True
     assert Q.process_alive(1) is True
     assert Q.process_alive(child.pid) is False
+
+
+# ------------------------------------------------------------------ BC-43 sibling (2026-10-04, tooling audit T4): the
+# driver started mem_guard with its output discarded and never looked at it again, so a guard that refused or died left
+# the heavy step running unguarded (or SIGSTOPped, before mem_guard released on exit) while the step log said "guarded".
+# Mutation rehearsal 2026-10-04 (scratch copy, one at a time): 12 / 12 killed — PQ1 start check off, PQ2 an early step
+# exit not returned, PQ3 one respawn too many, PQ4 restart without releasing, PQ5 replacement not marked RESTART, PQ6 /
+# PQ7 a stop that does not release first or does not terminate, PQ8 a step left running after a failed release, PQ9 the
+# restart flag dropped in the wiring, PQ10 a failed release reported as done, PQ11 the wrong pid released, PQ12 notes not
+# written. PQ9 and PQ10 survived until the wiring moved out of _execute into guard_hooks with its own tests.
+# PQ13 (Protocol B review 02:50): an unbounded wait after SIGTERM -> the stubborn-step test.
+
+class _FakeProc:
+    """The lock wrapper as the driver sees it. `waits` scripts each p.wait(timeout) (None = still running). terminate()
+    models the wrapper: the whole command ends and it returns 143 = 128 + SIGTERM (tests/test_run_with_heavy_lock.py
+    pins the real one)."""
+
+    def __init__(self, waits, pid=4242):
+        self.waits, self.pid, self.terminated = list(waits), pid, False
+
+    def poll(self):
+        return self.waits[0] if self.waits and self.waits[0] is not None else None
+
+    def wait(self, timeout=None):
+        if timeout is None:
+            return next((w for w in self.waits if w is not None), 143)
+        w = self.waits.pop(0) if self.waits else None
+        if w is None:
+            raise subprocess.TimeoutExpired("step", timeout)
+        return w
+
+    def terminate(self):
+        self.terminated = True
+        self.waits = [143]
+
+
+class _FakeGuard:
+    """A guard whose poll() follows `polls` and then stays at the last value (None = alive)."""
+
+    def __init__(self, polls):
+        self.polls = list(polls)
+        self.returncode = None
+
+    def poll(self):
+        v = self.polls.pop(0) if len(self.polls) > 1 else self.polls[0]
+        self.returncode = v
+        return v
+
+
+def _supervise(proc, guards, release_ok=True, **kw):
+    notes, released, started = [], [], []
+
+    def start(restart):
+        g = guards.pop(0) if guards else _FakeGuard([None])          # never runs out: a kill must come from an assertion
+        started.append(restart)
+        return g
+
+    def release(pid):
+        released.append(pid)
+        return release_ok
+    rc = Q.supervise_guarded(proc, start, release, notes.append, poll_s=0, start_s=0, sleep=lambda s: None, **kw)
+    return rc, notes, released, started
+
+
+def test_a_guarded_step_that_ends_normally_returns_its_code():
+    rc, notes, released, started = _supervise(_FakeProc([None, None, 0]), [_FakeGuard([None])])
+    assert (rc, notes, released, started) == (0, [], [], [False])
+
+
+def test_regression_bug_43_a_guard_that_does_not_start_stops_the_step():
+    proc = _FakeProc([None, None, 0])
+    rc, notes, released, _ = _supervise(proc, [_FakeGuard([2])])
+    assert rc == Q.GUARD_FAILED_RC and proc.terminated and released == [4242]
+    assert notes == ["mem_guard did not start (exit 2); the step was stopped rather than run unguarded"]
+
+
+def test_a_step_that_ends_before_the_guard_check_keeps_its_own_code():
+    """A lock refusal (exit 75) ends the step at once; its code must reach the retry logic unchanged."""
+    proc = _FakeProc([75])
+    rc, notes, released, _ = _supervise(proc, [_FakeGuard([0])])
+    assert rc == 75 and not proc.terminated and notes == [] and released == []
+
+
+def test_regression_bug_43_a_guard_that_dies_mid_step_is_released_and_restarted():
+    proc = _FakeProc([None, None, None, 0])
+    rc, notes, released, started = _supervise(proc, [_FakeGuard([None, 1]), _FakeGuard([None])])
+    assert rc == 0 and released == [4242] and started == [False, True] and not proc.terminated
+    assert notes == ["mem_guard exited (exit 1) while the step runs: its tree is released and the guard restarted (1 of 3)"]
+
+
+def test_a_guard_that_keeps_dying_stops_the_step():
+    proc = _FakeProc([None] * 20 + [0])
+    guards = [_FakeGuard([None, 1]) for _ in range(5)]
+    rc, notes, released, started = _supervise(proc, guards, max_respawns=2)
+    assert rc == Q.GUARD_FAILED_RC and proc.terminated and started == [False, True, True] and released == [4242] * 3
+    assert notes[-1] == "mem_guard died 3 times (last exit 1); the step was stopped rather than run unguarded"
+
+
+def test_a_tree_that_cannot_be_released_is_never_waited_on():
+    """D6: a failed release used to be logged as a success, and terminating a still-stopped wrapper then hung the driver
+    (SIGTERM stays pending on a stopped process)."""
+    proc = _FakeProc([None, None, 0])
+    rc, notes, released, _ = _supervise(proc, [_FakeGuard([2])], release_ok=False)
+    assert rc == Q.GUARD_FAILED_RC and not proc.terminated and released == [4242]
+    assert notes == ["mem_guard did not start (exit 2); its tree could not be released, so the step is left as it is for inspection"]
+    proc2 = _FakeProc([None, None, None, 0])
+    rc2, notes2, _, started2 = _supervise(proc2, [_FakeGuard([None, 1])], release_ok=False)
+    assert rc2 == Q.GUARD_FAILED_RC and not proc2.terminated and started2 == [False]
+    assert notes2 == ["mem_guard exited (exit 1) and the step's tree could not be released; left as it is for inspection"]
+
+
+@pytest.mark.slow
+def test_a_guarded_lock_step_runs_through_the_real_wrapper_and_guard(tmp_path, monkeypatch):
+    """The wiring the fakes above stand in for: _execute starts the lock wrapper, a real mem_guard beside it (its own
+    output in its log), and returns the step's code once the step, the lock and the guard are done with. A temporary
+    lock file, never the machine's."""
+    monkeypatch.setenv("PHANTOM_HEAVY_LOCK_PATH", str(tmp_path / "heavy.lock"))
+    step = Q.Step(id="tiny", kind="lock", argv=(sys.executable, "-c", "print('step ran'); raise SystemExit(3)"),
+                  check=None, r12_step=None, guard=True)
+    assert Q._execute(tmp_path, step) == 3
+    log = (tmp_path / "tiny.log").read_text()
+    assert "step ran" in log and "heavy lock RELEASED" in log
+    assert f"mem_guard: {sys.executable} -B {ROOT / 'tools/mem_guard.py'} --pid " in log
+    guard_log = tmp_path / "tiny_memguard.log"
+    deadline = time.time() + 30                  # the guard notices the step has gone at its next poll (POLL_S = 15 s)
+    while "MEMGUARD END" not in (guard_log.read_text() if guard_log.exists() else ""):
+        assert time.time() < deadline, "the guard never ended after its step"
+        time.sleep(0.1)
+    assert "MEMGUARD START pid=" in guard_log.read_text()
+
+
+def test_guard_hooks_pass_the_restart_flag_and_name_the_step_wrapper(tmp_path):
+    started = []
+    with open(tmp_path / "step.log", "a") as fh:
+        start_guard, _, note = Q.guard_hooks(4242, tmp_path / "step.log", fh,
+                                             start=lambda pid, log, restart: started.append((pid, log, restart)) or
+                                             ("cmd", f"proc{len(started)}"))
+        assert start_guard(False) == "proc1" and start_guard(True) == "proc2"
+        note("mem_guard exited (exit 1)")
+    assert started == [(4242, tmp_path / "step.log", False), (4242, tmp_path / "step.log", True)]
+    line = (tmp_path / "step.log").read_text()
+    assert line.endswith("] mem_guard exited (exit 1)\n") and dt.datetime.strptime(line[1:20], "%Y-%m-%d %H:%M:%S")
+
+
+@pytest.mark.slow
+def test_guard_hooks_release_continues_a_stopped_tree_and_reports_a_refusal(tmp_path):
+    """release() runs the real `mem_guard.py --release`: a stopped process of ours is continued (True); a target the
+    guard refuses (a Phantom process) is reported as not released (False), never as done."""
+    import signal
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    phantom = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)", "Phantom/track_record.py"])
+    try:
+        child.send_signal(signal.SIGSTOP)
+        with open(tmp_path / "step.log", "a") as fh:
+            _, release, _ = Q.guard_hooks(child.pid, tmp_path / "step.log", fh)
+            assert release(child.pid) is True
+            assert release(phantom.pid) is False
+        state = subprocess.run(["ps", "-o", "stat=", "-p", str(child.pid)], capture_output=True, text=True).stdout
+        assert not state.strip().startswith("T")
+        assert "refusing to signal a Phantom process" in (tmp_path / "step.log").read_text()
+    finally:
+        for proc in (child, phantom):
+            proc.kill()
+            proc.wait()
+
+
+def test_a_step_that_does_not_end_after_sigterm_is_left_running_not_waited_on_forever():
+    """Protocol B review 2026-10-04 (MEDIUM-4): the stop waited on the wrapper without a bound, so a command that would
+    not end (or a stopped worker the release missed) hung the whole queue. Now the driver gives it STOP_WAIT_S, says so
+    and moves on; the step keeps the heavy lock, so nothing stacks on it."""
+    class Stubborn(_FakeProc):
+        def terminate(self):
+            self.terminated = True                   # ignores the signal: every timed wait expires
+
+    proc = Stubborn([None, None, None])
+    notes = []
+    rc = Q._stop_step(proc, lambda pid: True, notes.append, "mem_guard did not start (exit 2)", stop_s=0.01)
+    assert rc == Q.GUARD_FAILED_RC and proc.terminated
+    assert notes == ["mem_guard did not start (exit 2); the step did not end within 0 s of SIGTERM and is left running "
+                     "for inspection (it holds the heavy lock)"]

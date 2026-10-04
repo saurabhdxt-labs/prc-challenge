@@ -43,6 +43,7 @@ def test_inputs_are_the_models_v4_recipes():
     assert A2.V4_OVERRIDES == {"LIRF": "RWC.3 SHIP"}
 
 
+@pytest.mark.devtree
 def test_v4_contract_reads_the_shipped_manifest_and_holds_no_seconds():
     c = A2.v4_contract()
     assert len(c["feats"]) == 33 and c["seeds"] == [0, 1, 2] and c["folds"] == 5 and c["ship_learner"] == "B"
@@ -100,6 +101,7 @@ def _v4_gate():
     return A2.v4_contract()["gate"]
 
 
+@pytest.mark.devtree
 def test_recheck_gate_reproduces_the_shipped_gate_from_its_coverage_and_a_passing_transfer():
     g = _v4_gate()
     c25 = {a: v["c25"] for a, v in g.items()}
@@ -108,6 +110,7 @@ def test_recheck_gate_reproduces_the_shipped_gate_from_its_coverage_and_a_passin
     assert same and got == g
 
 
+@pytest.mark.devtree
 def test_recheck_gate_flags_a_failed_transfer_and_changed_coverage():
     """A failed ADN.7 transfer on F-NSC shuts the newly covered airports (EGLL, LEMD, LFPG, LTFM): the gate differs -> FAIL.
     Rehearsed RED: comparing only the `allowed` flags of the 0.7x airports."""
@@ -180,6 +183,7 @@ def _tables():
     return ({a: v["c25"] for a, v in g.items()}, {a: v["c26"] for a, v in g.items()})
 
 
+@pytest.mark.devtree
 def test_run_trains_with_the_v4_contract_writes_the_gate_and_passes(tmp_path):
     """Every line after the compute (transfer, gate, OOF score, report) on real-shaped fakes (BC-24).
     Rehearsed RED: training with fx.FEATURES instead of the manifest's feats; writing the gate before the transfer."""
@@ -198,6 +202,7 @@ def test_run_trains_with_the_v4_contract_writes_the_gate_and_passes(tmp_path):
     assert j == rep and A2.C.rel(tmp_path / A2.MODELS_NAME / "MANIFEST.json") in j["outputs"]
 
 
+@pytest.mark.devtree
 def test_run_fails_when_the_oof_stack_does_not_help_or_the_guard_differs(tmp_path):
     """Rehearsed RED (2026-09-24, escaped first): dropping C1 from the PASS rule -- the first fixture failed the transfer
     too, so the FAIL was not C1's; the OOF-only failure below isolates it."""
@@ -212,6 +217,7 @@ def test_run_fails_when_the_oof_stack_does_not_help_or_the_guard_differs(tmp_pat
                allow_roots=(tmp_path,))
 
 
+@pytest.mark.devtree
 def test_run_refuses_to_overwrite_models(tmp_path):
     (tmp_path / A2.MODELS_NAME).mkdir(parents=True)
     fr = _frame()
@@ -220,6 +226,7 @@ def test_run_refuses_to_overwrite_models(tmp_path):
         A2.run(False, tmp_path, fr, c25, c26, stack=_FakeStack(), step1_rmse=A2.f_guard(fr), allow_roots=(tmp_path,))
 
 
+@pytest.mark.devtree
 def test_smoke_trains_seed_0_on_the_smoke_subset_and_reports_smoke(tmp_path):
     st = _FakeStack()
     fr = _frame()
@@ -234,6 +241,7 @@ def test_parse_args_requires_the_rss_limit():
     assert A2.parse_args(["--rss-limit-gib", "6"]).rss_limit_gib == 6.0
 
 
+@pytest.mark.devtree
 def test_transfer_is_adn7_leave_one_airport_out_and_never_writes_the_shipped_report():
     """Rehearsed RED: training on the held-out airport too (train_rows = all rows)."""
     seen = []

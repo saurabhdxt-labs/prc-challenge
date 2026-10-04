@@ -3,8 +3,7 @@
 A world is a small slice of the organiser's REAL 2025 raw files (two airports, a few days per month), with the matching
 METAR files, the matching rows of the real R12 ADS-B table, a scored file whose departures have their labels hidden, the
 template and the hidden labels. Built in a CHILD process (`python fm1_world.py <out> <spec json>`): extracting rows from the
-2 M-row ADS-B table peaks near 0.9 GB, which must not raise the shared pytest process's lifetime RSS
-(memory feedback_prc_heavy_tests_inflate_pytest_peak_rss).
+2 M-row ADS-B table peaks near 0.9 GB, which must not raise the shared pytest process's lifetime RSS.
 
     E2E        Jan 14-15 + Feb 14-15 train, Jan 16 scored; EDDF + LSZH       (AT9: fit -> predict -> build-submission)
     PROTOCOL   days 14 + 25 of months 1, 2, 3, 6, 7, 9, 10; EDDF + LSZH        (protocol folds, no scored file)
