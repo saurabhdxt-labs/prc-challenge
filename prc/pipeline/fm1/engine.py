@@ -92,23 +92,30 @@ def _dir_hashes(d: pathlib.Path, prefix: str) -> dict:
     return {f"{prefix}/{p.relative_to(d)}": A.sha256_file(p) for p in sorted(d.rglob("*")) if p.is_file()}
 
 
-def fit_inputs(cfg, files: dict) -> dict:
-    out = {f"raw/{p.name}": A.sha256_file(p) for p in files.values()}
+def fit_inputs(cfg, files: dict, hash_file=None) -> dict:
+    """{input name: sha256} of everything a fit reads. `hash_file` (default artifact.sha256_file, which refuses a missing
+    file) may return None for a file it does not find: that input is then left out."""
+    h = hash_file or A.sha256_file
+    out = {f"raw/{p.name}": h(p) for p in files.values()}
     if cfg["lanes.matched"]:
         if cfg["features.weather"]:
             out.update(_dir_hashes(cfg.path("data.weather_dir"), "weather"))
         if cfg["features.orl_route_length"]:
-            out["orl_routes"] = A.sha256_file(cfg.path("features.orl_routes_file"))
+            out["orl_routes"] = h(cfg.path("features.orl_routes_file"))
         if cfg["features.adsb"]:
             for n in ("train.parquet", "serve.parquet"):
-                out[f"adsb/{n}"] = A.sha256_file(cfg.path("adsb.table_dir") / n)
+                out[f"adsb/{n}"] = h(cfg.path("adsb.table_dir") / n)
         if cfg["adsb.stack.enabled"]:
             out.update(_dir_hashes(cfg.path("adsb.stack.models_dir"), "stack"))
     if cfg.mtx_enabled:
-        out["mtx/reference"] = A.sha256_file(cfg.path("calibration.mtx.reference_csv"))
+        out["mtx/reference"] = h(cfg.path("calibration.mtx.reference_csv"))
     if cfg["lanes.unmatched"] and cfg["modules.rome.enabled"] and cfg["modules.rome.e2"]:
-        out["e2_rules"] = A.sha256_file(shipped.E2_RULES)
-    return out
+        out["e2_rules"] = h(shipped.E2_RULES)
+    return {k: v for k, v in out.items() if v is not None}
+
+
+def _sha256_if_present(p) -> str | None:
+    return A.sha256_file(p) if pathlib.Path(p).is_file() else None
 
 
 def _weather(cfg):
@@ -434,9 +441,10 @@ def build_inputs(cfg, art: A.ModelArtifact) -> dict:
     """The inputs the fit recorded (fit_inputs: training files, weather, routes, ADS-B tables, stack models, MTX
     reference, E2 rules), hashed as they are at build time, plus the published MTX file when calibration is on; and
     every recorded input whose hash differs from the artefact's fit-time record (empty = the same files). A build does
-    not need the training files: a configured month missing from data.raw_dir is reported as changed, not refused."""
+    not need the fit-only inputs: a training month that is missing (or ambiguous: two files) and a missing MTX reference
+    file are reported as changed, not refused. Runs before predict, so a broken raw directory stops a build at once."""
     present = {m: ps[0] for m, ps in files_by_month(cfg).items() if m in cfg["data.train_months"] and len(ps) == 1}
-    now = fit_inputs(cfg, present)
+    now = fit_inputs(cfg, present, hash_file=_sha256_if_present)
     changed = sorted(k for k in set(now) | set(art.inputs) if now.get(k) != art.inputs.get(k))
     if cfg.mtx_enabled:
         now["mtx/published"] = A.sha256_file(cfg.path("calibration.mtx.published_csv"))
@@ -461,11 +469,11 @@ def build_submission(art: A.ModelArtifact, out_dir, version: int | None = None, 
             raise E.ArtifactError(f"{p} exists; FM1 never overwrites an output")
     rows = pd.read_parquet(scored_file)
     template = pd.read_parquet(template_file)
-    pred = predict(art, rows, log=log)
-    built_on = build_inputs(cfg, art)
+    built_on = build_inputs(cfg, art)                  # before predict: a broken input directory stops the build at once
     if built_on["changed_since_fit"]:
         log(f"WARNING: {len(built_on['changed_since_fit'])} input(s) differ from the artefact's fit-time hashes "
             f"(recorded in the manifest): {built_on['changed_since_fit'][:5]}")
+    pred = predict(art, rows, log=log)
     tids = template.MVT_ID_mvt.to_numpy(float)
     if not pd.Index(tids).is_unique or set(tids) != set(pred.MVT_ID_mvt):
         raise E.ValidationError(f"template ids ({len(tids):,}) and predicted departures ({len(pred):,}) differ")

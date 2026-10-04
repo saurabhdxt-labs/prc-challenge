@@ -26,6 +26,10 @@ wrapper: closed-stdout, killed-wrapper and nohup tests. Rehearsal 5 / 5 killed �
 command -> killed-wrapper test; W15 a log failure not absorbed -> closed-stdout test; W16 an ignored signal handled ->
 nohup test; W17 a signal forwarded repeatedly -> exactly-once test; W18 the broad catch around the wait -> wait-error
 test (it survived until that test existed).
+Part 3 (second review, 2026-10-04 05:15: a process that left the group kept the inherited lock after "RELEASED",
+reproduced): the wrapper unlocks once the group has ended, and continues leftovers once the command has exited.
+Rehearsal 3 / 3 killed — W19 no explicit unlock -> escaped-process test; W20 no SIGCONT to leftovers -> stopped-leftover
+test; U1 usage error exits 0 -> usage test.
 """
 from __future__ import annotations
 
@@ -325,8 +329,9 @@ def test_each_signal_is_forwarded_exactly_once(tmp_path):
 
 
 def test_an_error_while_waiting_is_not_reported_as_cannot_run(tmp_path, monkeypatch, capfd):
-    """Only starting the command may end in "cannot run" (127). An OS error while waiting propagates — the step is not
-    reported as finished while its command runs on (it keeps its copy of the lock's descriptor)."""
+    """Only starting the command may end in "cannot run" (127). An OS error while waiting propagates: the wrapper exits
+    with the error (never a 127 that reads as "never started"), and the command keeps its copy of the lock's descriptor,
+    so nothing stacks on it while it runs on."""
     W = _module()
     started = []
 
@@ -338,3 +343,35 @@ def test_an_error_while_waiting_is_not_reported_as_cannot_run(tmp_path, monkeypa
         with pytest.raises(OSError, match="Input/output error"):
             W.run_command([sys.executable, "-c", "pass"], [], fh.fileno())
     assert started and "cannot run" not in capfd.readouterr().err
+
+
+@pytest.mark.slow
+def test_a_process_that_left_the_group_cannot_keep_the_lock(tmp_path):
+    """Second review 2026-10-04 (MAJOR, reproduced): the command holds a copy of the lock's descriptor, so a descendant
+    that leaves the group (here a job-control shell's background job) inherited it and kept the lock after the wrapper
+    printed "heavy lock RELEASED" — Phantom's heavy jobs and the queue would then skip with no visible holder. The
+    wrapper now unlocks once the group has ended: the lock is free while the escaped process still runs."""
+    lock, gfile = tmp_path / "heavy.lock", tmp_path / "escaped.pid"
+    r = subprocess.run([sys.executable, "-B", str(WRAPPER), "/bin/sh", "-c", f"set -m; sleep 30 >/dev/null 2>&1 & echo $! > {gfile}"],
+                       env={**os.environ, "PHANTOM_HEAVY_LOCK_PATH": str(lock)}, capture_output=True, text=True,
+                       timeout=30)                       # the background job writes nowhere, so the pipes close
+    escaped = int(gfile.read_text())
+    try:
+        assert r.returncode == 0 and r.stdout.rstrip().endswith("heavy lock RELEASED")
+        assert _alive(escaped) and os.getpgid(escaped) != os.getpgid(os.getpid())
+        assert _lock_is_free(lock), "a process outside the command's group still holds the lock"
+    finally:
+        os.kill(escaped, signal.SIGKILL)
+
+
+@pytest.mark.slow
+def test_a_worker_stopped_when_its_parent_exits_is_continued_so_the_wait_ends(tmp_path):
+    """Second review (finding 4): a group member stopped (e.g. by a memory guard) whose parent then exits would never
+    run again, and the wrapper would wait on its group for ever. Once the command has exited the wrapper sends the
+    leftovers a SIGCONT."""
+    gfile = tmp_path / "grandchild.pid"
+    p, lock, child = _start(tmp_path, GRANDCHILD.format(secs=2, path=str(gfile)) + "time.sleep(1.0)")
+    grandchild = _wait_file(gfile)
+    os.kill(grandchild, signal.SIGSTOP)                          # stopped while its parent is still alive
+    assert p.wait(timeout=20) == 0
+    assert not _alive(grandchild) and _lock_is_free(lock)

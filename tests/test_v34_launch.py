@@ -88,6 +88,7 @@ def test_the_guard_is_started_detached_with_its_own_output_kept_in_its_log(tmp_p
 
 
 def test_a_replacement_guard_is_started_with_restart(tmp_path):
+    """Rehearsed RED (RS1): the restart flag dropped from start_memguard."""
     calls = []
     g, _ = VL.start_memguard(4242, tmp_path / "r.log", restart=True, popen=lambda cmd, **kw: calls.append(cmd))
     assert g[-1] == "--restart" and calls == [g] and g[:-1] == VL.memguard_cmd(4242, tmp_path / "r.log")

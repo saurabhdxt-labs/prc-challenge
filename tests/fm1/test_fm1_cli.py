@@ -178,7 +178,7 @@ def test_compare_and_blend_commands_take_several_files(tmp_path):
     a1 = pd.read_parquet(tmp_path / "a1.parquet").set_index("MVT_ID_mvt").sort_index()
     b1 = pd.read_parquet(tmp_path / "b1.parquet").set_index("MVT_ID_mvt").sort_index()
     assert len(ab) == 100 and (ab.decided_by == "blend_oof").all()
-    # w weights b (asymmetric w, so swapped weights fail): rint(0.3 (y + 48) + 0.7 (y + 80)) = rint(y + 70.4)
+    # w weights b (asymmetric w, so swapped weights fail; rehearsed RED, BL1): rint(0.3 (y + 48) + 0.7 (y + 80))
     assert (ab.pred == np.rint(0.3 * b1.pred + 0.7 * a1.pred)).all()
     assert (ab.pred - (ys[1] + 70.4)).abs().max() <= 0.5 + 1e-9
 

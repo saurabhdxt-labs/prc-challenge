@@ -190,7 +190,8 @@ def test_fit_refuses_unported_components_and_heavy_runs(cfg, monkeypatch):
 
 def test_catboost_never_loads_in_this_process(pred):
     """AT11 negative invariant after a real fit + predict with the CBV blend on. Not vacuous: the CatBoost learner did
-    serve rows (its output is in the provenance) — it ran in its worker process, never in this one."""
+    serve rows (its output is in the provenance) — it ran in its worker process, never in this one. Rehearsed RED (CB1):
+    the CBV blend stage skipped."""
     import sys
     assert pred.catboost_C.notna().any() and pred.decided_by.str.contains("blend").any()
     assert "catboost" not in sys.modules
@@ -302,18 +303,35 @@ def test_regression_subset_airports_fit_on_multi_airport_files(cfg, scored):
         api.predict(art, scored, log=QUIET)
 
 
-
 def test_an_existing_artefact_is_refused_before_any_fitting(art, cfg, monkeypatch):
     """Protocol B review 2026-10-04: the "never overwrites" refusal came at the save, so REPRODUCE's ~10 h donor fit run
     twice failed only after fitting. The artefact's name (config hash + input digest) is known once the inputs are
-    hashed, so the refusal now comes first and nothing is read or fitted. Rehearsed RED (the early refusal removed in a
-    child pytest): "fitting started before the existing artefact was refused"."""
+    hashed, so the refusal now comes first: the inputs are hashed, nothing is fitted (neither the unmatched lane, which
+    fits first in this world, nor the matched frames). Rehearsed RED (the early refusal removed in a child pytest):
+    "fitting started before the existing artefact was refused"."""
     from prc.pipeline.fm1 import features as F
+    from prc.pipeline.fm1 import unmatched as U
 
     def no_fit(*a, **k):
         raise AssertionError("fitting started before the existing artefact was refused")
+    monkeypatch.setattr(U, "fit", no_fit)
     monkeypatch.setattr(G, "_weather", no_fit)
     monkeypatch.setattr(F, "build_frames", no_fit)
     assert art.directory is not None and art.directory == A.artifact_dir(cfg, art.inputs)
     with pytest.raises(E.ArtifactError, match="already exists; FM1 never overwrites an artefact"):
         api.fit(cfg, log=QUIET)
+
+
+def test_the_build_checks_its_inputs_before_predicting(art, tmp_path, monkeypatch):
+    """Second review 2026-10-04: build_inputs ran after the whole predict (~17 min for v55), so a broken input directory
+    (a stray training file) failed the build only at the end. It now runs first. Rehearsed RED (OR1): predict first."""
+    def broken(cfg, a):
+        raise E.SchemaError("a stray file in the raw directory")
+
+    def no_predict(*a, **k):
+        raise AssertionError("predicted before the inputs were checked")
+    monkeypatch.setattr(G, "build_inputs", broken)
+    monkeypatch.setattr(G, "predict", no_predict)
+    with pytest.raises(E.SchemaError, match="a stray file"):
+        G.build_submission(art, tmp_path / "out", version=97, log=QUIET)
+    assert not (tmp_path / "out").exists()

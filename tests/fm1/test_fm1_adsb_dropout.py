@@ -169,6 +169,7 @@ def test_fit_hides_adsb_on_training_rows_only_and_reports_it(dropout_fits, monke
     assert rep == {"flight_share": 0.3, "day_share": 0.15, "n_flight": int(fl.sum()), "n_network": int(nb.sum())}
     assert fl.sum() > 0 and nb.sum() > 0 and not (fl & nb).any()
     assert seen["unheard"] == [(int(fl.sum()), False), (int(nb.sum()), True)]     # exactly the drawn rows were hidden
+    # rehearsed RED (DC1): the report's n_flight counting the network rows too
     assert "adsb_dropout" not in a0.fit_report
 
     def refuse(*a, **k):

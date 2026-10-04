@@ -139,7 +139,9 @@ GUARD_FAILED_RC = 70          # a guarded step whose mem_guard could not run: st
                               # would not end) left as it is, still holding the heavy lock so nothing stacks on it
 GUARD_START_S = 3.0           # seconds a fresh guard gets before the driver checks that it is alive
 MAX_GUARD_RESPAWNS = 3
-STOP_WAIT_S = 600.0           # how long a stopped step gets to end after SIGTERM before the driver moves on
+STOP_WAIT_S = 600.0           # how long a stopped step gets to end after SIGTERM before the driver moves on — a chosen
+                              # bound, not a measurement: a Python runner without a SIGTERM handler ends at once; ten
+                              # minutes leaves room for one that cleans up first
 
 
 def _stop_step(p, release, note, why: str, stop_s: float = STOP_WAIT_S) -> int:
@@ -155,8 +157,8 @@ def _stop_step(p, release, note, why: str, stop_s: float = STOP_WAIT_S) -> int:
     try:
         p.wait(timeout=stop_s)
     except subprocess.TimeoutExpired:
-        note(f"{why}; the step did not end within {stop_s:.0f} s of SIGTERM and is left running for inspection "
-             "(it holds the heavy lock)")
+        note(f"{why}; the step did not end within {stop_s:.0f} s of SIGTERM and is left running for inspection, "
+             "UNGUARDED (its memory guard is gone) and holding the heavy lock")
         return GUARD_FAILED_RC
     note(f"{why}; the step was stopped rather than run unguarded")
     return GUARD_FAILED_RC

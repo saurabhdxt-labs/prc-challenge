@@ -3,19 +3,22 @@
     python scripts/run_with_heavy_lock.py <cmd> [args...]
 
 Any job over ~1 GB takes this lock, so two heavy jobs never run on the machine at once. The lock is a non-blocking fcntl
-flock: it dies with its last holder and can never wedge a queue. If another job holds it the wrapper refuses at once
-(exit 75) — skip, never stack. The lock file is `PHANTOM_HEAVY_LOCK_PATH` if set, else ~/.phantom/phantom_heavy_compute.lock
-(the lock scripts/run_guards.py takes).
+flock: it dies with its last holder and is freed explicitly when the command ends. If another job holds it the wrapper
+refuses at once (exit 75) — skip, never stack. The lock file is `PHANTOM_HEAVY_LOCK_PATH` if set, else
+~/.phantom/phantom_heavy_compute.lock (the lock scripts/run_guards.py takes).
 
 The command starts in its own process group and inherits the lock's file descriptor, so the lock is held while the
 wrapper or the command is alive: a wrapper that crashes or is killed (even with SIGKILL) leaves the lock with the
 running command, never free under it. SIGTERM, SIGINT and SIGHUP sent to the wrapper are forwarded to the command's
 whole group, each after a SIGCONT so a paused group can act on it; a signal the wrapper was started with ignored (nohup)
 stays ignored. The signal handlers only record; the polling loop forwards each recorded signal exactly once, before it
-logs anything, and log lines are best effort (a closed terminal or pipe never stops the forwarding or the wait). The
-wrapper returns once the command and every process left in its group have ended (a process that leaves the group with
-setsid is not followed). Returns the command's exit code (128 + N when it was killed by signal N), 2 for a usage error
-and 127 when the command cannot be started. Standard library only.
+logs anything, and log lines are best effort (a closed terminal or pipe never stops the forwarding or the wait). Once
+the command has exited, the processes left in its group get a SIGCONT (a worker stopped while its parent died could
+otherwise never finish) and the wrapper waits for them. When the whole group has ended the wrapper unlocks explicitly:
+an unlock applies to every copy of the descriptor, so a process that left the group (setsid, a daemon, a job-control
+shell) and inherited one cannot keep the lock — "heavy lock RELEASED" means the lock is free. Returns the command's exit
+code (128 + N when it was killed by signal N), 2 for a usage error and 127 when the command cannot be started. Standard
+library only.
 """
 import fcntl
 import os
@@ -83,7 +86,8 @@ def wait_group(child: subprocess.Popen, received: list) -> int:
         if child.poll() is not None:
             if not group_alive(child.pid):
                 break
-            if not said_waiting:
+            if not said_waiting:                     # a leftover stopped while its parent died must still be able to end
+                signal_group(child.pid, signal.SIGCONT)
                 say(f"the command exited ({child.returncode}); waiting for the processes left in its group")
                 said_waiting = True
         time.sleep(POLL_S)
@@ -126,7 +130,8 @@ def main(argv) -> int:
                 return EX_TEMPFAIL
             say(f"heavy lock ACQUIRED pid {os.getpid()} -> running: {' '.join(argv)}")
             rc = run_command(argv, received, fh.fileno())
-        say("heavy lock RELEASED")                    # our descriptor is closed and the command's group has ended
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)   # the group has ended: free the lock for every descriptor copy
+        say("heavy lock RELEASED")
         return rc
     finally:
         for s, handler in previous.items():

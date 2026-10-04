@@ -46,7 +46,7 @@ The uploaded file is `merry-quicksand_v55.parquet`, sha256 `225ab0be205a0a254d0c
 (344,841 rows). The rebuild check — the current code serving the stored v55 artefact
 (`artifacts/fm1/d811c69dc93e-141862a0`) — is recorded below.
 
-**Rebuild check (VERIFIED 2026-10-04 03:38–03:55 EDT, with the committed code).** `python -m prc build-submission
+**Rebuild check (VERIFIED 2026-10-04 05:38–05:56 EDT, with the committed code).** `python -m prc build-submission
 --config configs/fm1_v55.yaml --out <new dir> --version 55` served the stored artefact and wrote a file with sha256
 `225ab0be205a0a254d0c27e726ec33d6007981b98f937f9b00739499e5ac537d` — identical to the uploaded v55. Its manifest hashes
 204 inputs and names none as changed since the fit. The full fit itself (~10 h) was not re-run for this check.
@@ -63,7 +63,8 @@ manifest and re-checked on load). Cross-machine determinism is NOT claimed.
 library versions, every input file's sha256 and every artefact file's sha256. A submission's manifest records the
 sha256 of the scored file, the template, the inputs the fit recorded as they are at build time (training files present,
 weather, routes, ADS-B tables, stack models, MTX reference, E2 rules) and the published MTX file, and names every recorded
-input whose hash differs from the artefact's fit-time record (`build_inputs`; a missing training file is named, not refused).
+input whose hash differs from the artefact's fit-time record (`build_inputs`, run before the prediction: a missing training
+file or MTX reference is named, not refused; a broken raw directory stops the build at once).
 
 ## Derived variants (no retraining)
 
@@ -101,8 +102,8 @@ document why a default was chosen and are checked only in the development tree (
 
 The test suite has a **clone tier**: every test not marked `devtree` (tests/conftest.py) runs from a fresh clone —
 `python -m pytest -m "not devtree" tests`, or `python tools/clone_check.py`, which builds a tree of exactly the tracked
-files in a new git repository and runs that tier there (2026-10-04, the committed files: 2,883 passed, 76 skipped where
-an optional local file is absent, 137 devtree tests deselected). Tests that read the data, the stored artefacts or the
+files in a new git repository and runs that tier there (2026-10-04, the committed files: 2,887 passed, 76 skipped where
+an optional local file is absent, 138 devtree tests deselected). Tests that read the data, the stored artefacts or the
 development record are marked `devtree` (automatically for every test on the real-data-shaped worlds,
 tests/fm1/conftest.py) and run in the full suite on the development machine.
 

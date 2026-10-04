@@ -308,7 +308,7 @@ def test_world_predict_serves_ldi_through_the_engine(e2e_world, fm1_world_mod, m
     b = base.set_index("MVT_ID_mvt")
     want = pred.ldi_band[hit].map({band: art.config[knob] for band, knob in L.DELTA_KNOBS.items()})
     assert want.notna().all() and len(set(want)) == 3                        # every row in a named band; all three hit
-    assert (pred.ldi_delta[hit] == want).all()                              # each row's shift is ITS band's delta
+    assert (pred.ldi_delta[hit] == want).all()          # each row's shift is ITS band's delta (LD1: bands swapped -> RED)
     # the base values are whole seconds, so the rounded output moves by the delta rounded (8 / 35 / 122 s)
     assert ((pred.TAXITIME_SEC_mvt[hit] - b.TAXITIME_SEC_mvt[hit]) == np.rint(want)).all()
     same = pred.index.difference(hit)

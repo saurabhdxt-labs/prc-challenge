@@ -557,7 +557,8 @@ def test_process_alive_counts_a_process_it_may_not_signal_as_alive():
 # PQ7 a stop that does not release first or does not terminate, PQ8 a step left running after a failed release, PQ9 the
 # restart flag dropped in the wiring, PQ10 a failed release reported as done, PQ11 the wrong pid released, PQ12 notes not
 # written. PQ9 and PQ10 survived until the wiring moved out of _execute into guard_hooks with its own tests.
-# PQ13 (Protocol B review 02:50): an unbounded wait after SIGTERM -> the stubborn-step test.
+# PQ13 (Protocol B review 02:50): an unbounded wait after SIGTERM -> the stubborn-step test. WR1 the "mem_guard:" line
+# dropped from _execute -> the real-wrapper wiring test.
 
 class _FakeProc:
     """The lock wrapper as the driver sees it. `waits` scripts each p.wait(timeout) (None = still running). terminate()
@@ -726,4 +727,4 @@ def test_a_step_that_does_not_end_after_sigterm_is_left_running_not_waited_on_fo
     rc = Q._stop_step(proc, lambda pid: True, notes.append, "mem_guard did not start (exit 2)", stop_s=0.01)
     assert rc == Q.GUARD_FAILED_RC and proc.terminated
     assert notes == ["mem_guard did not start (exit 2); the step did not end within 0 s of SIGTERM and is left running "
-                     "for inspection (it holds the heavy lock)"]
+                     "for inspection, UNGUARDED (its memory guard is gone) and holding the heavy lock"]

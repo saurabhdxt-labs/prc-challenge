@@ -35,7 +35,7 @@ BC-43 part 3 (Protocol B review 2026-10-04 02:50): the release holds further ter
 `ps` cannot read still gets SIGCONT, and --release also continues members of process groups its tree leads.
 Rehearsal 5 / 5 RED — MG17 no hold, MG18 SIGCONT withheld on an identity error, MG19 group members left out, MG20 group
 members not identity-checked, MG21 --release back on the tree walk (survived until the CLI test held a reparented
-member).
+member). HS1 the real hold sets SIG_DFL instead of SIG_IGN -> the real-hold child test.
 """
 from __future__ import annotations
 
