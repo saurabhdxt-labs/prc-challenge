@@ -93,6 +93,76 @@ def test_compare_equals_the_registered_bootstrap():
     assert rep["excluding_top3_rows"]["gain_bmse"] < g
 
 
+def _two_month_records(seed=3, body_shift=0.3, tail_shift=-0.5, n=800):
+    """Body rows (y <= 3,600 s) where b is better and tail rows where b is worse, in January and July."""
+    rng = np.random.default_rng(seed)
+    y = np.where(np.arange(n) % 10 == 0, rng.uniform(4000, 9000, n), rng.uniform(300, 3000, n))
+    month = np.where(np.arange(n) < n // 2, 1, 7)
+    day = np.array([f"2025-{m:02d}-{1 + (i % 20):02d}" for i, m in enumerate(month)])
+    a = pd.DataFrame({"MVT_ID_mvt": np.arange(n, dtype=float), "y": y, "pred": y + rng.normal(0, 150, n), "day": day,
+                      "month": month, "ap": np.where(np.arange(n) % 2, "EDDF", "LIRF")})
+    shift = np.where(y <= P.BODY_MAX_S, body_shift, tail_shift)
+    return a, a.assign(pred=a.pred - shift * (a.pred - a.y))
+
+
+def test_compare_reports_the_body_the_top10_drop_and_each_month():
+    """Ruler v2 (plans/PREREG_rul_ruler_validation_2026_10_04.md: the body share predicts the board, the tail is
+    anti-correlated): the body gain is the registered bootstrap on y <= 3,600 s; months and the top-10 drop add up.
+    Seen red first (no body / month / top-10 fields). Mutation rehearsal 2026-10-04 (world copy, one at a time): GT1 the
+    per-month check always true, GT2 the gate on the point gain instead of the CI (killed once the interval test existed),
+    GT3 the top-k drop fixed at 3, GT4 the body cut at 9,999 s, GT5 no refusal without a scored month -> 5 / 5 RED."""
+    a, b = _two_month_records()
+    rep = P.compare(a, b, n_boot=300, seed=5)
+    body = a.y.to_numpy() <= P.BODY_MAX_S
+    g, lo, hi = shipped.mtx_calib().gain_ci(a.y[body], a.pred[body], b.pred[body], a.day[body], a.month[body], P.BOARD_N,
+                                            n_boot=300, seed=5)
+    assert rep["body"] == {"gain_bmse": g, "ci95": [lo, hi], "n": int(body.sum())} and g > 0
+    assert rep["gain_bmse"] < g                                    # the tail, where b is worse, pulls the total down
+    assert set(rep["by_month"]) == {"1", "7"}
+    assert sum(m["gain_bmse"] for m in rep["by_month"].values()) == pytest.approx(rep["gain_bmse"], rel=1e-12)
+    assert sum(m["gain_bmse"] for m in rep["body_by_month"].values()) == pytest.approx(g, rel=1e-12)
+    row = (a.y - a.pred) ** 2 - (a.y - b.pred) ** 2
+    drop = np.argsort(-np.abs(row.to_numpy()), kind="stable")[:10]
+    assert rep["excluding_top10_rows"]["gain_bmse"] == pytest.approx(row.drop(index=drop).sum() / P.BOARD_N)
+    rb = row[body]
+    keep = rb.drop(index=rb.index[np.argsort(-np.abs(rb.to_numpy()), kind="stable")[:10]])
+    assert rep["body_excluding_top10_rows"]["gain_bmse"] == pytest.approx(keep.sum() / P.BOARD_N)
+
+
+@pytest.mark.parametrize("body_shift, want", [(0.3, True), (-0.1, False)])
+def test_the_promotion_gate_needs_the_body_ci_above_zero_the_top10_drop_and_each_month(body_shift, want):
+    a, b = _two_month_records(body_shift=body_shift)
+    rep = P.compare(a, b, n_boot=300, seed=5)
+    g = P.promotion_gate(rep)
+    assert g["promote"] is want and set(g["checks"]) == {"body_ci_low_above_zero", "body_without_top10_positive",
+                                                          "body_positive_each_scored_month"}
+
+
+def test_the_gate_refuses_a_gain_carried_by_one_month():
+    """Positive overall but negative in July: not promoted (the per-month rule)."""
+    rep = {"body": {"gain_bmse": 50.0, "ci95": [5.0, 90.0], "n": 100},
+           "body_excluding_top10_rows": {"gain_bmse": 40.0},
+           "body_by_month": {"1": {"gain_bmse": 60.0, "ci95": [10.0, 99.0]}, "7": {"gain_bmse": -10.0, "ci95": [-30.0, 9.0]}}}
+    g = P.promotion_gate(rep)
+    assert g["promote"] is False and g["checks"]["body_positive_each_scored_month"] is False
+
+
+def test_the_gate_refuses_a_positive_body_gain_whose_interval_reaches_zero():
+    """A positive point estimate is not enough: the day-block 95 % interval must clear zero (GT2)."""
+    rep = {"body": {"gain_bmse": 10.0, "ci95": [-5.0, 25.0], "n": 100}, "body_excluding_top10_rows": {"gain_bmse": 8.0},
+           "body_by_month": {"1": {"gain_bmse": 6.0, "ci95": [-1.0, 12.0]}, "7": {"gain_bmse": 4.0, "ci95": [-2.0, 9.0]}}}
+    g = P.promotion_gate(rep)
+    assert g["promote"] is False and g["checks"] == {"body_ci_low_above_zero": False, "body_without_top10_positive": True,
+                                                     "body_positive_each_scored_month": True}
+
+
+def test_the_gate_refuses_a_report_without_a_scored_month():
+    rep = {"body": {"gain_bmse": 50.0, "ci95": [5.0, 90.0], "n": 100}, "body_excluding_top10_rows": {"gain_bmse": 40.0},
+           "body_by_month": {"3": {"gain_bmse": 60.0, "ci95": [10.0, 99.0]}}}
+    with pytest.raises(E.ValidationError, match="January and July"):
+        P.promotion_gate(rep)
+
+
 def test_compare_refuses_disjoint_or_disagreeing_records():
     a, b = _records()
     with pytest.raises(E.ValidationError, match="share no row"):

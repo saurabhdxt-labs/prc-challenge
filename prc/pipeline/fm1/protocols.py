@@ -17,7 +17,10 @@ refused, so the day-4 base-learner study runs with the stack off unless the stac
 
 compare(a, b): paired on common ids, gain = (SSE_a - SSE_b) / 344,841 (positive = b better), 95 % day-block bootstrap CI
 (days resampled within month: mtx_calib.gain_ci, the project's registered bootstrap), plus the concentration exclusions
-(the dominant airport dropped; the top-3 rows by |row gain| dropped).
+(the dominant airport dropped; the top-3 and top-10 rows by |row gain| dropped), the body gain (y <= 3,600 s: the share
+that predicts the board, plans/PREREG_rul_ruler_validation_2026_10_04.md) with and without its top 10 rows, and the gain
+and body gain per month. promotion_gate(report): promote only when the body CI is above zero, the body gain survives
+dropping its top 10 rows, and it is positive in January and in July separately.
 """
 from __future__ import annotations
 
@@ -35,6 +38,9 @@ from . import rows as R
 from . import shipped
 
 BOARD_N = 344_841.0
+BODY_MAX_S = 3600.0          # the body: flights of at most one hour; its gain predicts the board, the tail's does not
+                             # (plans/PREREG_rul_ruler_validation_2026_10_04.md)
+SCORED_MONTHS = ("1", "7")
 ALL = tuple(range(1, 13))
 
 
@@ -192,14 +198,40 @@ def compare(a: pd.DataFrame, b: pd.DataFrame, n_boot: int, seed: int) -> dict:
     keep = ap != dom
     g_ex_ap = cal.gain_ci(y[keep], pa[keep], pb[keep], A.day.to_numpy()[keep], A.month.to_numpy()[keep], BOARD_N,
                           n_boot=n_boot, seed=seed) if keep.any() else (0.0, 0.0, 0.0)
-    top = np.argsort(-np.abs(row))[:3]
-    keep3 = np.ones(len(row), bool)
-    keep3[top] = False
-    g_ex3 = cal.gain_ci(y[keep3], pa[keep3], pb[keep3], A.day.to_numpy()[keep3], A.month.to_numpy()[keep3], BOARD_N,
-                        n_boot=n_boot, seed=seed)
+    day, month = A.day.to_numpy(), A.month.to_numpy()
+
+    def ci(m):                                       # the registered bootstrap on a row subset
+        g, l, h = cal.gain_ci(y[m], pa[m], pb[m], day[m], month[m], BOARD_N, n_boot=n_boot, seed=seed)
+        return {"gain_bmse": g, "ci95": [l, h]}
+
+    def without_top(m, k):                           # drop the k rows of the subset with the largest |row gain|
+        idx = np.flatnonzero(m)
+        keep = m.copy()
+        keep[idx[np.argsort(-np.abs(row[idx]), kind="stable")[:k]]] = False
+        return ci(keep)
+
+    everything = np.ones(len(row), bool)
+    body = y <= BODY_MAX_S
+    months = sorted({str(int(v)) for v in month})
     return {"n": int(len(ids)), "gain_bmse": G_, "ci95": [lo, hi], "by_airport_bmse": {k: float(v) for k, v in by_ap.items()},
             "excluding_dominant_airport": {"airport": dom, "gain_bmse": g_ex_ap[0], "ci95": list(g_ex_ap[1:])},
-            "excluding_top3_rows": {"gain_bmse": g_ex3[0], "ci95": list(g_ex3[1:])}}
+            "excluding_top3_rows": without_top(everything, 3), "excluding_top10_rows": without_top(everything, 10),
+            "body": {**ci(body), "n": int(body.sum())}, "body_excluding_top10_rows": without_top(body, 10),
+            "by_month": {mo: ci(month.astype(int).astype(str) == mo) for mo in months},
+            "body_by_month": {mo: ci(body & (month.astype(int).astype(str) == mo)) for mo in months}}
+
+
+def promotion_gate(rep: dict) -> dict:
+    """The promotion rule for a candidate's compare report (ruler v2): the body gain's 95 % CI is above zero, the body
+    gain stays positive without its 10 largest rows, and it is positive in January and in July separately. Refuses a
+    report that holds neither scored month."""
+    months = rep.get("body_by_month", {})
+    if not any(m in months for m in SCORED_MONTHS):
+        raise E.ValidationError(f"the report holds no January and July body gain (months {sorted(months)})")
+    checks = {"body_ci_low_above_zero": bool(rep["body"]["ci95"][0] > 0),
+              "body_without_top10_positive": bool(rep["body_excluding_top10_rows"]["gain_bmse"] > 0),
+              "body_positive_each_scored_month": all(months[m]["gain_bmse"] > 0 for m in SCORED_MONTHS if m in months)}
+    return {"promote": all(checks.values()), "checks": checks}
 
 
 def pool(records) -> pd.DataFrame:
