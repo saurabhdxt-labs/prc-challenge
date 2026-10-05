@@ -260,7 +260,8 @@ for unseen data (the final-model audit of 2026-09-28 put about 28 % of the cumul
 | v54 | v51 + the EOBT clip at LFPG July | 251.5593 | −214.0 vs v51; not kept |
 | v55 | v51 + adsb.fi July-2026 serve table (adsb.lol ∪ adsb.fi, LTFM excluded) | **249.9168** | +609.6 vs v51; +407.8 vs v46 — best file until v57 |
 | v56 | as v55, adsb.fi only where adsb.lol had no track | 250.3282 | −205.8 vs v55; not kept |
-| **v57** | **v55 + the ADS-B stand-exit stage `uad` for departures without a flight-plan record** | **247.3187** | **+1,291.9 vs v55 — best file** |
+| v57 | v55 + the ADS-B stand-exit stage `uad` for departures without a flight-plan record | **247.3187** | +1,291.9 vs v55 — best single model; best file until v58 |
+| **v58** | **average of whole board files (v33, v36, v41, v43, v55) + v57's stand-exit change; unmatched rows = v57** | **246.2224** | **+541.1 vs v57 — best file; not an FM1 output** |
 
 Rows read from the project's board records (v50–v53 from the scoring service's result files, 2026-10-02); v42's MTX gain
 (+124) and the individual Rome steps v7 / v10 are quoted in the ledger and not repeated here. v51–v53 are board-selected
@@ -274,3 +275,17 @@ the file existed (§7, UAD); none was set or changed from a board score. Of the 
 barely covered (124 storm-day rows, 51 of class A2), which was known before the upload. The gain was larger than the
 range written down beforehand (−150 … +1,000 MSE; the part the 2025 test supported, +220 … +430). One board evaluation
 confirms the file as a whole; it does not say which rows carried the gain (LIMITATIONS 22, RISK_REPORT_v57).
+
+v58 is not produced by FM1. It is an average of whole files we had already uploaded. For weights that sum to 1 the
+board MSE of such an average follows exactly from the members' board scores and the files themselves,
+MSE(Σ a_k f_k) = Σ a_k MSE_k − ½ Σ_jk a_j a_k D_jk with D_jk = mean((f_j − f_k)²), so the non-negative weights that
+minimise it could be computed without an upload: v33 0.100, v36 0.147, v41 0.084, v43 0.159, v55 0.509. The weights
+are therefore fitted on the scored set through its scores, more directly than any earlier step in this table. Three
+limits were set beforehand: a member had to differ from v55 across the body (at least 100,000 rows, at most 5 % of
+its squared difference on 20 rows, no row by more than an hour), which keeps out files that differ by a few-row rule;
+the departures without a flight-plan record keep v57's values; and v57's stand-exit change enters unscaled. The score
+written down before the upload was 246.2105 (the average itself: 246.2197 exactly; the file differs from it on the
+unmatched rows); the board gave 246.2224, 5.9 MSE away. The members' own scores include an earlier few-row rule on
+seven Rome rows, which the file does not carry. The file means nothing on other data. The documented model remains
+FM1: the forecaster v50 and the best single model v57. The members v33–v43 are files of the chain that preceded FM1
+and are not rebuilt by the shipped code (REPRODUCE, RISK_REPORT_v58).

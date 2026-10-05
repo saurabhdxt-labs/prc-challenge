@@ -2,9 +2,10 @@
 
 Status: **final.** The forecaster (only the challenge files and public open data: no scored-period aggregate, no private capture) is board file v50
 (`configs/fm1_v50.yaml`, public board 251.4767); the scored-period build is v55 (`configs/fm1_v55.yaml`, 249.9168); the
-team's best file is v57, v55 plus the stand-exit stage for departures without a flight-plan record
-(`configs/fm1_v57.yaml`, 247.3187). Claims and their evidence: CLAIMS.md; risks: RISK_REPORT_v55.md and
-RISK_REPORT_v57.md.
+best single model is v57, v55 plus the stand-exit stage for departures without a flight-plan record
+(`configs/fm1_v57.yaml`, 247.3187). The team's best board file is v58 (246.2224): an average of board files with
+weights fitted on their board scores, which is not an FM1 output (METHOD §8). Claims and their evidence: CLAIMS.md;
+risks: RISK_REPORT_v55.md, RISK_REPORT_v57.md and RISK_REPORT_v58.md.
 
 ## Intended use
 
@@ -57,7 +58,8 @@ Row counts from `submissions/merry-quicksand_v55.parquet.meta.json` (`decided_by
 
 | measurement | value | what it is |
 |---|---|---|
-| public board, v57 | 247.3187 s RMSE | v55 + the stand-exit stage (501 rows); one evaluation of the scored set |
+| public board, v58 | 246.2224 s RMSE | an average of board files, weights fitted on the board (not an FM1 output); one evaluation |
+| public board, v57 | 247.3187 s RMSE | v55 + the stand-exit stage (501 rows); the best single model; one evaluation of the scored set |
 | public board, v55 | 249.9168 s RMSE | the scored-period build; one evaluation of the scored set |
 | public board, v50 | 251.4767 s RMSE | the forecaster |
 | 2025 validation, protocol S (leave one month out), screen tier, ADS-B stack off | January 327.07 s, July 266.21 s (pooled 294.92 s) | a 2025 reference for a reduced configuration, not the final model's score (METHOD §6) |

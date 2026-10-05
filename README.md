@@ -9,7 +9,8 @@ departures of January and July 2026.
 | `merry-quicksand_v50.parquet` | FM1 as a **forecaster**: only the challenge files and public open data — no scored-period aggregate, no private capture (`configs/fm1_v50.yaml`) | 251.4767 |
 | `merry-quicksand_v51.parquet` | v50 + monthly calibration to EUROCONTROL's published 2026 monthly taxi-out means (MTX) | 251.1335 |
 | `merry-quicksand_v55.parquet` | v51 + the owner's adsb.fi capture of July 2026 in the ADS-B serve table (`configs/fm1_v55.yaml`) | 249.9168 |
-| `merry-quicksand_v57.parquet` | v55 + the aircraft's own ADS-B stand-exit time for 501 departures without a flight-plan record — **the team's best file** (`configs/fm1_v57.yaml`) | 247.3187 |
+| `merry-quicksand_v57.parquet` | v55 + the aircraft's own ADS-B stand-exit time for 501 departures without a flight-plan record — the best single model (`configs/fm1_v57.yaml`) | 247.3187 |
+| `merry-quicksand_v58.parquet` | an average of board files v33, v36, v41, v43 and v55, with weights fitted on their board scores, plus v57's stand-exit change; v57 unchanged on departures without a flight-plan record — **the team's best file**; not an FM1 output (`docs/fm1/METHOD.md` §8) | 246.2224 |
 
 The board is a single evaluation of the same scored set; no seed-variance estimate exists for these differences, and
 the steps kept along the way were kept when the board improved (`docs/fm1/METHOD.md` §8).

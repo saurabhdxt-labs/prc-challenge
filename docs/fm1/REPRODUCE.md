@@ -79,6 +79,22 @@ been tried. The stage reads `report.json` beside the table (the build report: pa
 and for tables built from now on the sha256 of the files written) and refuses a table whose report fails the
 registered checks or names another table; keep the two files together.
 
+## Reproducing the board file v58
+
+```
+python scripts/analysis/blend_exact.py plan --sub-dir <dir with the member files and their result files> --base 55 --top 57 \
+    --pool 33,34,35,36,40,41,42,43,44,46,49,50,52,53,55 --lane-file <v57's provenance file> --out plan.json
+python scripts/analysis/blend_exact.py build --plan plan.json --sub-dir <same dir> --lane-file <same file> --out merry-quicksand_v58.parquet
+```
+
+The uploaded file has sha256 `0764ca6ec531efad95b0943765abb0659a37fe383366669f5cbf760607fa1b59` (344,841 rows); `build`, run with the
+committed tool on 2026-10-05, wrote exactly that file. v58 is an average of board files, not an FM1 output (METHOD §8).
+It needs the member files (`merry-quicksand_v33.parquet` … `_v57.parquet`) and each one's result file from the scoring
+service, none of which is in the repository. FM1 rebuilds v50, v55 and v57; the shipped code does not rebuild
+v33–v46, which came from the chain that preceded FM1, so a clone cannot rebuild v58 from source. `plan` prints the
+weights and the exact board MSE of the average; `build` refuses if a member, a result file or the tool itself changed
+since the plan.
+
 ## Determinism (VERIFIED on the e2e world, this machine)
 
 The same config and data fitted twice give bit-identical predictions (LightGBM deterministic + fixed threads and seeds,
