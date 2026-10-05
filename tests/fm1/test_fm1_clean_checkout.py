@@ -16,6 +16,7 @@ import pathlib
 import shutil
 import subprocess
 import sys
+import time
 
 import pandas as pd
 import pytest
@@ -42,10 +43,10 @@ def _shipped_tree(dest: pathlib.Path) -> pathlib.Path:
         for src in _code_files(d):
             out = dest / src.relative_to(ROOT)
             out.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src, out)
+            shutil.copy(src, out)                 # content and mode, never the file's timestamps (BC-44)
     for f in SHIPPED_FILES:
         (dest / f).parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(ROOT / f, dest / f)
+        shutil.copy(ROOT / f, dest / f)
     for absent in ("plans", "logs", "reports", "artifacts", "submissions"):
         assert not (dest / absent).exists()
     return dest
@@ -144,13 +145,27 @@ def test_fm1_fits_and_predicts_from_the_shipped_tree_like_the_development_tree(e
                                   check_dtype=False)
 
 
+def test_the_shipped_tree_holds_no_file_dated_before_it_was_built(tmp_path):
+    """The clone tree lives in the pytest temp directory while the clone-tier tests run in it. A copy that keeps the
+    tracked file's access and modification times is days old on arrival, and a temp cleaner that works by access time
+    (macOS, daily at 03:35) may delete it under a running test (BC-44). Fails when _shipped_tree copies a file together
+    with its timestamps."""
+    start = time.time()
+    tree = _shipped_tree(tmp_path / "clone")
+    stale = sorted(str(f.relative_to(tree)) for f in tree.rglob("*")
+                   if f.is_file() and min(f.stat().st_atime, f.stat().st_mtime) < start - 5.0)
+    assert stale == []
+
+
 #: the scripts that rebuild FM1's derived inputs (docs/fm1/REPRODUCE.md) and the launcher the queue tool calls
-PRODUCERS = ("r12_build", "r12_validate", "r12_stack", "r13_cat", "orl_build", "mtx_source", "r12_launch")
+PRODUCERS = ("r12_build", "r12_validate", "r12_stack", "r13_cat", "orl_build", "mtx_source", "r12_launch", "uad_build",
+             "uad_price")
 
 
 @pytest.mark.slow
 def test_the_scripts_that_rebuild_fms_inputs_load_from_the_shipped_tree_alone(tmp_path):
-    """Every script REPRODUCE.md names for a derived input (ADS-B tables, holdout fits, stack models, ORL table, MTX CSVs)
+    """Every script REPRODUCE.md names for a derived input (ADS-B tables, holdout fits, stack models, ORL table, MTX CSVs,
+    the stand-exit table and its constants)
     and the launcher tools/prc_queue.py calls is git-tracked and loads, with everything it loads by path, in the shipped
     tree. Found 2026-10-02: the stack's producers (r12_stack, r12_validate, r13_cat + its CatBoost worker) were never
     committed. Mutation: leave one by-path dependency out of the shipped tree -> red."""

@@ -90,11 +90,26 @@ The shipped v36 unmatched chain, ported through the shipped modules' public func
 | `rome_e2` | LIRF rows still at their Rome value, 3,600 ≤ sp < 24,000 | the frozen stand-inbound logit replaces p; a UTC day whose move energy per moved row exceeds the p99 threshold reverts | v31 |
 | `rome_e2w` | the rows E2 moved | E2's form with beta_W, refitted at FIT time by stake-weighted Brier on the training months' LIRF band rows (p_R and the non-fill term nested leave-one-month-out); its own day check | v33 |
 | `storm` | rows the body still decides | rint(v + max(A − 300, 0)), A = the airport-day anomaly of the scored rows' matched MVT − AOBT_3 | v16 (inside v24–v26) |
+| `uad` (optional, `modules.uad.enabled`; on in `configs/fm1_v57.yaml`) | rows the body or the storm anchor decided whose aircraft's ADS-B ground track is seen leaving the row's own stand | rint(max(v + w·(u′ − v), 1)); u′ = p·(MVT − SCHED) + (1 − p)·(est + c), est = MVT − the time the track left the stand, c = the airport's offset, p = the lane's fill probability; w = 0.739, or 0.8 where A > 300 s; half of w when est is between 60 and 90 min | new in FM1 (no shipped file yet) |
 
 ARN (v21) is dropped; its 8 scored rows keep their Rome / E2 values (measured: no other row moves). The shipped S1 cells and
 R2 classifier fit and predict in one call, so the artefact stores the lane's training frames (`unmatched_lane/`) and predict
 re-runs every fit, seeded (bit-reproducible, tested). Set-level rules (witness, anomaly, ARC's ARR join, E2's day checks and
 its stand-inbound context read from `data.raw_dir`) mean the whole scored file must be served together.
+
+**The stand-exit estimate (`uad`; `prc/pipeline/fm1/uad.py`, `plans/PREREG_uad_unmatched_adsb_offblock_2026_10_04.md`).**
+A departure without a flight-plan record has no `AOBT_3`, and the lane above predicts it from the schedule and the day's
+congestion. Where the aircraft's own ADS-B track is on the ground at its stand, the track gives the time it left.
+`scripts/analysis/uad_build.py` builds that table without reading a label: stand positions are the median parked position
+of matched departures (at least three flights, scatter at most 15 m); a row's take-off is its callsign's, or else the one
+take-off inside the airport's own clock-offset window whose track left the row's stand (within 40 m, the next ground sample
+within 120 s, a stationary sample among the last 20, no later stop of 120 s or more at any stand); est = MVT − that time,
+used up to 90 min. The offsets c (40–254 s by airport) and the weights w come from the ten design months of 2025
+(`scripts/analysis/uad_price.py`, `configs/uad_constants_2025.json`) and are not refitted by FM1. Registered test, read
+once: on the 317 January + July 2025 rows with an estimate, against leave-one-month-out predictions, RMSE fell from
+432.4 to 274.4 s; body gain +53.3 bmse [21.8, 85.3], positive in both months, without the ten largest rows, and with
+EHAM removed. In the scored months of 2026 the table gives an estimate to 503 of the 5,290 unmatched departures (230 of
+them EHAM in January); the stage has not been scored on the board. Limits: LIMITATIONS 22.
 
 ## 5. Selection study (2026-09-30; `plans/PREREG_swap_selection_2026_09_30.md`, `plans/PREREG_weather_S_check_2026_09_30.md`)
 
@@ -213,6 +228,7 @@ the lever helped. Sources: `reports/MSE_LEDGER.md` and each registration's hash 
 | 10-02 | ACR | training with ADS-B randomly hidden (coverage-regime repair) | the 2026 coverage loss costs 862.7 bmse [671.7, 1124.8]; the repair recovers 25.7 [−120.5, 163.9] | FALSE: information, not calibration |
 | 10-03 | AFI (v55) | adsb.fi July-2026 capture merged into the serve table (no refit) | +609.6 board MSE vs v51 (registered +150 … +600) | TRUE: in the scored-period build |
 | 10-03 | AFB (v56) | adsb.fi only where adsb.lol had no track | −205.8 vs v55 | FALSE |
+| 10-05 | UAD | the aircraft's own ADS-B stand-exit time for departures without a flight-plan record (stage `uad`) | 317 January + July 2025 rows: RMSE 432.4 → 274.4 s; body +53.3 bmse [21.8, 85.3] | TRUE on 2025; optional stage, not yet scored on the board |
 
 Reading: almost every lever that looked good on a 2025 holdout either failed its own registered gate or lost on the 2026
 board (AGF, v22, HPX-S, MOVE). The final model is what survived this, not the best of many tries.

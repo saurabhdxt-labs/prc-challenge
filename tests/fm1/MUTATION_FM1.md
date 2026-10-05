@@ -345,4 +345,36 @@ time, a fresh bytecode prefix each, sources restored and sha-verified; each fail
 batches then carried `late=True` (= 1); M-B41a proves it bites. Coverage: no coverage tool is installed (standing waiver
 (c), owner ack 2026-09-26); every changed line carries a killed mutant or an explicit assertion.
 
+## UAD stage (2026-10-05, prc/pipeline/fm1/uad.py + its wiring in stages.py / knobs.py / engine.py; tests/fm1/test_fm1_uad.py)
+
+One mutant at a time (manual Edit, not a scratch harness): sha256 of the mutated file recorded before the session's
+edits and re-checked after every revert (`uad.py` bcec7e41d2ab7669..., `stages.py` a18bb82cce534e9f...,
+`knobs.py` 3f391da1ae8440a0..., `engine.py` 3ac4c11b286e4862...; all four matched their pre-mutation value again once
+every mutant below had been applied and reverted). Each mutant run with
+`PYTHONDONTWRITEBYTECODE=1 python3.11 -B -m pytest tests/fm1/test_fm1_uad.py -x -p no:cacheprovider -m "not slow"`
+(the fast tier; the slow e2e test does not need re-running per mutant since every mutant is already caught by a fast
+one). **Result: 17 / 17 killed (100 %).**
+
+| id | file | mutation (old -> new) | test | result |
+|---|---|---|---|---|
+| M1-UAD | `uad.py` | `w = np.where(storm, w1, w0)` -> `w = np.where(storm, w0, w1)` | `test_blend_calm_vs_storm_weight_storm_a_exactly_300_is_calm` | KILLED |
+| M2-UAD | `uad.py` | `storm = storm_a > STORM_A_S` -> `storm = storm_a >= STORM_A_S` | `test_blend_calm_vs_storm_weight_storm_a_exactly_300_is_calm` | KILLED |
+| M3-UAD | `uad.py` | `factor = np.where(cls == "A2", A2_WEIGHT_FACTOR, 1.0)` -> `factor = np.where(cls == "A2", 1.0, 1.0)` | `test_blend_a2_takes_half_the_weight` | KILLED |
+| M4-UAD | `uad.py` | `floored = np.maximum(new, 1.0)` -> `floored = new` | `test_blend_floors_at_one_second` | KILLED |
+| M5-UAD | `uad.py` | `return np.rint(floored)` -> `return floored` | `test_blend_rounds_half_to_even_like_rint` | KILLED |
+| M6-UAD | `uad.py` | `nan_fallback = np.isnan(p) \| np.isnan(sp)` -> `nan_fallback = np.isnan(sp)` | `test_blend_nan_p_or_nan_sp_falls_back_to_u` | KILLED |
+| M7-UAD | `uad.py` | `SCOPE = ("unmatched_body", "storm")` -> `SCOPE = ("unmatched_body", "storm", "rome")` | `test_serve_only_touches_scope_rows_even_when_every_row_would_classify` | KILLED |
+| M8-UAD | `uad.py` | `classed = np.isin(cls_all, np.asarray(CLASSES))` -> `classed = np.ones(len(cls_all), dtype=bool)` | `test_serve_comp_out_and_report_on_hand_numbers` | KILLED |
+| M9-UAD | `uad.py` | `ledger.write(stage, c_ids, new)` -> `ledger.write(stage, c_ids[new != v], new[new != v])` | `test_serve_writes_uad_even_when_the_value_does_not_change` | KILLED |
+| M10-UAD | `uad.py` | `.fillna(const["pooled"]).to_numpy(...)` -> `.to_numpy(...)` (pooled fallback dropped) | `test_serve_comp_out_and_report_on_hand_numbers` | KILLED (NaN c -> Ledger's own non-finite guard) |
+| M11-UAD | `uad.py` | `load_constants`'s `if not (0.0 <= v <= 1.0): raise ...` -> removed | `test_load_constants_refuses_a_weight_outside_0_1` | KILLED |
+| M12-UAD | `uad.py` | `serve`'s `if missing.any(): raise E.RoutingError(...)` -> removed | `test_serve_refuses_a_scope_row_missing_from_the_table` | KILLED (uncaught IndexError instead of RoutingError) |
+| M13-UAD | `uad.py` | `serve`'s `if bad_est.any(): raise E.RangeError(...)` -> removed | `test_serve_refuses_a_classed_row_with_a_bad_exit_rel_s` | KILLED |
+| M14-UAD | `stages.py` | `"uad": cfg["modules.uad.enabled"]` -> `"uad": True` | `test_plan_places_uad_after_storm_and_before_ldi` | KILLED |
+| M15-UAD | `stages.py` | STAGE_ORDER: `storm, uad, ldi` -> `storm, ldi, uad` | `test_plan_places_uad_after_storm_and_before_ldi` | KILLED |
+| M16-UAD | `engine.py` | `build_inputs`'s `now["uad/constants"] = ...` line -> removed | `test_build_inputs_records_the_two_files_when_the_stage_is_on_and_a_missing_one_stops_the_build` | KILLED |
+| M17-UAD | `knobs.py` | uad cross-check's `if v["unmatched.learner"] != "v26": raise ...` -> removed | `test_cross_check_enabled_needs_unmatched_learner_v26` | KILLED |
+
+TOTAL UAD 17 / 17 killed
+
 M-RV6 (`engine.py`, the support-gate share read from `m.coverage` after the dropout) = the pre-fix code: `test_the_support_gate_share_describes_the_training_data_not_the_dropout` seen red against it 2026-10-03 09:47 EDT (world fit; EDDF 0.658 / LSZH 0.503 vs 0.939 / 0.969), green after the fix 09:49.

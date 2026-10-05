@@ -66,11 +66,11 @@ class Knob:
     #: False only for an output location: it cannot change a prediction, so it stays out of the model hash (FM1 notes N6)
     hashed: bool = True
     #: The generation of a knob added after stored artefacts existed (1 = modules.eobt_clip.*, 2 = adsb.train_dropout.*,
-    #: both 2026-10-02); 0 = present from the start. With h = the highest generation holding a knob off its default,
-    #: parse_config hashes the late knobs of generations 1 ... h and leaves later ones out, which is exactly the hash a
-    #: config had when it was written: a new generation never moves a stored hash (BC-41). A late knob's default must be
-    #: the behaviour before it existed (a module that is off); defaults and generations are pinned by
-    #: tests/fm1/test_fm1_eobt_clip.py.
+    #: both 2026-10-02; 3 = modules.uad.*, 2026-10-05); 0 = present from the start. With h = the highest generation
+    #: holding a knob off its default, parse_config hashes the late knobs of generations 1 ... h and leaves later ones
+    #: out, which is exactly the hash a config had when it was written: a new generation never moves a stored hash
+    #: (BC-41). A late knob's default must be the behaviour before it existed (a module that is off); defaults and
+    #: generations are pinned by tests/fm1/test_fm1_eobt_clip.py.
     late: int = 0
 
 
@@ -316,6 +316,25 @@ SCHEMA: tuple = (
        "The anomaly A as a body FEATURE with a leave-one-event-out re-validation (owner decision 2's replacement for "
        "the anchor rule). NOT PORTED (not built): fit refuses while this is true.",
        "plans/PREREG_congestion_anchor_loeo_2026_09_13.md", status="not_ported", activates=_on),
+    _K("modules.uad.enabled", "bool", False,
+       "ADS-B stand-exit estimate for departures without a flight-plan record (UAD). A row that the unmatched body or "
+       "the storm anchor decided, and whose row in modules.uad.table has class A1 or A2, moves from its value v to "
+       "rint(max(v + w (u' - v), 1)): u' = p (MVT - SCHED) + (1 - p)(exit_rel_s + the airport's offset), p = the lane's "
+       "fill probability; w = the calm weight, or the storm weight where the airport-day anomaly is above 300 s; a "
+       "class-A2 row takes half of w. Offsets and weights come from modules.uad.constants. Measured once on 317 "
+       "January + July 2025 rows against the leave-one-month-out baseline: RMSE 432 -> 274 s, body +53 bmse [22, 85]. "
+       "Runs after the storm anchor and before LDI; off by default.",
+       "plans/PREREG_uad_unmatched_adsb_offblock_2026_10_04.md", late=3),
+    _K("modules.uad.table", "path", "data/uad/2026_table_a3/table.parquet",
+       "The stand-exit table of the scored rows (MVT_ID_mvt, unmatched, cls, exit_rel_s), built from the ADS-B day "
+       "store by scripts/analysis/uad_build.py. A prediction-time input: read only while modules.uad.enabled is true, "
+       "its sha256 recorded in the build manifest.",
+       "plans/PREREG_uad_unmatched_adsb_offblock_2026_10_04.md", late=3),
+    _K("modules.uad.constants", "path", "configs/uad_constants_2025.json",
+       "The per-airport offsets (seconds from off-block to leaving the stand) and the calm / storm weights of the UAD "
+       "rule, fitted on the ten design months of 2025 by scripts/analysis/uad_price.py; FM1 does not refit them. Read "
+       "only while modules.uad.enabled is true, its sha256 recorded in the build manifest.",
+       "plans/PREREG_uad_unmatched_adsb_offblock_2026_10_04.md", late=3),
     _K("modules.ldi.enabled", "bool", False,
        "LTFM de-icing correction (v41): on LTFM's matched departures, a row with w_freezing == 1 on a SEVERE local day "
        "(UTC + 3 h; share(MVT - SCHED > 1800 s) >= 0.5 AND min w_temp_c <= 1.0 over the day's LTFM matched departures) "
@@ -753,6 +772,16 @@ def _unmatched_cross_checks(v: dict) -> None:
         if v["unmatched.learner"] != "v26":
             raise E.ConfigValueError("modules.storm.mode anchor needs unmatched.learner v26 (the anchor runs inside the "
                                      "ported lane)")
+    if v["modules.uad.enabled"]:
+        if not v["lanes.unmatched"]:
+            raise E.ConfigValueError("modules.uad.enabled needs lanes.unmatched (the stage re-values the unmatched "
+                                     "lane's rows with an ADS-B stand-exit estimate)")
+        if v["unmatched.learner"] != "v26":
+            raise E.ConfigValueError("modules.uad.enabled needs unmatched.learner v26 (the stage reads the v26 lane's "
+                                     "fill probability)")
+        if v["modules.storm.mode"] != "anchor":
+            raise E.ConfigValueError("modules.uad.enabled needs modules.storm.mode anchor (the stage reads the "
+                                     "anchor's airport-day anomaly)")
     if v["adsb.stack.enabled"]:
         arm = pathlib.PurePosixPath(str(v["adsb.stack.models_dir"]).replace("\\", "/")).name
         if v["adsb.stack.f_model"] == "lgbcat":

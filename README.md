@@ -26,7 +26,9 @@ the duration was measured worse on held-out January 2025 (−1.73 s [−3.15, �
   where ADS-B covers the flight at the six airports the stack's gate serves, a stacked residual model (LightGBM + MLP);
   elsewhere a 50/50 blend with a CatBoost model.
 - **Unmatched lane** (5,290 rows with no flight-plan record): the shipped estimator of schedule-copied off-blocks versus
-  ordinary ones, plus rules for Rome (LIRF), whose labels follow a handler-recording regime.
+  ordinary ones, plus rules for Rome (LIRF), whose labels follow a handler-recording regime. An optional stage (`uad`;
+  candidate `configs/fm1_v57.yaml`, not yet scored on the board) uses the aircraft's own ADS-B track where it shows
+  the time the aircraft left its stand (503 of those rows).
 - **Calibration** (scored-period build only): each airport-month's mean is pulled toward EUROCONTROL's published monthly
   taxi-out figure, always as the last step.
 

@@ -136,6 +136,20 @@ def test_a_derived_artefact_saves_loads_and_accepts_a_directory_as_donor(cfg, do
 
 
 @pytest.mark.slow
+def test_a_saved_artefact_holds_no_file_dated_before_its_own_save(donor):
+    """Every file of a saved artefact is written at save time. A copy that keeps its source's access and modification
+    times looks days old the moment it exists, and a cleaner that removes temp files by access time deletes it: on
+    2026-10-05 macOS's daily temp cleaner (03:35) removed this module's donor stack/ copies from the pytest temp tree
+    while the suite ran (BC-44). The stack models this world copies were written on 2026-09-26. Fails when save()
+    stores a file whose access or modification time is more than an hour older than the artefact's manifest, which is
+    written last."""
+    floor = (donor.directory / "manifest.json").stat().st_mtime - 3600.0
+    stale = sorted(str(f.relative_to(donor.directory)) for f in donor.directory.rglob("*")
+                   if f.is_file() and min(f.stat().st_atime, f.stat().st_mtime) < floor)
+    assert stale == []
+
+
+@pytest.mark.slow
 def test_reuse_refuses_a_knob_outside_the_allow_list(cfg, donor):
     with pytest.raises(E.ReuseError, match=r"knob\(s\) outside the reuse allow-list differ.*matched\.lightgbm\.num_leaves"):
         api.fit(_variant(cfg, matched__lightgbm__num_leaves=7), save=False, log=QUIET, reuse_from=donor)

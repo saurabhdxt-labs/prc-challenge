@@ -105,7 +105,7 @@ def test_a_new_serve_table_does_not_block_a_derived_fit_but_a_new_training_table
     donor = api.fit(K.parse_config(fm1_world_mod.config_raw(world, **{"run.artifacts_dir": str(tmp_path / "a0")})),
                     save=True, log=quiet)
     new = tmp_path / "tables_fi"
-    shutil.copytree(world / "adsb", new)
+    shutil.copytree(world / "adsb", new, copy_function=shutil.copy)
     srv = pd.read_parquet(new / "train.parquet").head(3).assign(MVT_ID_mvt=[9e9, 9e9 + 1, 9e9 + 2])
     srv.to_parquet(new / "serve.parquet", index=False)
     (new / "report.json").write_text(json.dumps({"sources": ["adsb.fi", "adsb.lol"]}))
@@ -123,7 +123,7 @@ def test_a_new_serve_table_does_not_block_a_derived_fit_but_a_new_training_table
     with pytest.raises(E.ConfigValueError, match="hold adsb.fi points"):
         api.predict(dataclasses.replace(derived, config=off), scored, log=quiet)
     bad = tmp_path / "tables_bad"
-    shutil.copytree(new, bad)
+    shutil.copytree(new, bad, copy_function=shutil.copy)
     tr = pd.read_parquet(bad / "train.parquet")
     tr.loc[0, "dt_takeoff"] = 123.0
     tr.to_parquet(bad / "train.parquet", index=False)

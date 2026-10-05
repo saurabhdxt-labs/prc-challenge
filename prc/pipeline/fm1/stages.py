@@ -47,13 +47,14 @@ STAGE_ORDER = (
     StageSpec("rome_e2", "value", "rome_e2"),
     StageSpec("rome_e2w", "value", "rome_e2w"),
     StageSpec("storm", "value", "storm"),
+    StageSpec("uad", "value", "uad"),
     StageSpec("ldi", "value", "ldi"),
     StageSpec("mtx", "calibration", "mtx"),
     StageSpec("finalise", "format"),
 )
 BASE_LABELS = ("base_lightgbm", "base_catboost")
 VALUE_LABELS = (*BASE_LABELS, "adsb_stack", "cbv_blend", "unmatched_body", "rome", "arc", "rome_e2", "rome_e2w", "storm",
-                "ldi")
+                "uad", "ldi")
 DECIDED_BY = frozenset(VALUE_LABELS) | frozenset(f"{v}+mtx" for v in VALUE_LABELS)
 
 
@@ -108,8 +109,8 @@ def plan(cfg) -> tuple:
           "rome": cfg["modules.rome.enabled"], "arc": cfg["modules.arc.enabled"],
           "rome_e2": cfg["modules.rome.enabled"] and cfg["modules.rome.e2"],
           "rome_e2w": cfg["modules.rome.enabled"] and cfg["modules.rome.e2"] and cfg["modules.rome.e2w"],
-          "storm": cfg["modules.storm.mode"] == "anchor", "ldi": cfg["modules.ldi.enabled"],
-          "mtx": cfg.mtx_enabled}
+          "storm": cfg["modules.storm.mode"] == "anchor", "uad": cfg["modules.uad.enabled"],
+          "ldi": cfg["modules.ldi.enabled"], "mtx": cfg.mtx_enabled}
     stages = tuple(s for s in STAGE_ORDER if on[s.name])
     check_order(stages)
     return stages

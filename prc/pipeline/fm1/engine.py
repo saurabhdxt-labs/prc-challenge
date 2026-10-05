@@ -36,6 +36,7 @@ from . import ldi as LDI
 from . import rows as R
 from . import shipped
 from . import stages as S
+from . import uad as UAD
 from . import unmatched as U
 
 HEAVY_ROWS = 150_000
@@ -410,6 +411,13 @@ def predict(art: A.ModelArtifact, rows: pd.DataFrame, log=_log) -> pd.DataFrame:
         uids = u.MVT_ID_mvt.to_numpy(float)
         ledger.write(stage["unmatched_body"], uids, np.rint(np.maximum(p, 1.0)))
         comp.loc[uids, "unmatched_pred"] = p
+    if "uad" in names:
+        uc, info["uad"] = UAD.apply(cfg, rows, comp, ledger, stage["uad"])
+        comp["uad_cls"], comp["uad_est"], comp["uad_shift"] = "", np.nan, np.nan
+        if len(uc):
+            comp.loc[uc.index, "uad_cls"] = uc.uad_cls.to_numpy()
+            comp.loc[uc.index, "uad_est"] = uc.uad_est.to_numpy(dtype="float64")
+            comp.loc[uc.index, "uad_shift"] = uc.uad_shift.to_numpy(dtype="float64")
     if "ldi" in names:
         lc, info["ldi"] = LDI.apply(cfg, fr.matched, rows, ledger, stage["ldi"])
         comp["ldi_delta"], comp["ldi_band"] = np.nan, ""
@@ -448,6 +456,9 @@ def build_inputs(cfg, art: A.ModelArtifact) -> dict:
     changed = sorted(k for k in set(now) | set(art.inputs) if now.get(k) != art.inputs.get(k))
     if cfg.mtx_enabled:
         now["mtx/published"] = A.sha256_file(cfg.path("calibration.mtx.published_csv"))
+    if cfg["modules.uad.enabled"]:
+        now["uad/table"] = A.sha256_file(cfg.path("modules.uad.table"))
+        now["uad/constants"] = A.sha256_file(cfg.path("modules.uad.constants"))
     return {"inputs": now, "changed_since_fit": changed}
 
 

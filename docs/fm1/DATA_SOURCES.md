@@ -7,7 +7,7 @@ re-checked, the table says so.
 | source | used by FM1 | fetched by | licence / terms | evidence |
 |---|---|---|---|---|
 | PRC Data Challenge 2026 movement files (training months, ranking/submitting) | yes — all rows | `scripts/fetch_data.py` (the organiser's bucket; each object checked against its ETag (the MD5 of a single-part upload) or, for a multipart upload, its size; recorded in `data/raw/FETCH_MANIFEST.json`) | the organiser's challenge terms; not redistributed | `.gitignore` header |
-| adsb.lol globe_history | yes — the ADS-B tables (stamp 51348d3e1cb3; the stored stack's training holdout used the older 801f9bcac9a5 tables) | `scripts/adsb_fetch.py` | **ODbL 1.0**; attribution "ADSB.lol contributors" | `scripts/adsb_fetch.py:6,52` |
+| adsb.lol globe_history | yes — the ADS-B tables (stamp 51348d3e1cb3; the stored stack's training holdout used the older 801f9bcac9a5 tables) and the stand-exit table of the optional `uad` stage | `scripts/adsb_fetch.py` | **ODbL 1.0**; attribution "ADSB.lol contributors" | `scripts/adsb_fetch.py:6,52` |
 | adsb.fi opendata (the owner's 60 s poll archive) | v55 only: July-2026 serve table (`adsb.sources.adsb_fi`; off in the forecaster v50) | the owner's poll archive, extracted by a local step that is not shipped (the capture cannot be redistributed) | **non-commercial** terms; not redistributed; July 2026 capture only, cannot be re-fetched — see the eligibility note below | this table |
 | OpenStreetMap (Overpass) | yes — the ORL route table | `scripts/analysis/orl_build.py fetch/build` | **ODbL 1.0**; "(c) OpenStreetMap contributors" | `scripts/analysis/orl_build.py:14,164` |
 | X-Plane Scenery Gateway apt.dat | no (tried as a stand fallback, not used) | not shipped | **GPL v2 or later** | — |

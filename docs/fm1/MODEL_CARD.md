@@ -20,14 +20,15 @@ from 2025's without a drift check (LIMITATIONS.md 9, 14).
 - Inputs: the organiser's raw movement rows (30 columns, one row per DEP or ARR; contract `prc/pipeline/fm1/rows.py`),
   the METAR archive, the OpenStreetMap route table and the ADS-B tables built from adsb.lol tracks. The scored-period
   build (v51, v55) adds EUROCONTROL's published monthly taxi-out means (MTX) and, in v55, the owner's adsb.fi capture of
-  July 2026 in the serve table. A scored departure never carries a label; no design column is a label, a label
+  July 2026 in the serve table. The optional `uad` stage reads a stand-exit table built from the same adsb.lol tracks. A scored departure never carries a label; no design column is a label, a label
   derivative or a `*_sec` column (refused, AT2).
 - Output: one row per scored departure — `MVT_ID_mvt`, `TAXITIME_SEC_mvt` (int32, >= 1), **`decided_by`** (the last value
   stage that wrote the row: `base_lightgbm`, `base_catboost`, `adsb_stack`, `cbv_blend`, `unmatched_body`, `rome`, `arc`, `rome_e2`,
-  `rome_e2w`, `storm`, `ldi`, with `+mtx` when calibration moved it), `lane`, and every component's own output (`F`,
+  `rome_e2w`, `storm`, `uad`, `ldi`, with `+mtx` when calibration moved it), `lane`, and every component's own output (`F`,
   `base_value`, `stack_resid`, `stack_eligible`, `catboost_C`, `unmatched_pred`, `value_before_calibration`,
   `calibration_shift`, `ldi_delta`, `ldi_band`, `eobt_clipped`; for the unmatched lane also `unm_p_fill`, `unm_nf_cells`, `unm_body`, `rome_p_R`, `rome_v7`,
-  `rome_v10`, `rome_value`, `rome_rule`, `arc_rule`, `arc_value`, `e2_p`, `e2w_p`, `storm_A`, `storm_shift`).
+  `rome_v10`, `rome_value`, `rome_rule`, `arc_rule`, `arc_value`, `e2_p`, `e2w_p`, `storm_A`, `storm_shift`; with the
+  `uad` stage on also `uad_cls`, `uad_est`, `uad_shift`).
 
 ## Components in the final configuration
 
@@ -41,6 +42,7 @@ from 2025's without a drift check (LIMITATIONS.md 9, 14).
 | ARC arrival-row clock recovery (LIRF) | yes | yes | 42 |
 | storm anchor | yes | yes | 581 |
 | LDI LTFM de-icing shift | yes | yes | 1,885 |
+| ADS-B stand-exit estimate for departures without a flight-plan record (`uad`) | no | no | — (optional; on in the candidate `configs/fm1_v57.yaml`, which has no board score yet) |
 | MTX monthly calibration (last) | no (forecaster) | yes | moved 236,515 rows |
 | adsb.fi July-2026 serve rows | no | yes (serve table only; the learners are v50's) | — |
 | EOBT clip (LFPG July) | off | off | — (lost on the board, v54) |

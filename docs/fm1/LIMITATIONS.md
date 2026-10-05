@@ -108,4 +108,15 @@
     first-seen times more than 30 min earlier). Misjoins to a previous rotation may remain among the July serve rows.
 21. **Partial batches are refused only by LDI.** LDI refuses a partial local day (PartialDayError); the unmatched lane's
     set-level rules (item 3c) have no such check, so serve the whole scored file.
-
+22. **The stand-exit stage (`uad`) reaches few rows, and part of it is thinly supported.** It needs the aircraft's ADS-B
+    track on the ground at a stand whose position is known, so it gives an estimate to 503 of the 5,290 scored departures
+    without a flight-plan record (none at LFPG or LTFM, where the store has no ground coverage). Its evidence is one
+    registered test on 317 January + July 2025 rows; those months hold no storm at an airport with ground coverage, so
+    the storm weight is the registered floor (0.8) resting on 28 design-month rows, the storm-day hypothesis could not
+    be tested, and the size of the effect in a snow month (230 of the 503 rows are EHAM in January 2026) is not known.
+    The offsets and weights were fitted on 2025 against screen-tier leave-one-month-out predictions, not against the
+    final model. The registration was amended three times after the first build and before any label was read: the
+    checks were enforced in code; a stop rule had missed because Schiphol writes the 777 freighter's type differently
+    from ADS-B (fixed at the cause, the bar kept); and the join for these rows was changed from a ±30 s clock window to
+    the take-off whose track left the row's stand. The table is a prediction-time input built from the ADS-B day store,
+    which is not in the repository; a clone must rebuild it (REPRODUCE.md). The stage has no board evaluation.

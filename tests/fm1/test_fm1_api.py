@@ -143,14 +143,14 @@ def test_find_artifact_by_config(cfg, art, scored, pred):
 
 def test_tampered_extra_or_missing_files_are_refused(art, tmp_path):
     d = tmp_path / "copy"
-    shutil.copytree(art.directory, d)
+    shutil.copytree(art.directory, d, copy_function=shutil.copy)
     A.load(d)
     p = d / "learners" / "base" / "lgb_seed0.txt"
     p.write_text(p.read_text() + "\n")
     with pytest.raises(E.ArtifactError, match=r"changed since the artefact was written: \['learners/base/lgb_seed0.txt'\]"):
         A.load(d)
     shutil.rmtree(d)
-    shutil.copytree(art.directory, d)
+    shutil.copytree(art.directory, d, copy_function=shutil.copy)
     (d / "notes.txt").write_text("x")
     with pytest.raises(E.ArtifactError, match=r"unexpected \['notes.txt'\]"):
         A.load(d)

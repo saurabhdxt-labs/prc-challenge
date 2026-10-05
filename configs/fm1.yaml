@@ -112,6 +112,10 @@ modules:
   storm:
     mode: "off"
     feature: false   # NOT PORTED
+  uad:
+    enabled: false
+    table: data/uad/2026_table_a3/table.parquet
+    constants: configs/uad_constants_2025.json
   ldi:
     enabled: false
     delta_le30_s: 8.003118629519271

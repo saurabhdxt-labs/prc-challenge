@@ -29,7 +29,8 @@ python -B tools/run_suite.py                                                    
 that write their command-line overrides in and resolve to the stored artefacts' config hashes
 (`tests/fm1/test_fm1_final_configs.py`): `configs/fm1_v50.yaml`, the forecaster (lgbcat ADS-B stack on the
 `tables_51348d3e1cb3` tables, storm anchor on, LDI on, 12 threads), and `configs/fm1_v55.yaml`, the scored-period build
-(v50 + MTX + the adsb.fi serve table; `adsb.sources.adsb_fi`). The storm-as-feature form is refused by name when
+(v50 + MTX + the adsb.fi serve table; `adsb.sources.adsb_fi`). `configs/fm1_v57.yaml` is a candidate that has not been
+scored on the board: v55 with the optional stand-exit stage on (`modules.uad.enabled`). The storm-as-feature form is refused by name when
 switched on. LDI needs whole local days per predict call. A fit
 over the twelve months is a heavy job (`--allow-heavy`, the pre-run checks first, one heavy job at a time). Validation folds
 with a single training month must switch E2W off (`--set modules.rome.e2w=false`: its beta_W is fitted leave-one-month-out).
@@ -117,6 +118,8 @@ weather (DATA_SOURCES.md) and the derived inputs below, each rebuilt by code in 
 | holdout fits feeding the stack | `scripts/analysis/r12_validate.py` (LightGBM base on the older `tables_801f9bcac9a5`; CatBoost half via `scripts/analysis/r12_validate.py --arms cat --screen --seeds 0,1,2`, learning rate 0.05), assembled by `r13_cat.py assemble` | `data/r12/r13_arms_full` |
 | ADS-B stack models (`adsb.stack.models_dir`) | `scripts/analysis/r12_stack.py oof --val data/r12/r13_arms_full --tables data/r12/tables_51348d3e1cb3 --arms r12,lgbcat --out data/r12/r13_stack_full` | `data/r12/r13_stack_full/models_lgbcat` (MANIFEST.json: seeds 0–2, 5 folds, gate, git sha) |
 | ORL route table (`features.orl_routes_file`) | `scripts/analysis/orl_build.py fetch`, then `build` | `data/osm/orl_routes.parquet` |
+| stand-exit table (`modules.uad.table`; only with the `uad` stage) | `scripts/analysis/uad_build.py parked`, then `table`, on the ADS-B day files (2025 first; the 2026 build takes both years' parked positions and `--alias-from` the 2025 table) | `data/uad/2026_table_a3/table.parquet` |
+| stand-exit constants (`modules.uad.constants`) | `scripts/analysis/uad_price.py constants` on the 2025 stand-exit table and leave-one-month-out predictions of the 2025 months (the command refuses a table that fails its registered checks) | `configs/uad_constants_2025.json` (in the repository) |
 | MTX CSVs (`calibration.mtx.*_csv`) | downloaded from EUROCONTROL's performance data (`taxi_out_additional_time_<year>.csv`; the URLs are in the manifest) and parsed by `scripts/analysis/mtx_source.py` | `data/mtx/raw/` (sha256 manifest; the 2026 file is a live publication) |
 
 **Optional second source (scored-period build only).** `scripts/analysis/afi_build.py days` merges the owner's adsb.fi

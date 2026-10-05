@@ -142,7 +142,8 @@ def save(art: ModelArtifact, parent=None) -> pathlib.Path:
         if art.unmatched_lane is not None:
             art.unmatched_lane.save(tmp / "unmatched_lane")
         if art.stack_dir is not None:
-            shutil.copytree(art.stack_dir, tmp / "stack")
+            # content only: a copy that kept the source's timestamps would be born days old (BC-44)
+            shutil.copytree(art.stack_dir, tmp / "stack", copy_function=shutil.copyfile)
         _write_json(tmp / "gate.json", {"manifest": art.gate_manifest, "train_covered_share": art.train_covered_share})
         if art.mtx is not None:
             (tmp / "mtx.json").write_text(art.mtx.to_json())

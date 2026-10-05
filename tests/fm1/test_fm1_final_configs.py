@@ -43,6 +43,17 @@ FINAL = {
         "run.purpose": "scored_period",
         "adsb.sources.adsb_fi": True,
     }),
+    "v57": ("configs/fm1_v57.yaml", "e3c1d6b473f422fcbbc0661d21bf8f7de13b7370552c6cc68fe426b45aff7979", {
+        "adsb.stack.f_model": "lgbcat",
+        "adsb.stack.models_dir": "data/r12/r13_stack_full/models_lgbcat",
+        "adsb.table_dir": "data/r12/tables_51348d3e1cb3_afi",
+        "modules.storm.mode": "anchor",
+        "run.threads": 12,
+        "modules.ldi.enabled": True,
+        "run.purpose": "scored_period",
+        "adsb.sources.adsb_fi": True,
+        "modules.uad.enabled": True,
+    }),
 }
 
 
