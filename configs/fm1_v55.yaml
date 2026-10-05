@@ -1,4 +1,4 @@
-# FM1 — the SCORED-PERIOD build of board file v55 (public board 249.9168, the team's best file).
+# FM1 — the SCORED-PERIOD build of board file v55 (public board 249.9168; the team's best file until v57).
 #
 # configs/fm1_v50.yaml plus two scored-period inputs: MTX monthly calibration (run.purpose: scored_period, from
 # EUROCONTROL's published monthly taxi-out aggregates) and the owner's adsb.fi capture of July 2026 merged into the

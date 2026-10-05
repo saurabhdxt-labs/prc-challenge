@@ -228,7 +228,7 @@ the lever helped. Sources: `reports/MSE_LEDGER.md` and each registration's hash 
 | 10-02 | ACR | training with ADS-B randomly hidden (coverage-regime repair) | the 2026 coverage loss costs 862.7 bmse [671.7, 1124.8]; the repair recovers 25.7 [−120.5, 163.9] | FALSE: information, not calibration |
 | 10-03 | AFI (v55) | adsb.fi July-2026 capture merged into the serve table (no refit) | +609.6 board MSE vs v51 (registered +150 … +600) | TRUE: in the scored-period build |
 | 10-03 | AFB (v56) | adsb.fi only where adsb.lol had no track | −205.8 vs v55 | FALSE |
-| 10-05 | UAD | the aircraft's own ADS-B stand-exit time for departures without a flight-plan record (stage `uad`) | 317 January + July 2025 rows: RMSE 432.4 → 274.4 s; body +53.3 bmse [21.8, 85.3] | TRUE on 2025; optional stage, not yet scored on the board |
+| 10-05 | UAD | the aircraft's own ADS-B stand-exit time for departures without a flight-plan record (stage `uad`) | 317 January + July 2025 rows: RMSE 432.4 → 274.4 s; body +53.3 bmse [21.8, 85.3] | TRUE on 2025; optional stage, on in board file v57 (+1,291.9 MSE against v55, §8) |
 
 Reading: almost every lever that looked good on a 2025 holdout either failed its own registered gate or lost on the 2026
 board (AGF, v22, HPX-S, MOVE). The final model is what survived this, not the best of many tries.
@@ -257,10 +257,19 @@ for unseen data (the final-model audit of 2026-09-28 put about 28 % of the cumul
 | v52 | v50 + coverage-ratio gate (stack off at EDDF) | 251.4978 | −10.6 vs v50; not kept |
 | v53 | v50 without the CatBoost half-blend | 251.8068 | −166.1 vs v50; not kept |
 | v54 | v51 + the EOBT clip at LFPG July | 251.5593 | −214.0 vs v51; not kept |
-| **v55** | **v51 + adsb.fi July-2026 serve table (adsb.lol ∪ adsb.fi, LTFM excluded)** | **249.9168** | **+609.6 vs v51; +407.8 vs v46 — best file** |
+| v55 | v51 + adsb.fi July-2026 serve table (adsb.lol ∪ adsb.fi, LTFM excluded) | **249.9168** | +609.6 vs v51; +407.8 vs v46 — best file until v57 |
 | v56 | as v55, adsb.fi only where adsb.lol had no track | 250.3282 | −205.8 vs v55; not kept |
+| **v57** | **v55 + the ADS-B stand-exit stage `uad` for departures without a flight-plan record** | **247.3187** | **+1,291.9 vs v55 — best file** |
 
 Rows read from the project's board records (v50–v53 from the scoring service's result files, 2026-10-02); v42's MTX gain
 (+124) and the individual Rome steps v7 / v10 are quoted in the ledger and not repeated here. v51–v53 are board-selected
 whole-model variants of v50: each differs in one documented knob and changes at least 10,000 rows. The documented forecaster is v50; v51 adds MTX, which reads the target period's published
 monthly aggregates and is disclosed as such (LIMITATIONS 8). Change in MSE = difference of the squared board RMSEs.
+
+v57 differs from v55 in one knob (`modules.uad.enabled`). The stage writes 501 rows (EHAM 328, of which 230 in January
+2026) and the monthly calibration then shifts 46,485 other rows by 1–2 s; 99.95 % of the change sits on the 501. The
+stage's offsets and weights were fitted on the ten design months of 2025 and tested once on January + July 2025 before
+the file existed (§7, UAD); none was set or changed from a board score. Of the change, 58 % sits on rows that test
+barely covered (124 storm-day rows, 51 of class A2), which was known before the upload. The gain was larger than the
+range written down beforehand (−150 … +1,000 MSE; the part the 2025 test supported, +220 … +430). One board evaluation
+confirms the file as a whole; it does not say which rows carried the gain (LIMITATIONS 22, RISK_REPORT_v57).

@@ -113,10 +113,15 @@
     without a flight-plan record (none at LFPG or LTFM, where the store has no ground coverage). Its evidence is one
     registered test on 317 January + July 2025 rows; those months hold no storm at an airport with ground coverage, so
     the storm weight is the registered floor (0.8) resting on 28 design-month rows, the storm-day hypothesis could not
-    be tested, and the size of the effect in a snow month (230 of the 503 rows are EHAM in January 2026) is not known.
+    be tested on 2025 (230 of the 503 rows are EHAM in January 2026, a snow month).
     The offsets and weights were fitted on 2025 against screen-tier leave-one-month-out predictions, not against the
     final model. The registration was amended three times after the first build and before any label was read: the
     checks were enforced in code; a stop rule had missed because Schiphol writes the 777 freighter's type differently
     from ADS-B (fixed at the cause, the bar kept); and the join for these rows was changed from a ±30 s clock window to
     the take-off whose track left the row's stand. The table is a prediction-time input built from the ADS-B day store,
-    which is not in the repository; a clone must rebuild it (REPRODUCE.md). The stage has no board evaluation.
+    which is not in the repository; a clone must rebuild it (REPRODUCE.md). On the board the stage has one evaluation:
+    v57 (v55 with the stage on) scored 247.3187 against 249.9168, +1,291.9 MSE. That confirms the file as a whole on
+    January + July 2026. It does not say which rows carried the gain, so the storm weight and the class-A2 factor
+    still have no labelled test of their own, and the gain was larger than the range written down before the upload.
+    The 2026 table is built from the adsb.lol day store only, without the adsb.fi capture of July 2026 that the
+    matched lane of v55 uses; no code checks the table the stage is given against the registered stop rules.

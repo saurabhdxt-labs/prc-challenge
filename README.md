@@ -8,7 +8,8 @@ departures of January and July 2026.
 |---|---|---|
 | `merry-quicksand_v50.parquet` | FM1 as a **forecaster**: only the challenge files and public open data — no scored-period aggregate, no private capture (`configs/fm1_v50.yaml`) | 251.4767 |
 | `merry-quicksand_v51.parquet` | v50 + monthly calibration to EUROCONTROL's published 2026 monthly taxi-out means (MTX) | 251.1335 |
-| `merry-quicksand_v55.parquet` | v51 + the owner's adsb.fi capture of July 2026 in the ADS-B serve table — **the team's best file** (`configs/fm1_v55.yaml`) | 249.9168 |
+| `merry-quicksand_v55.parquet` | v51 + the owner's adsb.fi capture of July 2026 in the ADS-B serve table (`configs/fm1_v55.yaml`) | 249.9168 |
+| `merry-quicksand_v57.parquet` | v55 + the aircraft's own ADS-B stand-exit time for 501 departures without a flight-plan record — **the team's best file** (`configs/fm1_v57.yaml`) | 247.3187 |
 
 The board is a single evaluation of the same scored set; no seed-variance estimate exists for these differences, and
 the steps kept along the way were kept when the board improved (`docs/fm1/METHOD.md` §8).
@@ -27,8 +28,8 @@ the duration was measured worse on held-out January 2025 (−1.73 s [−3.15, �
   elsewhere a 50/50 blend with a CatBoost model.
 - **Unmatched lane** (5,290 rows with no flight-plan record): the shipped estimator of schedule-copied off-blocks versus
   ordinary ones, plus rules for Rome (LIRF), whose labels follow a handler-recording regime. An optional stage (`uad`;
-  candidate `configs/fm1_v57.yaml`, not yet scored on the board) uses the aircraft's own ADS-B track where it shows
-  the time the aircraft left its stand (503 of those rows).
+  on in board file v57, `configs/fm1_v57.yaml`) uses the aircraft's own ADS-B track where it shows the time the
+  aircraft left its stand (503 of those rows; the stage writes the 501 that the body or the storm anchor decided).
 - **Calibration** (scored-period build only): each airport-month's mean is pulled toward EUROCONTROL's published monthly
   taxi-out figure, always as the last step.
 
@@ -50,7 +51,7 @@ CatBoost runs in its own environment so its OpenMP runtime never shares a proces
 redistributed: the challenge files come from the organiser (`scripts/fetch_data.py` checks each object against the
 bucket's ETag or size), and the other inputs are rebuilt by code in this repository from the sources in
 `docs/fm1/DATA_SOURCES.md` — except the stored ADS-B stack models, which the current code cannot regenerate byte for byte,
-and the adsb.fi capture behind v55, which is extracted by a local step that is not shipped (it cannot be redistributed). The commands, the
+and the adsb.fi capture behind v55 and v57, which is extracted by a local step that is not shipped (it cannot be redistributed). The commands, the
 derived inputs and what a clone can and cannot rebuild are in `docs/fm1/REPRODUCE.md`; the final model is
 
 ```bash
@@ -70,7 +71,7 @@ collected tests reproducibly.
 | path | contents |
 |---|---|
 | `prc/` | the FM1 package (`prc/pipeline/fm1/`), its API (`prc/api.py`) and CLI (`python -m prc`) |
-| `configs/` | `fm1.yaml` (every knob at its documented default), `fm1_v50.yaml` and `fm1_v55.yaml` (the final runs) |
+| `configs/` | `fm1.yaml` (every knob at its documented default), `fm1_v50.yaml`, `fm1_v55.yaml` and `fm1_v57.yaml` (the final runs), `uad_constants_2025.json` (the stand-exit stage's offsets and weights) |
 | `scripts/` | the shipped feature builders and estimators FM1 loads, and the builders of its derived inputs |
 | `tools/` | suite runner, environment and clone checks, run queue, memory guard, upload verifier |
 | `tests/` | the test suite (`tests/fm1/` for the package) |

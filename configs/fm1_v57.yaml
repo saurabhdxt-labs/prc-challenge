@@ -1,6 +1,7 @@
-# FM1 — a CANDIDATE build: v55 plus the ADS-B stand-exit estimate for departures without a flight-plan record
-# (stage `uad`; plans/PREREG_uad_unmatched_adsb_offblock_2026_10_04.md, H-UAD-1 TRUE on January + July 2025).
-# Board score: not known (not uploaded when this file was written).
+# FM1 — the build of board file v57 (public board 247.3187, the team's best file): v55 plus the ADS-B stand-exit
+# estimate for departures without a flight-plan record (stage `uad`;
+# plans/PREREG_uad_unmatched_adsb_offblock_2026_10_04.md, H-UAD-1 TRUE on January + July 2025).
+# Board, 2026-10-05: 247.3187 against v55's 249.9168 (+1,291.9 MSE); one evaluation of the scored set.
 #
 # configs/fm1_v55.yaml with one override: modules.uad.enabled true. modules.uad.table is the stand-exit table of the
 # scored rows (scripts/analysis/uad_build.py) and modules.uad.constants the offsets and weights fitted on the 2025

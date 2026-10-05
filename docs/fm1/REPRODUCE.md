@@ -25,12 +25,12 @@ python -B tools/fm1_replay_gate.py --out <new dir> [--per-stratum 100 --runs 2] 
 python -B tools/run_suite.py                                                                          # the suite
 ```
 
-`configs/fm1.yaml` holds every knob at its documented default (a test pins this). The final runs are two config files
+`configs/fm1.yaml` holds every knob at its documented default (a test pins this). The final runs are three config files
 that write their command-line overrides in and resolve to the stored artefacts' config hashes
 (`tests/fm1/test_fm1_final_configs.py`): `configs/fm1_v50.yaml`, the forecaster (lgbcat ADS-B stack on the
 `tables_51348d3e1cb3` tables, storm anchor on, LDI on, 12 threads), and `configs/fm1_v55.yaml`, the scored-period build
-(v50 + MTX + the adsb.fi serve table; `adsb.sources.adsb_fi`). `configs/fm1_v57.yaml` is a candidate that has not been
-scored on the board: v55 with the optional stand-exit stage on (`modules.uad.enabled`). The storm-as-feature form is refused by name when
+(v50 + MTX + the adsb.fi serve table; `adsb.sources.adsb_fi`). `configs/fm1_v57.yaml` is board file v57, the team's
+best: v55 with the optional stand-exit stage on (`modules.uad.enabled`). The storm-as-feature form is refused by name when
 switched on. LDI needs whole local days per predict call. A fit
 over the twelve months is a heavy job (`--allow-heavy`, the pre-run checks first, one heavy job at a time). Validation folds
 with a single training month must switch E2W off (`--set modules.rome.e2w=false`: its beta_W is fitted leave-one-month-out).
@@ -51,6 +51,22 @@ The uploaded file is `merry-quicksand_v55.parquet`, sha256 `225ab0be205a0a254d0c
 --config configs/fm1_v55.yaml --out <new dir> --version 55` served the stored artefact and wrote a file with sha256
 `225ab0be205a0a254d0c27e726ec33d6007981b98f937f9b00739499e5ac537d` — identical to the uploaded v55. Its manifest hashes
 204 inputs and names none as changed since the fit. The full fit itself (~10 h) was not re-run for this check.
+
+## Reproducing the board file v57
+
+```
+python -m prc fit --config configs/fm1_v57.yaml --allow-heavy --reuse-from artifacts/fm1/2d29ad344b45-1c61fcc2
+python -m prc build-submission --config configs/fm1_v57.yaml --out <new dir> --version 57
+```
+
+The uploaded file is `merry-quicksand_v57.parquet`, sha256 `4bf0f915b90ae7374aa97e435a254d9d2bf73292bda30f47cad55d97c154350b`
+(344,841 rows). These two commands wrote it on 2026-10-05 with the committed code and a clean tree (artefact
+`artifacts/fm1/e3c1d6b473f4-141862a0`; the v50 artefact is the donor, as for v55), so the uploaded file is the
+committed code's own output; no second build was run to compare. Its manifest records the stage's two inputs: the
+stand-exit table (`data/uad/2026_table_a3/table.parquet`, sha256
+`15ab2b0862a6d435f35891a157a823d9589af5d799a30ae89c8708d45eb285e8`) and the constants (`configs/uad_constants_2025.json`,
+sha256 `7d1b6bbcec5ab0f9318fb41d40d641c63f30a78906830bcbe16c92dcc3e147b7`). The table is a derived input (below); a
+rebuild from a fresh download of the ADS-B day files has not been compared with it.
 
 ## Determinism (VERIFIED on the e2e world, this machine)
 
