@@ -1139,11 +1139,82 @@ def _merge_parked_reports(reports: list) -> dict:
     return {"by_airport": by_airport, "missing_days": sorted(missing)}
 
 
-def _pool_parked(parked_dirs) -> pd.DataFrame:
+# PASS1_PARAMS: the params() names pass 1's own call chain reads, derived from the code (_run_parked -> build_parked
+# -> every function it calls, transitively, inside this module):
+#   build_parked -> read_day: no params() constant (AF.GROUND_LOOKBACK_S / AF.NEXT_DAY_HEAD_S belong to adsb_features)
+#   build_parked -> join_day -> _join_parts: no params() constant (AF.segment_tracks/takeoff_events/join_flights and
+#       _norm_str_series carry none)
+#   build_parked -> _epoch_seconds: no params() constant (AF.EPOCH only)
+#   build_parked -> _norm_str_series -> _norm_str: no params() constant
+#   build_parked -> xy: no params() constant (AE.APTS, AF.M_PER_DEG_LON_EQ / AF.M_PER_DEG_LAT only)
+#   build_parked -> parked_position: REF_WINDOW_S, STATIONARY_KT
+# _run_parked's other calls (_check_out_dir, _read_rows_for_cli -> read_rows -> ROW_COLS, _sha256_file, _day_chunks,
+# _heartbeat, _merge_parked_reports, _write_output_parquet, _report_base -> params() / params_hash() /
+# _declared_sources / _sha256_file) read no params() constant in their own logic either: ROW_COLS and CODE_FILES are
+# separate module constants, never part of params(). So REF_WINDOW_S and STATIONARY_KT are the only params()
+# constants that can change pass 1's OUTPUT bytes.
+PASS1_PARAMS = ("REF_WINDOW_S", "STATIONARY_KT")
+
+
+def _param_value_equal(stored, current) -> bool:
+    """Value equality for one params() entry, treating a list and a tuple of equal elements as equal (never a bare
+    `==`, under which a list is never equal to a tuple regardless of its elements). `params()` already normalises
+    REF_WINDOW_S to a list before this ever sees it, and JSON has no tuple either, so in practice both sides are
+    already lists here; the list/tuple cross-type case guards a caller that compares against the raw registered
+    tuple constant directly instead of through params(). A value that is list/tuple-shaped on only one side is
+    never equal, whatever its contents."""
+    if isinstance(stored, (list, tuple)) or isinstance(current, (list, tuple)):
+        if not isinstance(stored, (list, tuple)) or not isinstance(current, (list, tuple)):
+            return False
+        return list(stored) == list(current)
+    return stored == current
+
+
+_NO_VALUE = object()
+
+
+def _parked_dir_info(base: pathlib.Path) -> dict:
+    """Validates one resolved --parked directory against PASS1_PARAMS and returns its bookkeeping entry. Raises
+    ValueError naming the directory when report.json is missing beside parked.parquet; ValueError naming the
+    directory, the parameter, and its stored and current value when a PASS1_PARAMS name is absent from the stored
+    report's params, or its stored value differs from the current params()[name] (_param_value_equal). A parameter
+    outside PASS1_PARAMS is never read here, so a stored params dict missing a later-added, pass-2-only constant (or
+    disagreeing on one) is accepted: only pass 1's own inputs gate pooling. Returns {"dir" (absolute path),
+    "parked_sha256", "report_sha256" (this directory's own files' sha256), "params_hash", "code_sha256" (both
+    carried through from the stored report, unverified against the current code: PASS1_PARAMS is the only
+    provenance check pooling performs)."""
+    report_path = base / "report.json"
+    if not report_path.exists():
+        raise ValueError(f"{base}: no report.json beside parked.parquet (not a parked directory)")
+    stored = json.loads(report_path.read_text())
+    stored_params = stored.get("params") or {}
+    current_params = params()
+    for name in PASS1_PARAMS:
+        stored_v = stored_params.get(name, _NO_VALUE)
+        current_v = current_params[name]
+        if stored_v is _NO_VALUE:
+            raise ValueError(f"{base}: parked report.json's params has no {name!r} (a pass-1 parameter; current "
+                             f"params()[{name!r}] = {current_v!r})")
+        if not _param_value_equal(stored_v, current_v):
+            raise ValueError(f"{base}: parked report.json's params.{name} = {stored_v!r}, current "
+                             f"params()[{name!r}] = {current_v!r}")
+    return {"dir": str(base), "parked_sha256": _sha256_file(base / "parked.parquet"),
+            "report_sha256": _sha256_file(report_path), "params_hash": stored.get("params_hash"),
+            "code_sha256": stored.get("code_sha256")}
+
+
+def _pool_parked(parked_dirs) -> tuple[pd.DataFrame, list]:
+    """Pools every --parked directory's parked.parquet into one frame, refusing an MVT_ID_mvt shared by two
+    directories. Each directory is first validated and summarised by _parked_dir_info (not just read): returns
+    (the pooled frame, the list of per-directory bookkeeping entries, in `parked_dirs` order), for _run_table to
+    write into the table's own report.json under the "parked" key."""
     frames = []
     seen: set = set()
+    parked_info = []
     for d in parked_dirs:
-        p = pathlib.Path(d).resolve() / "parked.parquet"
+        base = pathlib.Path(d).resolve()
+        parked_info.append(_parked_dir_info(base))
+        p = base / "parked.parquet"
         pf = pd.read_parquet(p)
         ids = set(pf.MVT_ID_mvt.tolist())
         overlap = ids & seen
@@ -1152,8 +1223,8 @@ def _pool_parked(parked_dirs) -> pd.DataFrame:
         seen |= ids
         frames.append(pf)
     if not frames:
-        return _empty_frame(PARKED_SCHEMA)
-    return pd.concat(frames, ignore_index=True).astype(PARKED_SCHEMA)
+        return _empty_frame(PARKED_SCHEMA), parked_info
+    return pd.concat(frames, ignore_index=True).astype(PARKED_SCHEMA), parked_info
 
 
 def _run_parked(a) -> int:
@@ -1218,7 +1289,7 @@ def _run_table(a) -> int:
     out = _check_out_dir(a.out)
     rows, shas = _read_rows_for_cli(a.rows)
     dirs = [str(pathlib.Path(d).resolve()) for d in a.adsb_dir]
-    parked = _pool_parked(a.parked)
+    parked, parked_info = _pool_parked(a.parked)
     extra_identity, alias_shas = _alias_sources(a.alias_from or [], set(rows.MVT_ID_mvt.tolist()))
     days = sorted(set(a.days)) if a.days else sorted(rows.day.unique())
     jobs = max(1, a.jobs)
@@ -1249,8 +1320,11 @@ def _run_table(a) -> int:
     _write_output_parquet(table, out / "table.parquet")
     _write_output_parquet(cands, out / "cands.parquet")
     _write_output_parquet(stand_references(parked), out / "refs.parquet")
+    # hashed AFTER writing, from the files actually on disk, so "outputs" can never drift from what was written.
+    outputs = {name: _sha256_file(out / name) for name in ("table.parquet", "cands.parquet", "refs.parquet")}
     full_report = _report_base(dirs)
-    full_report.update({"inputs": shas, "alias_from": alias_shas, "days": days, **report})
+    full_report.update({"inputs": shas, "alias_from": alias_shas, "days": days, "parked": parked_info,
+                        "outputs": outputs, **report})
     (out / "report.json").write_text(json.dumps(full_report, indent=2, sort_keys=True, default=str))
     return 0
 

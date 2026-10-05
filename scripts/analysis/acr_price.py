@@ -131,7 +131,7 @@ def main(argv=None) -> int:  # pragma: no cover - real files, the two models (th
         sdir.mkdir()
         scenario_table(table, cols, s, F.set_unheard).to_parquet(sdir / "train.parquet", index=False)
         for n in ("serve.parquet", "report.json"):
-            shutil.copy2(tdir / n, sdir / n)
+            shutil.copy(tdir / n, sdir / n)
         for m, acc in ((m0, e0_scen), (m1, e1_scen)):
             acc.append(err(record(dataclasses.replace(m, config=m.config.replace(**{"adsb.table_dir": str(sdir)})))))
         print(json.dumps({"seed": s, "D0": round(float((e0_scen[-1] - e0_asis).sum() / EPX.BOARD_N), 1),

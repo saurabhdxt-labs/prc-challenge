@@ -2,7 +2,9 @@
 
 configs/fm1.yaml holds every knob at its documented default (tests/fm1/test_fm1_knobs.py). The final runs were made from
 it with command-line overrides, which a reader of the repository could not see. configs/fm1_v50.yaml (the forecaster,
-board 251.4767) and configs/fm1_v55.yaml (the scored-period build, board 249.9168) write those overrides into files. The
+board 251.4767) and configs/fm1_v55.yaml (the scored-period build, board 249.9168) write those overrides into files;
+configs/fm1_v57.yaml (board 247.3187) adds the stand-exit stage, and configs/fm1_v57_tc.yaml is a candidate with no
+stored artefact (v57 with the tail-cell rule off): for it the pinned hash is the configuration's own. The
 config hash is computed over the resolved values, so each file must reproduce its artefact's recorded hash exactly and
 must differ from fm1.yaml in exactly the recorded overrides. Parsing needs no data, so a fresh clone runs these tests.
 
@@ -54,6 +56,19 @@ FINAL = {
         "adsb.sources.adsb_fi": True,
         "modules.uad.enabled": True,
     }),
+    #: a candidate, not behind a board file and without a stored artefact: the hash below is the config's own
+    "v57_tc": ("configs/fm1_v57_tc.yaml", "9ba126281d66ccc6677ffe7dcd432d99a21470765e5385034356d20319064415", {
+        "adsb.stack.f_model": "lgbcat",
+        "adsb.stack.models_dir": "data/r12/r13_stack_full/models_lgbcat",
+        "adsb.table_dir": "data/r12/tables_51348d3e1cb3_afi",
+        "modules.storm.mode": "anchor",
+        "run.threads": 12,
+        "modules.ldi.enabled": True,
+        "run.purpose": "scored_period",
+        "adsb.sources.adsb_fi": True,
+        "modules.uad.enabled": True,
+        "modules.tail_cells.enabled": False,
+    }),
 }
 
 
@@ -86,5 +101,5 @@ def test_the_final_config_differs_from_the_defaults_in_exactly_the_recorded_over
 def test_the_overrides_on_the_defaults_give_the_same_hash(name):
     """The recorded command line (fm1.yaml + --set ...) and the file are the same configuration."""
     _, recorded_hash, overrides = FINAL[name]
-    sets = [f"{k}={'true' if v is True else v}" for k, v in overrides.items()]
+    sets = [f"{k}={'true' if v is True else 'false' if v is False else v}" for k, v in overrides.items()]
     assert api.load_config(ROOT / "configs" / "fm1.yaml", overrides=sets).hash == recorded_hash

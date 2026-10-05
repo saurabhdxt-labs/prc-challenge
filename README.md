@@ -71,7 +71,7 @@ collected tests reproducibly.
 | path | contents |
 |---|---|
 | `prc/` | the FM1 package (`prc/pipeline/fm1/`), its API (`prc/api.py`) and CLI (`python -m prc`) |
-| `configs/` | `fm1.yaml` (every knob at its documented default), `fm1_v50.yaml`, `fm1_v55.yaml` and `fm1_v57.yaml` (the final runs), `uad_constants_2025.json` (the stand-exit stage's offsets and weights) |
+| `configs/` | `fm1.yaml` (every knob at its documented default), `fm1_v50.yaml`, `fm1_v55.yaml` and `fm1_v57.yaml` (the final runs), `fm1_v57_tc.yaml` (a candidate: v57 with the unmatched body's tail-cell rule off), `uad_constants_2025.json` (the stand-exit stage's offsets and weights) |
 | `scripts/` | the shipped feature builders and estimators FM1 loads, and the builders of its derived inputs |
 | `tools/` | suite runner, environment and clone checks, run queue, memory guard, upload verifier |
 | `tests/` | the test suite (`tests/fm1/` for the package) |

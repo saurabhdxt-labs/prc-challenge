@@ -112,6 +112,8 @@ modules:
   storm:
     mode: "off"
     feature: false   # NOT PORTED
+  tail_cells:
+    enabled: true
   uad:
     enabled: false
     table: data/uad/2026_table_a3/table.parquet

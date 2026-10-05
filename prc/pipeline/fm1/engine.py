@@ -459,6 +459,7 @@ def build_inputs(cfg, art: A.ModelArtifact) -> dict:
     if cfg["modules.uad.enabled"]:
         now["uad/table"] = A.sha256_file(cfg.path("modules.uad.table"))
         now["uad/constants"] = A.sha256_file(cfg.path("modules.uad.constants"))
+        now["uad/table_report"] = UAD.check_table_report(cfg.path("modules.uad.table"))
     return {"inputs": now, "changed_since_fit": changed}
 
 

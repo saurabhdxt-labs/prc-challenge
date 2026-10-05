@@ -18,7 +18,9 @@ FIT (the training months) -> UnmatchedModel, the frames the shipped estimators f
     so the artefact stores the frames and serve() runs every fit, seeded: bit-reproducible (AT3 / AT4).
 
 SERVE (the scored rows) -> one ledger write per stage, in the fixed order (stages.STAGE_ORDER):
-    unmatched_body  every unmatched departure: rint(mixture(p, sp, nf_hybrid(nf_cells, MJS body)))   v26 without its anchor
+    unmatched_body  every unmatched departure: rint(mixture(p, sp, not_fill_value(nf_cells, MJS body, tail_cells)))
+                    tail_cells = modules.tail_cells.enabled (true: nf_hybrid; false: MJS body) IN THIS MIXTURE;  v26 without its anchor
+                    a LIRF row is always decided below by `rome`, from S1's own hybrid, never changed by this knob
     rome            LIRF: R2 p -> mixture(p, sp, S1's nf) -> 24 h date-slip -> rint -> E1 floor -> RLD        v7 -> v10 -> v12
     arc             modules.arc.airports: ord -> max(rint(MVT - AOBT_3), 1); fill -> max(rint(sp), 1)        v17
     rome_e2         LIRF rows still at their Rome value, 3,600 <= sp < 24,000: E2 logit, per-day check       v31
@@ -257,11 +259,34 @@ def _empty_comp(ids) -> pd.DataFrame:
     return comp
 
 
-def body_values(D, model: UnmatchedModel, te_w: pd.DataFrame, parts: dict, params: dict) -> dict:
+def not_fill_value(D, nf_cells, body, tail_cells: bool) -> np.ndarray:
+    """The unmatched body's not-copy value IN THE BODY MIXTURE (modules.tail_cells.enabled;
+    plans/PREREG_tc_tail_cell_routing_2026_10_05.md): `D.nf_hybrid(nf_cells, body)` -- the shipped hybrid, which
+    keeps a row's own cell mean where it is at or above build_submission.T_TAIL_S -- when `tail_cells` is true
+    (the shipped rule, default); `body`, as float64, when it is false. Either way this is only the body's own
+    mixture input: a LIRF row is decided by the `rome` stage from S1's own hybrid (parts["nf"], never nf_cells)
+    regardless of `tail_cells`, so this function's result never reaches a LIRF row's final value. The false
+    branch runs the SAME validation nf_hybrid runs (equal shapes, all finite, the same error type and wording
+    style) so turning the hybrid off never skips the check it would otherwise have run; nf_hybrid's own refusal
+    fires unchanged when `tail_cells` is true."""
+    if tail_cells:
+        return D.nf_hybrid(nf_cells, body)
+    cells = np.asarray(nf_cells, dtype="float64")
+    b = np.asarray(body, dtype="float64")
+    if cells.shape != b.shape:
+        raise ValueError(f"shape mismatch: nf_cells {cells.shape} vs body {b.shape}")
+    if not (np.isfinite(cells).all() and np.isfinite(b).all()):
+        raise ValueError("nf_cells and body must be finite")
+    return b
+
+
+def body_values(D, model: UnmatchedModel, te_w: pd.DataFrame, parts: dict, params: dict, *,
+                tail_cells: bool) -> dict:
     """The v26 body on `te_w` (scored rows with the serve witness): per seed, unm_congestion's congestion regressor on the
     non-fill training rows gives the design; mxj_build.fit_body fits the HistGradientBoosting body on its fit split plus
     MAU's extra rows at 25 % mass, early-stopping on mau_build.stopping_split's validation split; mean over seeds;
-    mixture(p, sp, nf_hybrid(cells, body)). The construction of mjs_build.rebuild:93-113 / urp_replay.other_bodies."""
+    mixture(p, sp, not_fill_value(cells, body, tail_cells)) (modules.tail_cells.enabled). The construction of
+    mjs_build.rebuild:93-113 / urp_replay.other_bodies."""
     nonfill = model.unm[~D.schedule_fill(model.unm)]
     ex = model.extra
     by_seed, n_iter = {}, {}
@@ -275,7 +300,7 @@ def body_values(D, model: UnmatchedModel, te_w: pd.DataFrame, parts: dict, param
         by_seed[s] = body.predict(ctrl.design(te_w))
         n_iter[int(s)] = int(body.n_iter_)
     mean = D.mean_over_seeds(by_seed)
-    mix = D.mixture(parts["p"], parts["sp"], D.nf_hybrid(parts["nf_cells"], mean))
+    mix = D.mixture(parts["p"], parts["sp"], not_fill_value(D, parts["nf_cells"], mean, tail_cells))
     return {"mix": np.asarray(mix, dtype="float64"), "body": np.asarray(mean, dtype="float64"), "n_iter": n_iter}
 
 
@@ -303,11 +328,15 @@ def serve(model: UnmatchedModel, rows: pd.DataFrame, cfg, ledger, stages: dict, 
     _, parts = U.s1_parts(D, model.unm, model.lirf, te, seeds, ())
     # ---- unmatched_body (v26 without its storm anchor)
     te_w, wsum = D.ucs.attach_serve_witness(te, derived[list(D.ucs.WITNESS_COLUMNS)])
-    b = body_values(D, model, te_w, parts, body_params(cfg))
+    tail_cells = cfg["modules.tail_cells.enabled"]
+    b = body_values(D, model, te_w, parts, body_params(cfg), tail_cells=tail_cells)
     ledger.write(stages["unmatched_body"], ids, np.rint(b["mix"]))
     comp["unmatched_pred"], comp["unm_body"] = b["mix"], b["body"]
     comp["unm_p_fill"], comp["unm_nf_cells"] = np.asarray(parts["p"], float), np.asarray(parts["nf_cells"], float)
-    info.update(witness=wsum, body_n_iter=b["n_iter"])
+    tail_ids = ids[np.asarray(parts["nf_cells"], dtype="float64") >= D.bs.T_TAIL_S]
+    n_tail_rows = int(D.bs.routing_counts(parts["nf_cells"])["n_nf_cells"])
+    info.update(witness=wsum, body_n_iter=b["n_iter"],
+               tail_cells={"enabled": bool(tail_cells), "n_tail_rows": n_tail_rows})
     snapshot("unmatched_body")
     # ---- the LIRF / Rome module, R2 -> date-slip -> E1 -> RLD
     L = (te.ADEP_mvt.astype(str) == ROME).to_numpy()
@@ -372,6 +401,13 @@ def serve(model: UnmatchedModel, rows: pd.DataFrame, cfg, ledger, stages: dict, 
         comp["storm_A"], comp["storm_shift"] = A, new - before
         info["storm"] = {"n_moved": int(moved.sum()), "n_anomaly": int(np.isfinite(A).sum())}
         snapshot("storm")
+    # how many of the tail-cell rows (info["tail_cells"]["n_tail_rows"]) are still decided unmatched_body/storm
+    # once every later stage has run -- the rows this knob can actually change in the output (a LIRF row is
+    # always decided by `rome` above instead, from S1's own hybrid, never by this knob; same decided-by accessor
+    # prc/pipeline/fm1/uad.py's `serve` uses for its own SCOPE check).
+    decided_tail = ledger.decided_of(tail_ids)
+    info["tail_cells"]["n_tail_rows_decided"] = int(np.isin(decided_tail, np.array(("unmatched_body", "storm"),
+                                                                                   dtype=object)).sum())
     info["wall_s"] = round(time.time() - t0, 1)
     log(f"unmatched lane: {len(ids):,} rows ({int(L.sum())} LIRF), stages {sorted(snap)} ({info['wall_s']} s)")
     return comp, info, snap

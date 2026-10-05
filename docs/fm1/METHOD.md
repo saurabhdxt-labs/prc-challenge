@@ -84,7 +84,7 @@ The shipped v36 unmatched chain, ported through the shipped modules' public func
 
 | stage | rows | what it does | shipped step |
 |---|---|---|---|
-| `unmatched_body` | every unmatched departure | S1's hierarchical cells give the fill rate p (LIRF: its logistic) and the tail cells; the non-fill term is the MJS body (congestion design with the serve file's airport-hour witness; 1-in-20 matched extra rows at 25 % mass; HGB, patience 50, mean of the run seeds); value = rint(max(p·sp + (1−p)·nf_hybrid(cells, body), 1)) | v9 → v24 → v25 → v26 |
+| `unmatched_body` | every unmatched departure | S1's hierarchical cells give the fill rate p (LIRF: its logistic) and the tail cells (a cell whose mean is 3,000 s or more keeps its mean in place of the body; `modules.tail_cells.enabled` false switches that off, §7 TC); the non-fill term is the MJS body (congestion design with the serve file's airport-hour witness; 1-in-20 matched extra rows at 25 % mass; HGB, patience 50, mean of the run seeds); value = rint(max(p·sp + (1−p)·nf_hybrid(cells, body), 1)) | v9 → v24 → v25 → v26 |
 | `rome` | LIRF | R2 fill classifier (LightGBM) → the mixture with S1's non-fill term → 24 h date-slip expectation → rint → E1 floor (24,000 ≤ sp < 86,400) → RLD local-day rule | v7, v10, v12 |
 | `arc` | `modules.arc.airports` (LIRF) | the departure's own flight's ARR row (callsign-matched at its destination) carries LOBT / AOBT_3: `ord` → max(rint(MVT − AOBT_3), 1), `fill` → max(rint(sp), 1) | v17 |
 | `rome_e2` | LIRF rows still at their Rome value, 3,600 ≤ sp < 24,000 | the frozen stand-inbound logit replaces p; a UTC day whose move energy per moved row exceeds the p99 threshold reverts | v31 |
@@ -229,6 +229,7 @@ the lever helped. Sources: `reports/MSE_LEDGER.md` and each registration's hash 
 | 10-03 | AFI (v55) | adsb.fi July-2026 capture merged into the serve table (no refit) | +609.6 board MSE vs v51 (registered +150 … +600) | TRUE: in the scored-period build |
 | 10-03 | AFB (v56) | adsb.fi only where adsb.lol had no track | −205.8 vs v55 | FALSE |
 | 10-05 | UAD | the aircraft's own ADS-B stand-exit time for departures without a flight-plan record (stage `uad`) | 317 January + July 2025 rows: RMSE 432.4 → 274.4 s; body +53.3 bmse [21.8, 85.3] | TRUE on 2025; optional stage, on in board file v57 (+1,291.9 MSE against v55, §8) |
+| 10-05 | TC | the unmatched body without its tail-cell rule (a cell mean of 3,000 s or more no longer overrides the learned body; `modules.tail_cells.enabled` false) | registered test, the 3 July 2025 rows the rule decides out of month: +79.7 bmse (values 3,090–5,696 s against labels 1,130–1,268 s; the body gives 1,051–1,275 s). Seen before the registration: 25 rows in the ten design months, +492 bmse, 8 of 8 months | TRUE, thin (28 rows in 2025, all LTFM, none on a storm day); knob off in the candidate `configs/fm1_v57_tc.yaml`; never uploaded as a 10-row change |
 
 Reading: almost every lever that looked good on a 2025 holdout either failed its own registered gate or lost on the 2026
 board (AGF, v22, HPX-S, MOVE). The final model is what survived this, not the best of many tries.

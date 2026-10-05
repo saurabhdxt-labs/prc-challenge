@@ -2051,6 +2051,238 @@ def test_cli_table_writes_the_candidates_beside_the_table(tmp_path, few_joins_ma
     assert rep["offset_windows"] == {"EHAM": [-50.0, 30.0]} and rep["stand_joins"]["one"] == 1
 
 
+# ================================================================== AMEND-UADH (2026-10-05): the parked report
+
+def _parked_dir(tmp_path, name="pk"):
+    """A real --parked directory (parked.parquet + a current, passing report.json) built by the actual CLI, over
+    _world's fixture."""
+    w = _world(tmp_path / f"{name}_world")
+    pk = tmp_path / name
+    assert B.main(["parked", "--rows", str(w["rows_path"]), "--adsb-dir", str(w["adsb_dir"]), "--out", str(pk)]) == 0
+    return pk
+
+
+def test_pass1_params_are_exactly_ref_window_s_and_stationary_kt():
+    """PASS1_PARAMS must name exactly the params() constants build_parked's own call chain reads (REF_WINDOW_S and
+    STATIONARY_KT, both only inside parked_position; every other constant belongs to pass 2 / table-building code
+    build_parked never calls -- see the worker report for the full function-by-function derivation). Fails when a
+    pass-2-only constant is added to (or a real one dropped from) PASS1_PARAMS."""
+    assert B.PASS1_PARAMS == ("REF_WINDOW_S", "STATIONARY_KT")
+    assert set(B.PASS1_PARAMS) <= set(B.params())
+
+
+def test_pool_parked_refuses_a_directory_without_report_json(tmp_path):
+    """A --parked directory with parked.parquet but no report.json beside it. Fails when the missing-report check
+    is dropped and the directory is pooled anyway."""
+    pk = _parked_dir(tmp_path)
+    (pk / "report.json").unlink()
+    with pytest.raises(ValueError, match=r"no report\.json"):
+        B._pool_parked([pk])
+
+
+def test_pool_parked_refuses_a_pass1_parameter_missing_from_the_stored_report(tmp_path):
+    """A stored report.json whose params dict has no entry at all for a PASS1_PARAMS name (as if this directory
+    predates that parameter). The match requires the "has no" phrasing specifically, not just the parameter's name:
+    the value-mismatch check right below would ALSO raise a message naming this parameter if a missing value were
+    (wrongly) let through as some other falsy stand-in, so matching the bare name alone would not prove THIS check
+    (presence) is what fired. Fails when an absent pass-1 parameter is treated as a match instead of refused."""
+    pk = _parked_dir(tmp_path)
+    rep = json.loads((pk / "report.json").read_text())
+    name = B.PASS1_PARAMS[0]
+    del rep["params"][name]
+    (pk / "report.json").write_text(json.dumps(rep))
+    with pytest.raises(ValueError, match=f"has no '{name}'"):
+        B._pool_parked([pk])
+
+
+def test_pool_parked_refuses_a_pass1_parameter_value_mismatch(tmp_path):
+    """A stored report.json whose STATIONARY_KT no longer matches the current params()["STATIONARY_KT"]. Fails when
+    the per-parameter comparison is dropped, or compares the wrong field."""
+    pk = _parked_dir(tmp_path)
+    rep = json.loads((pk / "report.json").read_text())
+    rep["params"]["STATIONARY_KT"] = rep["params"]["STATIONARY_KT"] + 5.0
+    (pk / "report.json").write_text(json.dumps(rep))
+    with pytest.raises(ValueError, match="STATIONARY_KT"):
+        B._pool_parked([pk])
+
+
+def test_params_ref_window_s_is_already_a_list_not_the_raw_tuple_constant():
+    """Characterises the actual data shape _parked_dir_info compares, so the _param_value_equal tests below target a
+    real case: params() normalises the raw tuple constant to a list before anyone outside this module sees it (and
+    JSON has no tuple either), so a stored vs. current REF_WINDOW_S comparison is always list vs. list in practice.
+    Fails when params()'s own `list(REF_WINDOW_S)` wrapping is dropped, silently changing what every parked report
+    stores and what _parked_dir_info compares against."""
+    assert isinstance(B.REF_WINDOW_S, tuple)
+    assert isinstance(B.params()["REF_WINDOW_S"], list)
+    assert B.params()["REF_WINDOW_S"] == list(B.REF_WINDOW_S)
+
+
+def test_param_value_equal_treats_a_list_and_a_tuple_of_the_same_elements_as_equal():
+    """_param_value_equal's own documented contract (defensive: a caller may compare against the raw registered
+    tuple constant directly instead of through params(), where this is reachable). Fails when the comparison is
+    simplified to bare `==`, under which a list is never equal to a tuple even with identical elements."""
+    assert B._param_value_equal([900.0, 20.0], (900.0, 20.0)) is True
+    assert B._param_value_equal((900.0, 20.0), [900.0, 20.0]) is True
+    assert B._param_value_equal([900.0, 20.0], [900.0, 20.0]) is True
+    assert B._param_value_equal(1.0, 1.0) is True
+
+
+def test_param_value_equal_refuses_a_differently_shaped_or_valued_pair():
+    """A value that is list/tuple-shaped on only one side is never equal regardless of contents, and two
+    same-shaped sequences with different elements are still unequal. Fails when a scalar is accepted as equal to a
+    list/tuple, or when an element-wise difference inside two lists/tuples is missed."""
+    assert B._param_value_equal(900.0, [900.0, 20.0]) is False
+    assert B._param_value_equal([900.0, 20.0], 900.0) is False
+    assert B._param_value_equal([900.0, 20.0], (900.0, 21.0)) is False
+    assert B._param_value_equal(1.0, 2.0) is False
+
+
+def test_pool_parked_refuses_when_the_stored_ref_window_s_list_differs_by_value(tmp_path):
+    """A stored REF_WINDOW_S list that differs from the current tuple in one element. Fails when a list-valued
+    pass-1 parameter is skipped by the comparison (e.g. only scalar params are compared)."""
+    pk = _parked_dir(tmp_path)
+    rep = json.loads((pk / "report.json").read_text())
+    rep["params"]["REF_WINDOW_S"] = [900.0, 999.0]
+    (pk / "report.json").write_text(json.dumps(rep))
+    with pytest.raises(ValueError, match="REF_WINDOW_S"):
+        B._pool_parked([pk])
+
+
+def test_pool_parked_accepts_a_non_pass1_parameter_difference(tmp_path):
+    """A stored params dict missing a constant outside PASS1_PARAMS entirely (as if this report predates that
+    constant) and carrying a wrong value for another one: neither is a pass-1 parameter, so pooling must still
+    succeed. Fails when the check over-reaches and refuses on a parameter build_parked never reads."""
+    pk = _parked_dir(tmp_path)
+    rep = json.loads((pk / "report.json").read_text())
+    assert "CAND_BRACKET_S" not in B.PASS1_PARAMS and "STAND_RADIUS_M" not in B.PASS1_PARAMS
+    del rep["params"]["CAND_BRACKET_S"]                 # as if this report predates that constant
+    rep["params"]["STAND_RADIUS_M"] = -1.0               # and this one simply differs
+    (pk / "report.json").write_text(json.dumps(rep))
+    parked, info = B._pool_parked([pk])
+    assert len(parked) and len(info) == 1
+
+
+def test_pool_parked_returns_the_bookkeeping_entry_shape(tmp_path):
+    """The per-directory entry _pool_parked exposes: dir (absolute), parked_sha256 / report_sha256 (the files' own
+    sha256) and params_hash / code_sha256 carried through from the stored report, unchecked. Fails when a key is
+    missing, or a sha256 is computed over the wrong file."""
+    pk = _parked_dir(tmp_path)
+    stored = json.loads((pk / "report.json").read_text())
+    parked, info = B._pool_parked([pk])
+    assert len(info) == 1
+    entry = info[0]
+    assert entry["dir"] == str(pk.resolve())
+    assert entry["parked_sha256"] == hashlib.sha256((pk / "parked.parquet").read_bytes()).hexdigest()
+    assert entry["report_sha256"] == hashlib.sha256((pk / "report.json").read_bytes()).hexdigest()
+    assert entry["params_hash"] == stored["params_hash"]
+    assert entry["code_sha256"] == stored.get("code_sha256")
+
+
+def test_cli_table_report_gains_a_parked_entry_per_pooled_directory(tmp_path):
+    """--parked dirA dirB (two independently-built, disjoint-id parked directories) leaves the table's report.json
+    with report["parked"] holding one entry per directory, in the order given, each naming the directory (absolute)
+    and carrying its parked.parquet / report.json sha256 and its own stored params_hash / code_sha256. Fails when
+    _run_table drops the new key, writes only one entry, or mixes up a directory's own metadata."""
+    wa = _world(tmp_path / "a")
+    wb = _freighter_world(tmp_path / "b", extra_rows=False)
+    pka, pkb = tmp_path / "pka", tmp_path / "pkb"
+    assert B.main(["parked", "--rows", str(wa["rows_path"]), "--adsb-dir", str(wa["adsb_dir"]),
+                  "--out", str(pka)]) == 0
+    assert B.main(["parked", "--rows", str(wb["rows_path"]), "--adsb-dir", str(wb["adsb_dir"]),
+                  "--out", str(pkb)]) == 0
+    out = tmp_path / "tb"
+    assert B.main(["table", "--rows", str(wa["rows_path"]), "--adsb-dir", str(wa["adsb_dir"]), "--parked", str(pka),
+                  str(pkb), "--out", str(out)]) == 0
+    rep = json.loads((out / "report.json").read_text())
+    got = rep["parked"]
+    assert [e["dir"] for e in got] == [str(pka.resolve()), str(pkb.resolve())]
+    for e, d in zip(got, (pka, pkb)):
+        stored = json.loads((d / "report.json").read_text())
+        assert e["parked_sha256"] == hashlib.sha256((d / "parked.parquet").read_bytes()).hexdigest()
+        assert e["report_sha256"] == hashlib.sha256((d / "report.json").read_bytes()).hexdigest()
+        assert e["params_hash"] == stored["params_hash"]
+        assert e["code_sha256"] == stored.get("code_sha256")
+
+
+def test_table_parquet_bytes_do_not_depend_on_the_new_pool_parked_bookkeeping(tmp_path):
+    """Building the table through the CLI (which now runs _pool_parked's report checks and writes the "parked" key
+    into report.json) must compute the exact same table.parquet bytes as calling build_table directly on the SAME
+    parked positions, bypassing _pool_parked entirely (so no report, and no "parked" key, is ever written on that
+    path): the new code touches only report.json. Fails when the new checks or bookkeeping mutate rows, parked or
+    any table-building argument along the way."""
+    w = _world(tmp_path)
+    pk = tmp_path / "pk"
+    assert B.main(["parked", "--rows", str(w["rows_path"]), "--adsb-dir", str(w["adsb_dir"]), "--out", str(pk)]) == 0
+    out = tmp_path / "tb"
+    assert B.main(["table", "--rows", str(w["rows_path"]), "--adsb-dir", str(w["adsb_dir"]), "--parked", str(pk),
+                  "--out", str(out)]) == 0
+    cli_bytes = (out / "table.parquet").read_bytes()
+
+    rows = B.read_rows([w["rows_path"]])
+    parked_direct = pd.read_parquet(pk / "parked.parquet")        # bypasses _pool_parked entirely
+    table_direct, _ = B.build_table(rows, [w["adsb_dir"]], parked_direct)
+    direct_path = tmp_path / "direct_table.parquet"
+    B._write_output_parquet(table_direct, direct_path)
+    assert direct_path.read_bytes() == cli_bytes
+
+
+# ================================================================== AMEND-R2 (2026-10-05): table report outputs
+
+def test_cli_table_report_gains_an_outputs_entry_with_each_written_files_sha256(tmp_path):
+    """report.json gains "outputs": {"table.parquet": sha256, "cands.parquet": sha256, "refs.parquet": sha256},
+    each the real sha256 of the file the CLI just wrote beside it (never a value computed before the write, which
+    could drift from what actually landed on disk). Fails when a key is missing, extra, or computed over the
+    wrong file."""
+    w = _world(tmp_path)
+    pk = tmp_path / "pk"
+    assert B.main(["parked", "--rows", str(w["rows_path"]), "--adsb-dir", str(w["adsb_dir"]), "--out", str(pk)]) == 0
+    out = tmp_path / "tb"
+    assert B.main(["table", "--rows", str(w["rows_path"]), "--adsb-dir", str(w["adsb_dir"]), "--parked", str(pk),
+                  "--out", str(out)]) == 0
+    rep = json.loads((out / "report.json").read_text())
+    outputs = rep["outputs"]
+    assert set(outputs) == {"table.parquet", "cands.parquet", "refs.parquet"}
+    for name, sha in outputs.items():
+        assert sha == hashlib.sha256((out / name).read_bytes()).hexdigest(), name
+
+
+def test_run_table_parquet_bytes_do_not_depend_on_the_new_outputs_bookkeeping(tmp_path):
+    """Building the table through the CLI (which now also hashes the three written files into report.json's
+    "outputs") must produce the exact same table.parquet / cands.parquet / refs.parquet bytes as calling
+    build_raw + finalise_table + stand_references + _write_output_parquet directly on the SAME parked positions
+    (build_table's own construction, minus the report; the only way to reach cands directly, since build_table
+    does not return it), bypassing the CLI (and its report/outputs bookkeeping) entirely: the new code only reads
+    the written files back to hash them, it never changes what gets written. Mirrors
+    test_table_parquet_bytes_do_not_depend_on_the_new_pool_parked_bookkeeping's precedent, extended to all three
+    output files. Fails when the new bookkeeping mutates rows, parked, table, cands or refs along the way."""
+    w = _world(tmp_path)
+    pk = tmp_path / "pk"
+    assert B.main(["parked", "--rows", str(w["rows_path"]), "--adsb-dir", str(w["adsb_dir"]), "--out", str(pk)]) == 0
+    out = tmp_path / "tb"
+    assert B.main(["table", "--rows", str(w["rows_path"]), "--adsb-dir", str(w["adsb_dir"]), "--parked", str(pk),
+                  "--out", str(out)]) == 0
+    cli_table = (out / "table.parquet").read_bytes()
+    cli_cands = (out / "cands.parquet").read_bytes()
+    cli_refs = (out / "refs.parquet").read_bytes()
+
+    rows = B.read_rows([w["rows_path"]])
+    parked_direct = pd.read_parquet(pk / "parked.parquet")        # bypasses _pool_parked entirely
+    raw_direct, cands_direct, _ = B.build_raw(rows, [w["adsb_dir"]], parked_direct)
+    table_direct, _ = B.finalise_table(raw_direct, cands_direct)
+    refs_direct = B.stand_references(parked_direct)
+
+    direct_table_path, direct_cands_path, direct_refs_path = (tmp_path / "direct_table.parquet",
+                                                              tmp_path / "direct_cands.parquet",
+                                                              tmp_path / "direct_refs.parquet")
+    B._write_output_parquet(table_direct, direct_table_path)
+    B._write_output_parquet(cands_direct, direct_cands_path)
+    B._write_output_parquet(refs_direct, direct_refs_path)
+
+    assert direct_table_path.read_bytes() == cli_table
+    assert direct_cands_path.read_bytes() == cli_cands
+    assert direct_refs_path.read_bytes() == cli_refs
+
+
 # ================================================================== real-data smoke (devtree + slow)
 
 EHAM_FEB = ROOT / "data" / "adsb" / "v2" / "y2025_other"

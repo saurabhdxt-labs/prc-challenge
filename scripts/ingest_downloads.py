@@ -96,7 +96,7 @@ def ingest(src: Path, dst: Path, expected=EXPECTED, log=print) -> dict:
                 f"first-write-final; delete it deliberately to take a reissued copy.")
         # Describe BEFORE copying: a file that will not parse never lands.
         info = describe(source)
-        shutil.copy2(source, target)
+        shutil.copy(source, target)
         info["ingested_utc"] = _utc(time.time())
         files[name] = info
         log(f"  {name:44} {info['bytes'] / 1048576:7.1f} MiB  "

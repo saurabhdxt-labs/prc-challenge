@@ -12,7 +12,7 @@ import pathlib
 import re
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-SCANNED = ("prc", "tools", "tests")
+SCANNED = ("prc", "tools", "tests", "scripts")
 FILE_COPIES = ("copy" + "2", "copy" + "stat")          # spelled apart so this file does not name what it refuses
 TREE_COPY = "copy" + "tree"
 
@@ -60,8 +60,8 @@ def test_the_scan_finds_each_kind_of_timestamp_carrying_copy():
 
 
 def test_no_copy_in_the_package_the_tools_or_the_tests_carries_timestamps():
-    """Fails when a file under prc/, tools/ or tests/ copies with copy2 / copystat or with copytree's default copy
-    function (BC-44: such a copy made in a temp directory is days old on arrival)."""
+    """Fails when a file under prc/, tools/, tests/ or scripts/ copies with copy2 / copystat or with copytree's
+    default copy function (BC-44: such a copy made in a temp directory is days old on arrival)."""
     found = []
     for top in SCANNED:
         for path in sorted((ROOT / top).rglob("*.py")):

@@ -11,6 +11,7 @@ Mutation rehearsal per test is recorded in tests/fm1/MUTATION_FM1.md (M-UAD rows
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import importlib.util
 import json
 import pathlib
@@ -73,6 +74,26 @@ def _write_constants(path: pathlib.Path, overrides: dict | None = None) -> pathl
         node[parts[-1]] = v
     path.write_text(json.dumps(base))
     return path
+
+
+def _passing_report() -> dict:
+    """A table report.json body that passes check_table_report: the registered params_hash and, for STOP_AIRPORT,
+    one passing value per TABLE_BARS key. Carries no "outputs" key, so every test that uses this fixture unchanged
+    doubles as coverage that a report without "outputs" (every table built before that key existed) is still
+    accepted."""
+    return {"params_hash": U.TABLE_PARAMS_HASH,
+           "stop_rules": {U.STOP_AIRPORT: {"callsign_matched_type_equal_share": 0.99,
+                                            "stand_unmatched_type_agree_share": 0.99,
+                                            "matched_exit_mad_s": 50.0, "stand_check_right_share": 0.99,
+                                            "stand_check_wrong_share": 0.0}}}
+
+
+def _write_table_report(table_path: pathlib.Path, report: dict) -> pathlib.Path:
+    """Writes `report` as report.json beside `table_path` (check_table_report's own directory convention: the file
+    is read from table_path.resolve().parent, never from table_path itself)."""
+    report_path = pathlib.Path(table_path).resolve().parent / "report.json"
+    report_path.write_text(json.dumps(report))
+    return report_path
 
 
 # ======================================================================================================= knobs + plan
@@ -468,14 +489,228 @@ def test_load_table_refuses_a_duplicated_mvt_id(tmp_path):
         U.load_table(p)
 
 
+# ================================================================================================== check_table_report
+
+def test_check_table_report_passes_on_a_valid_report_and_returns_its_sha256(tmp_path):
+    """Fails when check_table_report raises on a report that satisfies every bar, or returns something other than
+    the report.json file's own sha256."""
+    table_path = tmp_path / "table.parquet"
+    table_path.write_bytes(b"")
+    report_path = _write_table_report(table_path, _passing_report())
+    got = U.check_table_report(table_path)
+    assert got == hashlib.sha256(report_path.read_bytes()).hexdigest()
+
+
+def test_check_table_report_refuses_a_missing_report_json(tmp_path):
+    """No report.json beside the table at all. Fails when a missing report is treated as an automatic pass."""
+    table_path = tmp_path / "table.parquet"
+    table_path.write_bytes(b"")
+    with pytest.raises(E.SchemaError, match=r"report\.json"):
+        U.check_table_report(table_path)
+
+
+def test_check_table_report_refuses_malformed_json(tmp_path):
+    """report.json exists but its bytes do not parse as JSON at all. Fails when json.loads's JSONDecodeError
+    escapes uncaught (a different, unnamed exception type) instead of becoming E.SchemaError naming the file."""
+    table_path = tmp_path / "table.parquet"
+    table_path.write_bytes(b"")
+    report_path = pathlib.Path(table_path).resolve().parent / "report.json"
+    report_path.write_text("{not valid json")
+    with pytest.raises(E.SchemaError, match=r"report\.json"):
+        U.check_table_report(table_path)
+
+
+def test_check_table_report_refuses_undecodable_bytes(tmp_path):
+    """report.json's bytes are not even valid UTF-8 (not malformed JSON text, unreadable as text at all). Fails
+    when the UnicodeDecodeError from raw.decode() escapes uncaught instead of becoming E.SchemaError naming the
+    file."""
+    table_path = tmp_path / "table.parquet"
+    table_path.write_bytes(b"")
+    report_path = pathlib.Path(table_path).resolve().parent / "report.json"
+    report_path.write_bytes(b"\xff\xfe\x00\x01")
+    with pytest.raises(E.SchemaError, match=r"report\.json"):
+        U.check_table_report(table_path)
+
+
+def test_check_table_report_refuses_a_non_object_top_level(tmp_path):
+    """report.json parses as valid JSON but its top level is a list, not an object. Fails when `.get()` is called
+    on it unchecked (an uncaught AttributeError) instead of E.SchemaError."""
+    table_path = tmp_path / "table.parquet"
+    table_path.write_bytes(b"")
+    report_path = pathlib.Path(table_path).resolve().parent / "report.json"
+    report_path.write_text(json.dumps([1, 2, 3]))
+    with pytest.raises(E.SchemaError, match=r"report\.json"):
+        U.check_table_report(table_path)
+
+
+def test_check_table_report_refuses_a_missing_params_hash(tmp_path):
+    """Fails when a report with no params_hash key at all is accepted."""
+    table_path = tmp_path / "table.parquet"
+    table_path.write_bytes(b"")
+    report = _passing_report()
+    del report["params_hash"]
+    _write_table_report(table_path, report)
+    with pytest.raises(E.SchemaError, match="params_hash"):
+        U.check_table_report(table_path)
+
+
+def test_check_table_report_refuses_a_wrong_params_hash(tmp_path):
+    """Fails when the params_hash comparison is dropped or loosened (e.g. a prefix match)."""
+    table_path = tmp_path / "table.parquet"
+    table_path.write_bytes(b"")
+    report = _passing_report()
+    report["params_hash"] = "deadbeefcafe"
+    _write_table_report(table_path, report)
+    with pytest.raises(E.SchemaError, match="params_hash"):
+        U.check_table_report(table_path)
+
+
+def test_check_table_report_refuses_a_missing_stop_rules_block(tmp_path):
+    """No stop_rules key at all. Fails when a missing block is read as an empty-but-passing one."""
+    table_path = tmp_path / "table.parquet"
+    table_path.write_bytes(b"")
+    report = _passing_report()
+    del report["stop_rules"]
+    _write_table_report(table_path, report)
+    with pytest.raises(E.SchemaError, match="stop_rules"):
+        U.check_table_report(table_path)
+
+
+def test_check_table_report_refuses_a_report_with_no_entry_for_the_stop_airport(tmp_path):
+    """stop_rules exists but never names STOP_AIRPORT (e.g. built for another airport only). Fails when the lookup
+    defaults to an empty-but-passing dict instead of refusing by name."""
+    table_path = tmp_path / "table.parquet"
+    table_path.write_bytes(b"")
+    report = _passing_report()
+    report["stop_rules"] = {"ZZZZ": report["stop_rules"][U.STOP_AIRPORT]}
+    _write_table_report(table_path, report)
+    with pytest.raises(E.SchemaError, match=U.STOP_AIRPORT):
+        U.check_table_report(table_path)
+
+
+@pytest.mark.parametrize("key, op, limit", U.TABLE_BARS)
+def test_check_table_report_refuses_a_bar_missing_from_stats(tmp_path, key, op, limit):
+    """This one TABLE_BARS key is absent from the airport's stats (the other four stay passing). Fails when the
+    per-key presence/finite check for this particular bar is dropped."""
+    table_path = tmp_path / "table.parquet"
+    table_path.write_bytes(b"")
+    report = _passing_report()
+    del report["stop_rules"][U.STOP_AIRPORT][key]
+    _write_table_report(table_path, report)
+    with pytest.raises(E.SchemaError, match=key):
+        U.check_table_report(table_path)
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf"), "not-a-number", True, "0.99"])
+def test_check_table_report_refuses_a_non_finite_bar_value(tmp_path, bad):
+    """nan / inf / -inf / a non-numeric string / a bool / a numeric-looking string are all rejected, not just an
+    absent key (the missing-key tests above already cover every TABLE_BARS key going through the same check). The
+    match requires the finite-check's own reason text, not just the key name: on a "<=" bar, dropping the finite
+    check still lets nan/inf reach the limit comparison and raise a DIFFERENT (also key-naming) SchemaError there,
+    which a bare key-name match would miss. True and "0.99" are the two cases Python's `float(x)` would silently
+    accept (float(True) == 1.0, float("0.99") == 0.99) if the bar check still used the generic `_finite` helper: a
+    bar value must be an actual, real int/float, not merely something float() can coerce. Fails when the bar check
+    uses `_finite` instead of a strict isinstance-based numeric check, or when that strict check is narrowed to
+    `is None`."""
+    table_path = tmp_path / "table.parquet"
+    table_path.write_bytes(b"")
+    report = _passing_report()
+    report["stop_rules"][U.STOP_AIRPORT]["matched_exit_mad_s"] = bad
+    _write_table_report(table_path, report)
+    with pytest.raises(E.SchemaError, match="matched_exit_mad_s missing or not a finite number"):
+        U.check_table_report(table_path)
+
+
+@pytest.mark.parametrize("key, op, limit", U.TABLE_BARS)
+def test_check_table_report_refuses_a_bar_that_misses_its_limit(tmp_path, key, op, limit):
+    """This bar is set just past its limit in the failing direction (the other four stay passing). Fails when this
+    bar's comparison direction is flipped or the bar is skipped entirely."""
+    table_path = tmp_path / "table.parquet"
+    table_path.write_bytes(b"")
+    report = _passing_report()
+    failing = (limit - 0.001) if op == ">=" else (limit + 0.001)
+    report["stop_rules"][U.STOP_AIRPORT][key] = failing
+    _write_table_report(table_path, report)
+    with pytest.raises(E.SchemaError, match=key):
+        U.check_table_report(table_path)
+
+
+@pytest.mark.parametrize("key, op, limit", U.TABLE_BARS)
+def test_check_table_report_accepts_a_bar_exactly_at_its_limit(tmp_path, key, op, limit):
+    """Each bar is inclusive (>= / <=), never a strict > / <. Fails when a bar's comparison is tightened to strict
+    and a value exactly at the registered limit starts failing."""
+    table_path = tmp_path / "table.parquet"
+    table_path.write_bytes(b"")
+    report = _passing_report()
+    report["stop_rules"][U.STOP_AIRPORT][key] = limit
+    _write_table_report(table_path, report)
+    U.check_table_report(table_path)      # must not raise
+
+
+def test_check_table_report_passes_when_outputs_sha256_matches_the_table(tmp_path):
+    """report.json carries an "outputs" entry for table.parquet whose sha256 matches the real file (the builder's
+    new bookkeeping, scripts/analysis/uad_build.py). Fails when a present-and-matching outputs entry is wrongly
+    refused."""
+    table_path = tmp_path / "table.parquet"
+    table_path.write_bytes(b"some real table bytes, not empty this time")
+    real_sha = hashlib.sha256(table_path.read_bytes()).hexdigest()
+    report = _passing_report()
+    report["outputs"] = {"table.parquet": real_sha}
+    _write_table_report(table_path, report)
+    U.check_table_report(table_path)      # must not raise
+
+
+def test_check_table_report_refuses_an_outputs_sha256_that_does_not_match_the_table(tmp_path):
+    """report.json's "outputs" entry for table.parquet names a sha256 that does not match the real file (e.g. the
+    table was swapped or corrupted after the report was written). Fails when the outputs/table-file comparison is
+    skipped."""
+    table_path = tmp_path / "table.parquet"
+    table_path.write_bytes(b"some real table bytes, not empty this time")
+    report = _passing_report()
+    report["outputs"] = {"table.parquet": "0" * 64}   # well-formed hex, but not this file's real sha256
+    _write_table_report(table_path, report)
+    with pytest.raises(E.SchemaError, match="the table is not the one this report describes"):
+        U.check_table_report(table_path)
+
+
+def test_check_table_report_ignores_an_outputs_entry_for_another_file(tmp_path):
+    """report.json carries "outputs" but it has no entry for "table.parquet" itself (only, say, cands.parquet).
+    Fails when the absence of a table.parquet entry specifically is (wrongly) treated the same as a mismatch."""
+    table_path = tmp_path / "table.parquet"
+    table_path.write_bytes(b"some real table bytes, not empty this time")
+    report = _passing_report()
+    report["outputs"] = {"cands.parquet": "0" * 64}
+    _write_table_report(table_path, report)
+    U.check_table_report(table_path)      # must not raise: nothing claims to describe table.parquet here
+
+
+def test_table_bars_stop_airport_and_params_hash_match_the_reference_uad_price_stop_rules():
+    """uad.py's TABLE_BARS / STOP_AIRPORT / TABLE_PARAMS_HASH must be the same stop rules scripts/analysis/uad_price.py
+    enforces at pricing time: STOP_BARS states each bar as (key, bar, "below"/"above") against the registered
+    minimum/maximum; TABLE_BARS restates the same bars as (key, ">="/"<=", bar). Same import pattern as
+    test_blend_matches_the_reference_uad_price_apply_exactly. Fails when a bar's key, value or direction drifts
+    between the two files, or the airport / params hash is edited in only one of them."""
+    spec = importlib.util.spec_from_file_location("uad_price", ROOT / "scripts" / "analysis" / "uad_price.py")
+    uad_price = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(uad_price)
+
+    assert U.STOP_AIRPORT == uad_price.STOP_AIRPORT
+    assert U.TABLE_PARAMS_HASH == uad_price.TABLE_PARAMS_HASH
+    word_to_op = {"below": ">=", "above": "<="}
+    translated = tuple((key, word_to_op[word], bar) for key, bar, word in uad_price.STOP_BARS)
+    assert U.TABLE_BARS == translated
+
+
 # ================================================================================================================ apply
 
 def test_apply_reads_the_table_and_constants_named_by_the_config(tmp_path):
     """Fails when apply reads a hardcoded path instead of cfg.path('modules.uad.table' / '.constants'), or reads them
-    at import time instead of inside the call."""
+    at import time instead of inside the call; also fails when apply does not carry check_table_report's own sha256
+    through as rep['table_report_sha256']."""
     const_path = _write_constants(tmp_path / "const.json")
     table_path = tmp_path / "table.parquet"
     _mk_table([(1.0, True, "A1", 400.0)]).to_parquet(table_path, index=False)
+    _write_table_report(table_path, _passing_report())
     cfg = _cfg(**{"modules.uad.enabled": True, "modules.uad.table": str(table_path),
                  "modules.uad.constants": str(const_path), "modules.storm.mode": "anchor"})
     ids = [1.0]
@@ -485,9 +720,28 @@ def test_apply_reads_the_table_and_constants_named_by_the_config(tmp_path):
     comp = _mk_comp([(1.0, 0.5, 100.0)])
     comp_out, rep = U.apply(cfg, rows, comp, led, STAGE["uad"])
     assert len(comp_out) == 1 and rep["n_a1"] == 1
+    assert rep["table_report_sha256"] == U.check_table_report(table_path)
     other_cfg = cfg.replace(**{"modules.uad.table": str(tmp_path / "missing.parquet")})
     with pytest.raises(FileNotFoundError):
         U.apply(other_cfg, rows, comp, S.Ledger(np.array(ids)), STAGE["uad"])
+
+
+def test_apply_checks_the_table_report_before_loading_the_table(tmp_path):
+    """check_table_report must run before load_table: a table.parquet that would ALSO fail load_table's own checks
+    (a null MVT_ID_mvt) still fails with the report check's own message, proving the report check runs first. Fails
+    when apply() calls load_table before check_table_report (the null-id message would surface instead)."""
+    const_path = _write_constants(tmp_path / "const.json")
+    table_path = tmp_path / "table.parquet"
+    pd.DataFrame({"MVT_ID_mvt": [1.0, NAN], "unmatched": [True, True], "cls": ["A1", ""],
+                 "exit_rel_s": [400.0, NAN]}).to_parquet(table_path, index=False)
+    # deliberately no report.json beside it
+    cfg = _cfg(**{"modules.uad.enabled": True, "modules.uad.table": str(table_path),
+                 "modules.uad.constants": str(const_path), "modules.storm.mode": "anchor"})
+    led = S.Ledger(np.array([1.0]))
+    rows = _mk_rows([(1.0, "EDDF", "2026-01-10 10:16:40", "2026-01-10 10:00:00")])
+    comp = _mk_comp([(1.0, 0.5, 100.0)])
+    with pytest.raises(E.SchemaError, match=r"report\.json"):
+        U.apply(cfg, rows, comp, led, STAGE["uad"])
 
 
 # ========================================================================================================= the e2e world
@@ -515,6 +769,7 @@ def test_world_predict_serves_uad_through_the_engine(e2e_world, fm1_world_mod, t
     table.loc[table.MVT_ID_mvt == a2_id, ["cls", "exit_rel_s"]] = ["A2", 1000.0]
     table_path = tmp_path / "table.parquet"
     table.to_parquet(table_path, index=False)
+    _write_table_report(table_path, _passing_report())
     const = {"offsets": {"by_airport": {"EDDF": 50.0, "LSZH": 70.0}, "pooled": 60.0},
             "weights": {"w0": 0.3, "w1": 0.8}, "registration": "test-e2e"}
     const_path = tmp_path / "const.json"
@@ -562,13 +817,14 @@ def _raw12(tmp_path) -> pathlib.Path:
 
 
 def test_build_inputs_records_the_two_files_when_the_stage_is_on_and_a_missing_one_stops_the_build(tmp_path):
-    """Mirrors the mtx/published precedent exactly (test_fm1_build_inputs.py). Fails when the two sha256 keys are
-    missing, wrong, or when a missing file is tolerated instead of stopping the build before predicting."""
+    """Mirrors the mtx/published precedent exactly (test_fm1_build_inputs.py). Fails when any of the three sha256
+    keys is missing or wrong, or when a missing file is tolerated instead of stopping the build before predicting."""
     raw = _raw12(tmp_path)
     table = tmp_path / "table.parquet"
     const = tmp_path / "const.json"
     table.write_bytes(b"table bytes")
     const.write_bytes(b"const bytes")
+    _write_table_report(table, _passing_report())
     cfg = K.parse_config(K.nest({"data.raw_dir": str(raw), "lanes.matched": False, "modules.rome.enabled": False,
                                  "modules.storm.mode": "anchor", "modules.uad.enabled": True,
                                  "modules.uad.table": str(table), "modules.uad.constants": str(const)}))
@@ -576,6 +832,7 @@ def test_build_inputs_records_the_two_files_when_the_stage_is_on_and_a_missing_o
     bi = G.build_inputs(cfg, art)
     assert bi["inputs"]["uad/table"] == A.sha256_file(table)
     assert bi["inputs"]["uad/constants"] == A.sha256_file(const)
+    assert bi["inputs"]["uad/table_report"] == U.check_table_report(table)
     assert bi["changed_since_fit"] == []
     table.unlink()
     with pytest.raises(FileNotFoundError):
@@ -583,8 +840,9 @@ def test_build_inputs_records_the_two_files_when_the_stage_is_on_and_a_missing_o
 
 
 def test_build_inputs_omits_the_uad_keys_when_the_stage_is_off(tmp_path):
-    """The table/constants paths point at files that do not exist, so an unguarded hash would raise; the stage being
-    off must mean they are never touched. Fails when the keys appear anyway, or when build_inputs raises."""
+    """The table/constants paths point at files that do not exist (and there is no report.json either), so an
+    unguarded hash or report check would raise; the stage being off must mean none of them are ever touched. Fails
+    when a key appears anyway, or when build_inputs raises."""
     raw = _raw12(tmp_path)
     cfg = K.parse_config(K.nest({"data.raw_dir": str(raw), "lanes.matched": False, "modules.rome.enabled": False,
                                  "modules.uad.table": str(tmp_path / "missing_table.parquet"),
@@ -592,3 +850,4 @@ def test_build_inputs_omits_the_uad_keys_when_the_stage_is_off(tmp_path):
     art = types.SimpleNamespace(inputs=G.fit_inputs(cfg, G.training_files(cfg)))
     bi = G.build_inputs(cfg, art)
     assert "uad/table" not in bi["inputs"] and "uad/constants" not in bi["inputs"]
+    assert "uad/table_report" not in bi["inputs"]

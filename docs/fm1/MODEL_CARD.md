@@ -44,6 +44,7 @@ from 2025's without a drift check (LIMITATIONS.md 9, 14).
 | storm anchor | yes | yes | 581 |
 | LDI LTFM de-icing shift | yes | yes | 1,885 |
 | ADS-B stand-exit estimate for departures without a flight-plan record (`uad`) | no | no | — (optional; on in v57, `configs/fm1_v57.yaml`, where it decides 501 rows: 377 the unmatched body decides in v55 and 124 the storm anchor) |
+| tail-cell rule of the unmatched body (`modules.tail_cells.enabled`) | on | on | — (the shipped rule; off in the candidate `configs/fm1_v57_tc.yaml`, where 10 rows change) |
 | MTX monthly calibration (last) | no (forecaster) | yes | moved 236,515 rows |
 | adsb.fi July-2026 serve rows | no | yes (serve table only; the learners are v50's) | — |
 | EOBT clip (LFPG July) | off | off | — (lost on the board, v54) |

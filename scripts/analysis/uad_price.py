@@ -10,8 +10,10 @@ the real promotion gate, H-UAD-2 on the design months' storm days by leave-one-e
     python scripts/analysis/uad_price.py verdict --lomo-dir D --table T --raw-dir R --constants constants.json \\
         --out report.json
 
-The `constants` command drops every January and July row before fitting anything: its output holds no information
-from the scored months. Reads 2025 data; no board read, no upload.
+The `constants` command drops every January and July row before fitting anything: the offsets and weights are
+fitted on the ten design months only. Their baseline predictions come from leave-one-month-out fits that include
+January and July, so a little information from those months reaches the calm weight through the baseline. Reads
+2025 data; no board read, no upload.
 """
 from __future__ import annotations
 

@@ -378,3 +378,61 @@ one). **Result: 17 / 17 killed (100 %).**
 TOTAL UAD 17 / 17 killed
 
 M-RV6 (`engine.py`, the support-gate share read from `m.coverage` after the dropout) = the pre-fix code: `test_the_support_gate_share_describes_the_training_data_not_the_dropout` seen red against it 2026-10-03 09:47 EDT (world fit; EDDF 0.658 / LSZH 0.503 vs 0.939 / 0.969), green after the fix 09:49.
+
+## tail_cells knob (2026-10-05, prc/pipeline/fm1/unmatched.py `not_fill_value` + its wiring in knobs.py; registration
+plans/PREREG_tc_tail_cell_routing_2026_10_05.md; tests/fm1/test_fm1_tail_cells.py)
+
+One mutant at a time (manual Edit, not a scratch harness): sha256 of the two touched production files recorded
+before the session's edits and re-checked after every revert (`unmatched.py`
+2451f4f7caabf54cba1c9d537d2912eea42a63f76fa394c4c7fd1193e4500b1c, `knobs.py`
+aaba46572dcd865c4b65e53637339273b9fa5df69f928efe226fb9e13fdf7520; both matched their pre-mutation value again once
+every mutant below had been applied and reverted). Each mutant run with
+`PYTHONDONTWRITEBYTECODE=1 /opt/homebrew/bin/python3.11 -B -m pytest tests/fm1/test_fm1_tail_cells.py -p no:cacheprovider`
+(`-m "not slow"` for the pure-function and config/knob mutants, which the fast tier already covers; the full file,
+including the slow e2e-world spy test, for the two mutants inside `serve`'s wiring, which only that test reaches).
+**Result: 11 / 11 killed (100 %).**
+
+| id | file | mutation (old -> new) | test | result |
+|---|---|---|---|---|
+| M1-TC | `unmatched.py` | `not_fill_value`: `if tail_cells:` -> `if not tail_cells:` | `test_not_fill_value_true_is_byte_identical_to_the_real_nf_hybrid_below_at_and_above_t_tail_s` (+2 more) | KILLED |
+| M2-TC | `unmatched.py` | false branch: `if cells.shape != b.shape: raise ...` -> removed | `test_not_fill_value_false_refuses_a_shape_mismatch` | KILLED |
+| M3-TC | `unmatched.py` | false branch: the `isfinite` check -> removed | `test_not_fill_value_false_refuses_a_non_finite_input` | KILLED |
+| M4-TC | `unmatched.py` | `serve`'s `tail_cells = cfg["modules.tail_cells.enabled"]` -> `tail_cells = True` | `test_tail_cells_knob_reaches_the_lane_through_serve` | KILLED |
+| M5-TC | `unmatched.py` | same line -> `tail_cells = False` | `test_tail_cells_knob_reaches_the_lane_through_serve` | KILLED |
+| M6-TC | `unmatched.py` | `info.update(...)`'s `tail_cells={"enabled": ..., "n_tail_rows": ...}` keyword -> removed | `test_tail_cells_knob_reaches_the_lane_through_serve` | KILLED (KeyError) |
+| M7-TC | `knobs.py` | cross-check: `if not v["lanes.unmatched"]: raise ...` -> removed | `test_cross_check_false_needs_lanes_unmatched` | KILLED |
+| M8-TC | `knobs.py` | cross-check: `if v["unmatched.learner"] != "v26": raise ...` -> removed | `test_cross_check_false_needs_unmatched_learner_v26` | KILLED |
+| M9-TC | `knobs.py` | knob declaration: `late=4` -> `late=0` | `test_knob_is_bool_default_true_late_generation_4_and_hashed` | KILLED |
+| M10-TC | `knobs.py` | knob declaration: `late=4` -> `late=3` (collides with uad's own generation) | `test_knob_is_bool_default_true_late_generation_4_and_hashed` | KILLED |
+| M11-TC | `knobs.py` | knob declaration: default `True` -> `False` | `test_knob_is_bool_default_true_late_generation_4_and_hashed` | KILLED |
+
+TOTAL tail_cells (session 1) 11 / 11 killed. Not separately rehearsed (covered by the normal TDD red/green cycle,
+not a reverted mutant): the four shipped configs stating the knob at its default
+(`test_each_shipped_config_states_the_knob_at_its_default`, one assertion per file) and the hash-stability
+direction itself (`test_turning_the_knob_off_changes_that_configs_hash`, which M11-TC also happens to move,
+confirming it independently of M9-TC/M10-TC).
+
+### Session 2 (2026-10-05, independent review R2 Part C): the overstated effect text and `n_tail_rows_decided`
+
+Fact that prompted this: the Rome stage overwrites every LIRF row from `parts["nf"]` (S1's own hybrid), so
+`not_fill_value`/`tail_cells` never changes a LIRF value even though the old effect text said false uses the
+learned body "on every row". Fixed: the effect text (knobs.py, unmatched.py's module docstring and
+`not_fill_value`'s docstring; CONFIG_REFERENCE.md regenerated); `info["tail_cells"]` gained
+`n_tail_rows_decided` (how many of the `n_tail_rows` cells are still decided `unmatched_body`/`storm` once
+`serve()` ends -- the rows the knob can actually change in the output); `test_tail_cells_knob_reaches_the_lane_through_serve`'s
+`n_tail_rows` assertions, which each compared a value to itself, were replaced with assertions against counts
+computed independently from `comp["unm_nf_cells"]` and the ledger's own `decided_of`, and the test now forces one
+non-LIRF row's `nf_cells` to 3,500.0 (fm1_world.E2E does not reliably clear T_TAIL_S on its own) to exercise the
+knob's concrete effect on a real row.
+
+This session's two new decision lines were rehearsed with a scripted harness (logs/r2_1005/mutate_tc.py: each
+mutant applied to a fresh copy of the current file, the full `tests/fm1/test_fm1_tail_cells.py` run -- both
+mutants live inside `serve`'s wiring, which only the slow e2e-world test reaches -- then the file restored and
+byte-verified), not by hand; results recorded the same way as session 1's table.
+
+| id | file | mutation (old -> new) | test | result |
+|---|---|---|---|---|
+| M12-TC | `unmatched.py` | `body_values` calls `not_fill_value` and throws the result away: `mix = D.mixture(parts["p"], parts["sp"], not_fill_value(D, parts["nf_cells"], mean, tail_cells))` -> `mix = D.mixture(parts["p"], parts["sp"], D.nf_hybrid(parts["nf_cells"], mean))` (always the hybrid, `tail_cells` never consulted) | `test_tail_cells_knob_reaches_the_lane_through_serve` | KILLED |
+| M13-TC | `unmatched.py` | `serve`: the `n_tail_rows_decided` computation and its `info["tail_cells"]` assignment -> removed | `test_tail_cells_knob_reaches_the_lane_through_serve` | KILLED (KeyError) |
+
+TOTAL tail_cells (session 2) 2 / 2 killed. TOTAL tail_cells (all sessions) 13 / 13 killed.

@@ -21,7 +21,7 @@ differs from v55 where the ADS-B store has no ground coverage at the stand (ther
 | claim part | evidence |
 |---|---|
 | board score | the scoring service's result file for v57: status Succeeded, `used_pairs` 344,841, score 247.3187 (v55: 249.9168) |
-| the code produced the file | written by `python -m prc build-submission --config configs/fm1_v57.yaml` with the committed code and a clean tree; the manifest names the artefact, the config hash and the sha256 of the stage's two inputs (REPRODUCE.md, "Reproducing the board file v57") |
+| the code produced the file | written by `python -m prc build-submission --config configs/fm1_v57.yaml` with the committed code and a clean tree; the manifest names the artefact, the config hash and the sha256 of the stage's two inputs; rebuilt on 2026-10-05 by later code from the stored artefact, the file has the same sha256 (REPRODUCE.md, "Reproducing the board file v57") |
 | the config is the final one | `tests/fm1/test_fm1_final_configs.py`: `configs/fm1_v57.yaml` resolves to the artefact's config hash and differs from v55 in one knob (`modules.uad.enabled`) |
 | the stage on its own, labelled 2025 | one registered test, read once: the 317 January + July 2025 rows with an estimate, RMSE 432.4 → 274.4 s; body +53.3 bmse [21.8, 85.3], positive in both months, without the ten largest rows and with EHAM removed (METHOD §7, UAD; CLAIMS 24) |
 | the stage's part in the file | `decided_by` = `uad` on 501 rows (class A1 450, A2 51; 124 on storm airport-days; EHAM 328, LEBL 47, LSZH 44, EDDM 34, EGLL 28, LEMD 14, EDDF 6); `uad_cls`, `uad_est`, `uad_shift` per row in the provenance file; an independent review before the upload recomputed all 501 values from the registered rule |
@@ -46,9 +46,11 @@ differs from v55 where the ADS-B store has no ground coverage at the stand (ther
 5. **Constants fitted against a different baseline.** The offsets and weights were fitted on 2025 against screen-tier
    leave-one-month-out predictions, not against the final model the stage runs after; those baseline fits include
    January and July 2025, so a little of the two test months reaches the calm weight.
-6. **No automatic check of the table.** The stage accepts any table with its four columns. The registered checks run in
-   code on the 2025 table, before the constants are fitted; on the 2026 table they were read from its build report.
-   The report does not record which stand positions the build was given.
+6. **The table check came after the build.** When v57 was built the stage accepted any table with its four columns,
+   and the 2026 table's build report was read by hand. The stage now refuses a table whose build report fails the
+   registered label-free checks, and v57 rebuilt with that check in place is the same file. For tables built from now
+   on the report holds the sha256 of the table and the stand positions it was given; the table behind v57 is tied to
+   its report only by sharing a directory (both hashes are in the rebuild's manifest).
 7. **Selection on the scored set** (RISK_REPORT_v55 §3.1) applies to keeping v57: it is the best file because the
    board says so. Nothing inside the stage was set from the board.
 

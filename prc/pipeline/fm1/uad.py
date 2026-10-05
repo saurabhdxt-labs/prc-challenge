@@ -22,6 +22,7 @@ A differential test (tests/fm1/test_fm1_uad.py) holds `blend` to uad_price.apply
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import pathlib
@@ -37,6 +38,15 @@ STORM_A_S = 300.0
 A2_WEIGHT_FACTOR = 0.5
 TABLE_COLS = ["MVT_ID_mvt", "unmatched", "cls", "exit_rel_s"]
 _COMP_COLS = ("uad_cls", "uad_est", "uad_shift")
+
+#: the table's own build report must pass these before FM1 will read it (scripts/analysis/uad_build.py's
+#: registration; a differential test holds these equal to scripts/analysis/uad_price.py's STOP_AIRPORT / STOP_BARS /
+#: TABLE_PARAMS_HASH, restated here with an explicit comparison operator instead of a "below"/"above" word).
+TABLE_PARAMS_HASH = "d196b652a9a7"     # uad_build.params_hash() of the registered builder (after AMEND-A3)
+STOP_AIRPORT = "EHAM"
+TABLE_BARS = (("callsign_matched_type_equal_share", ">=", 0.97), ("stand_unmatched_type_agree_share", ">=", 0.95),
+              ("matched_exit_mad_s", "<=", 200.0), ("stand_check_right_share", ">=", 0.95),
+              ("stand_check_wrong_share", "<=", 0.005))
 
 
 def _finite(x) -> bool:
@@ -84,6 +94,56 @@ def load_constants(path) -> dict:
         raise E.SchemaError(f"{path}: registration is missing or not a string")
     out["registration"] = registration
     return out
+
+
+def _strict_number(x) -> bool:
+    """True only for an actual, finite int or float -- never a bool (a bool is an int subclass in Python, so a
+    bare isinstance(x, (int, float)) check accepts it) and never a string that merely parses as a number. A
+    table report's bar values must be real numbers, not text that happens to look like one."""
+    return isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
+
+
+def check_table_report(table_path) -> str:
+    """Reads report.json beside `table_path` (table_path.resolve().parent, never table_path itself) and returns its
+    sha256 hex digest. Refuses with E.SchemaError (naming the file and what failed): unreadable or malformed JSON;
+    a top level that is not an object; no report.json; params_hash missing or different from TABLE_PARAMS_HASH; no
+    stop_rules[STOP_AIRPORT]; a TABLE_BARS key missing, a bool, a string, or any other non-finite-number value; a
+    bar missed (names the bar, its value and the limit); an "outputs" entry for table.parquet whose sha256 does
+    not equal the real table file's sha256 (a report with no "outputs" at all -- every table built before this
+    check existed -- is still accepted, and so is one whose "outputs" says nothing about table.parquet). These
+    five bars are the label-free checks the registration fixed for the builder; the 2025-only class-count bracket
+    in scripts/analysis/uad_price.py is a pricing-time sanity check, never applied here."""
+    report_path = pathlib.Path(table_path).resolve().parent / "report.json"
+    if not report_path.exists():
+        raise E.SchemaError(f"{report_path}: no report.json beside {table_path}")
+    raw = report_path.read_bytes()
+    try:
+        report = json.loads(raw.decode())
+    except ValueError as exc:
+        raise E.SchemaError(f"{report_path}: unreadable or malformed JSON ({exc})") from None
+    if not isinstance(report, dict):
+        raise E.SchemaError(f"{report_path}: top level is not an object ({type(report).__name__})")
+    params_hash = report.get("params_hash")
+    if params_hash != TABLE_PARAMS_HASH:
+        raise E.SchemaError(f"{report_path}: params_hash {params_hash!r} != {TABLE_PARAMS_HASH!r}")
+    stop_rules = report.get("stop_rules")
+    stats = stop_rules.get(STOP_AIRPORT) if isinstance(stop_rules, dict) else None
+    if not isinstance(stats, dict):
+        raise E.SchemaError(f"{report_path}: no stop_rules[{STOP_AIRPORT!r}]")
+    for key, op, limit in TABLE_BARS:
+        v = stats.get(key)
+        if not _strict_number(v):
+            raise E.SchemaError(f"{report_path}: {key} missing or not a finite number ({v!r})")
+        v = float(v)
+        ok = (v >= limit) if op == ">=" else (v <= limit)
+        if not ok:
+            raise E.SchemaError(f"{report_path}: {key} = {v} fails {op} {limit}")
+    outputs = report.get("outputs")
+    if isinstance(outputs, dict) and "table.parquet" in outputs:
+        table_sha256 = hashlib.sha256(pathlib.Path(table_path).read_bytes()).hexdigest()
+        if outputs["table.parquet"] != table_sha256:
+            raise E.SchemaError(f"{report_path}: the table is not the one this report describes")
+    return hashlib.sha256(raw).hexdigest()
 
 
 def load_table(path) -> pd.DataFrame:
@@ -200,7 +260,13 @@ def serve(rows: pd.DataFrame, comp: pd.DataFrame, ledger, stage, table: pd.DataF
 
 def apply(cfg, rows: pd.DataFrame, comp: pd.DataFrame, ledger, stage) -> tuple:
     """The engine's entry point: the table and constants named by modules.uad.table / modules.uad.constants, read
-    fresh on every call (never at import)."""
-    table = load_table(cfg.path("modules.uad.table"))
+    fresh on every call (never at import). check_table_report runs before load_table, so a table whose build report
+    does not pass is refused before its parquet is even opened; the report's own sha256 is carried into the returned
+    report as "table_report_sha256"."""
+    table_path = cfg.path("modules.uad.table")
+    table_report_sha256 = check_table_report(table_path)
+    table = load_table(table_path)
     const = load_constants(cfg.path("modules.uad.constants"))
-    return serve(rows, comp, ledger, stage, table, const)
+    comp_out, rep = serve(rows, comp, ledger, stage, table, const)
+    rep["table_report_sha256"] = table_report_sha256
+    return comp_out, rep

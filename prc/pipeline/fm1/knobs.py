@@ -66,7 +66,8 @@ class Knob:
     #: False only for an output location: it cannot change a prediction, so it stays out of the model hash (FM1 notes N6)
     hashed: bool = True
     #: The generation of a knob added after stored artefacts existed (1 = modules.eobt_clip.*, 2 = adsb.train_dropout.*,
-    #: both 2026-10-02; 3 = modules.uad.*, 2026-10-05); 0 = present from the start. With h = the highest generation
+    #: both 2026-10-02; 3 = modules.uad.*, 2026-10-05; 4 = modules.tail_cells.*, 2026-10-05); 0 = present from the
+    #: start. With h = the highest generation
     #: holding a knob off its default, parse_config hashes the late knobs of generations 1 ... h and leaves later ones
     #: out, which is exactly the hash a config had when it was written: a new generation never moves a stored hash
     #: (BC-41). A late knob's default must be the behaviour before it existed (a module that is off); defaults and
@@ -316,6 +317,14 @@ SCHEMA: tuple = (
        "The anomaly A as a body FEATURE with a leave-one-event-out re-validation (owner decision 2's replacement for "
        "the anchor rule). NOT PORTED (not built): fit refuses while this is true.",
        "plans/PREREG_congestion_anchor_loeo_2026_09_13.md", status="not_ported", activates=_on),
+    _K("modules.tail_cells.enabled", "bool", True,
+       "The unmatched body's not-copy value IN THE BODY MIXTURE is the learned body, except that with this knob true "
+       "(the shipped rule) a row whose cell mean is 3,000 s or more keeps the cell mean (`build_submission.nf_hybrid`); "
+       "false uses the learned body there instead. A LIRF row is always decided by the Rome module from S1's own "
+       "hybrid, never from this mixture, so this knob never changes a LIRF value. Registered 2026-10-05 after a look "
+       "at the ten design months of 2025 (25 rows, all LTFM, 22 with labels under 2,000 s against values of "
+       "3,100-5,700 s). Default true.",
+       "plans/PREREG_tc_tail_cell_routing_2026_10_05.md", late=4),
     _K("modules.uad.enabled", "bool", False,
        "ADS-B stand-exit estimate for departures without a flight-plan record (UAD). A row that the unmatched body or "
        "the storm anchor decided, and whose row in modules.uad.table has class A1 or A2, moves from its value v to "
@@ -772,6 +781,13 @@ def _unmatched_cross_checks(v: dict) -> None:
         if v["unmatched.learner"] != "v26":
             raise E.ConfigValueError("modules.storm.mode anchor needs unmatched.learner v26 (the anchor runs inside the "
                                      "ported lane)")
+    if not v["modules.tail_cells.enabled"]:
+        if not v["lanes.unmatched"]:
+            raise E.ConfigValueError("modules.tail_cells.enabled false needs lanes.unmatched (the knob changes the "
+                                     "unmatched lane's not-copy value)")
+        if v["unmatched.learner"] != "v26":
+            raise E.ConfigValueError("modules.tail_cells.enabled false needs unmatched.learner v26 (not_fill_value "
+                                     "runs inside the v26 lane's body_values)")
     if v["modules.uad.enabled"]:
         if not v["lanes.unmatched"]:
             raise E.ConfigValueError("modules.uad.enabled needs lanes.unmatched (the stage re-values the unmatched "

@@ -111,6 +111,8 @@ modules:
   storm:
     mode: anchor
     feature: false   # NOT PORTED
+  tail_cells:
+    enabled: true
   uad:
     enabled: true
     table: data/uad/2026_table_a3/table.parquet

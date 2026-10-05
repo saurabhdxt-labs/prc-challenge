@@ -31,7 +31,8 @@ LATE = {"modules.eobt_clip.enabled": False, "modules.eobt_clip.airports": ("LFPG
         "modules.eobt_clip.min_share": 0.15, "modules.eobt_clip.min_rows": 1000,
         "adsb.train_dropout.flight": 0.0, "adsb.train_dropout.day": 0.0,
         "modules.uad.enabled": False, "modules.uad.table": "data/uad/2026_table_a3/table.parquet",
-        "modules.uad.constants": "configs/uad_constants_2025.json"}
+        "modules.uad.constants": "configs/uad_constants_2025.json",
+        "modules.tail_cells.enabled": True}
 NAT = None
 
 
@@ -83,11 +84,13 @@ def _cfg(**over):
 # ---------------------------------------------------------------------------------------------- knobs, hash, plan
 
 #: the generation each late knob was added in (BC-41): 1 = the EOBT clip (2026-10-02 morning, v54 written with it on),
-#: 2 = the ADS-B dropout (2026-10-02 afternoon, ACR's M1 written with it on), 3 = UAD (2026-10-05, no stored artefact
-#: written with it on yet). A new late knob takes a new generation.
+#: 2 = the ADS-B dropout (2026-10-02 afternoon, ACR's M1 written with it on), 3 = UAD (2026-10-05, v57 written with
+#: it on), 4 = tail_cells (2026-10-05, no stored artefact written with it off its default yet). A new late knob
+#: takes a new generation.
 LATE_GENERATION = {"modules.eobt_clip.enabled": 1, "modules.eobt_clip.airports": 1, "modules.eobt_clip.min_share": 1,
                    "modules.eobt_clip.min_rows": 1, "adsb.train_dropout.flight": 2, "adsb.train_dropout.day": 2,
-                   "modules.uad.enabled": 3, "modules.uad.table": 3, "modules.uad.constants": 3}
+                   "modules.uad.enabled": 3, "modules.uad.table": 3, "modules.uad.constants": 3,
+                   "modules.tail_cells.enabled": 4}
 
 
 def test_late_knobs_and_their_defaults_are_pinned():

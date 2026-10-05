@@ -124,4 +124,12 @@
     January + July 2026. It does not say which rows carried the gain, so the storm weight and the class-A2 factor
     still have no labelled test of their own, and the gain was larger than the range written down before the upload.
     The 2026 table is built from the adsb.lol day store only, without the adsb.fi capture of July 2026 that the
-    matched lane of v55 uses; no code checks the table the stage is given against the registered stop rules.
+    matched lane of v55 uses. The stage refuses a table whose build report (`report.json` beside it) fails the
+    registered label-free checks or, for tables built from now on, names another table; when v57 was built that
+    check did not exist yet and the report was read by hand.
+23. **The tail-cell rule is switched off on thin evidence (`modules.tail_cells.enabled` false, candidate
+    `configs/fm1_v57_tc.yaml`).** The unmatched body keeps a cell's mean where it is 3,000 s or more. Out of month this
+    decided 28 rows in 2025, all at LTFM, 25 of them with ordinary labels: the cells are high because of the snow
+    days of 19–24 February 2025. The registered test had three rows (July); the other 25 were seen before the
+    registration. No test row falls on a storm day, so the knob's effect there is unknown, and six of the ten scored
+    rows it changes are on 18–19 January 2026, a disrupted night at LTFM. The default (true) is the shipped rule.
