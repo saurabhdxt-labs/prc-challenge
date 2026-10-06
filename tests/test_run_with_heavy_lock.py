@@ -77,10 +77,25 @@ def _no_process_outlives_its_test():
             break
 
 
+FORWARDED = (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
+
+
+def _default_dispositions_then(extra=None):
+    """The wrapper keeps a signal ignored at start ignored, so what it does depends on the dispositions it inherits:
+    every start sets the forwarded signals to their defaults, then applies the test's own change (`preexec_fn`)."""
+    def preexec():
+        for s in FORWARDED:
+            signal.signal(s, signal.SIG_DFL)
+        if extra is not None:
+            extra()
+    return preexec
+
+
 def _start(tmp_path: Path, child_code: str, **popen):
     lock = tmp_path / "heavy.lock"
     pidfile = tmp_path / "child.pid"
     code = f"import os, time; open({str(pidfile)!r}, 'w').write(str(os.getpid())); {child_code}"
+    popen["preexec_fn"] = _default_dispositions_then(popen.pop("preexec_fn", None))
     p = subprocess.Popen([sys.executable, "-B", str(WRAPPER), sys.executable, "-c", code],
                          env={**os.environ, "PHANTOM_HEAVY_LOCK_PATH": str(lock)},
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, **popen)
@@ -130,6 +145,28 @@ def test_other_termination_signals_are_forwarded_too(tmp_path, sig):
     while _alive(child) and time.time() < deadline:
         time.sleep(0.05)
     assert not _alive(child) and _lock_is_free(lock)
+
+
+@pytest.mark.slow
+def test_regression_bc45_the_signal_tests_do_not_depend_on_how_the_suite_was_launched(tmp_path):
+    """BC-45 (2026-10-06 18:14 EDT): the two cases above failed in a suite launched with `nohup ... &` — nohup ignores
+    SIGHUP, a background job of a non-interactive shell ignores SIGINT, children inherit both, and the wrapper keeps a
+    signal ignored at start ignored (by design, the nohup test below). The tests now set the dispositions the wrapper
+    starts with instead of inheriting the launcher's. This test ignores both in the test process itself, as such a
+    launcher would, and the forwarding must still happen. Seen red before `_start` set them (TimeoutExpired); the whole
+    file passes under `nohup ... &` and with --random-order 1006 / 7. Rehearsal 2026-10-06 (scratch copies, source
+    verified unchanged after): 2 / 2 killed — X1 no reset to the defaults -> this test; X2 the test's own change applied
+    before the reset (so the reset undoes it) -> the nohup test."""
+    previous = {s: signal.signal(s, signal.SIG_IGN) for s in (signal.SIGINT, signal.SIGHUP)}
+    try:
+        p, lock, child = _start(tmp_path, "time.sleep(60)")
+    finally:
+        for s, h in previous.items():
+            signal.signal(s, h)
+    p.send_signal(signal.SIGINT)
+    p.wait(timeout=20)
+    assert _wait_gone(child) and _lock_is_free(lock)
+    assert "forwarded SIGINT to the command" in p.stdout.read()
 
 
 @pytest.mark.slow
