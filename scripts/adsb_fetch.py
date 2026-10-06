@@ -317,17 +317,30 @@ def exit_code(man: dict) -> int:
     return 4 if any(d["status"] == "failed" for d in man["days"]) else 0
 
 
-def main(argv=None):
+def year_type(value: str) -> int:
+    """--year for both `index` and `run`: any integer >= 2025 (no ADS-B source predates the evaluation year).
+    Raises argparse.ArgumentTypeError naming the refused value, so both subcommands refuse the same way."""
+    year = int(value)
+    if year < 2025:
+        raise argparse.ArgumentTypeError(f"--year must be >= 2025 (no ADS-B source predates it), got {year}")
+    return year
+
+
+def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     i = sub.add_parser("index", help="build data/adsb/v2/RELEASES_<year>.json from the GitHub API")
-    i.add_argument("--year", required=True)
+    i.add_argument("--year", required=True, type=year_type)
     r = sub.add_parser("run")
     r.add_argument("--limit", type=int, default=None, help="only the first N days of the list")
-    r.add_argument("--year", type=int, default=2025, choices=[2025, 2026])
+    r.add_argument("--year", type=year_type, default=2025)
     r.add_argument("--months", type=lambda t: tuple(int(x) for x in t.split(",")), default=None,
                    help="extra months, e.g. 2,3,4,5,6,8,9,10,11,12 -> data/adsb/v2/y<year>_other")
-    a = ap.parse_args(argv)
+    return ap
+
+
+def main(argv=None):
+    a = build_parser().parse_args(argv)
     if a.cmd == "index":
         idx = build_index(a.year)
         print(f"[{_now()}] {len(idx)} releases -> {index_path(a.year)}", flush=True)

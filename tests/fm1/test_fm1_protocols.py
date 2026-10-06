@@ -284,10 +284,77 @@ def test_validate_refuses_mtx(pcfg):
 def test_dry_run_reports_without_fitting():
     rep = api.validate(K.parse_config({}), "dry-run")
     assert rep["stages"][-2:] == ["rome_e2w", "finalise"] and "plan_refused" not in rep
+    assert api.dry_run_refused(rep) is False
     rep = api.validate(K.parse_config({"modules": {"storm": {"feature": True}}}), "dry-run")
     assert rep["stages"] is None and "modules.storm.feature" in rep["plan_refused"]
     assert rep["paths"]["data.raw_dir"]["exists"] is True
     assert rep["training_months"][1].startswith("training_2025-01")
+    assert api.dry_run_refused(rep) is True        # unported component -> plan_refused -> the CLI must exit 1
+
+
+def test_dry_run_refused_reads_the_report_not_the_machine():
+    """api.dry_run_refused on synthetic reports, no real config or fit involved: fails when the `training_months`
+    string check is dropped (a REFUSED training_months would read as healthy) or the `plan_refused` key check is
+    dropped (an unported-component refusal would read as healthy even with stages=None). Extended for FP-W3 item 7
+    (finding 7): a missing REQUIRED path (paths[...]["required"] True, "exists" False) refuses; a path under a
+    disabled module (required False) missing does not. Mutation: drop the paths-required check -> the
+    missing-required-path case stays accepted -> red."""
+    assert api.dry_run_refused({"training_months": "REFUSED: no training file for 2025-01",
+                                "stages": ["a"]}) is True
+    assert api.dry_run_refused({"stages": None, "plan_refused": "modules.storm.feature is not ported"}) is True
+    assert api.dry_run_refused({"training_months": {1: "training_2025-01-01_x.parquet"},
+                                "stages": ["a", "b"]}) is False
+    assert api.dry_run_refused({"training_months": {1: "x"}, "stages": ["a"],
+                                "paths": {"data.weather_dir": {"exists": False, "required": True}}}) is True
+    assert api.dry_run_refused({"training_months": {1: "x"}, "stages": ["a"],
+                                "paths": {"modules.uad.table": {"exists": False, "required": False}}}) is False
+    assert api.dry_run_refused({"training_months": {1: "x"}, "stages": ["a"],
+                                "paths": {"data.weather_dir": {"exists": True, "required": True}}}) is False
+
+
+def test_dry_run_refuses_a_missing_required_input_but_not_a_disabled_modules(tmp_path):
+    """Finding 7 (FP-W3 item 7): `python -m prc validate --protocol dry-run` exited 0 with a missing input as long
+    as training_files() itself didn't raise -- dry_run's `paths` report already carried `exists: False` per path
+    but dry_run_refused never read it. A REQUIRED input (one the enabled config reads, e.g. data.weather_dir under
+    the default features.weather=True / lanes.matched=True) missing now refuses; a path under a switched-off
+    module (modules.uad.enabled defaults to False) missing does not. Every path here is injected under tmp_path --
+    no real repo data is read. Mutation: drop the `required` gate (treat every path as required) -> the
+    "disabled module" assertion goes red; drop the whole paths check from dry_run_refused -> the "required"
+    assertion goes red."""
+    (tmp_path / "raw").mkdir()
+    (tmp_path / "raw" / "training_2025-01-01_2025-02-01.parquet").touch()
+    (tmp_path / "raw" / "training_2025-02-01_2025-03-01.parquet").touch()
+    (tmp_path / "raw" / "scored.parquet").touch()
+    (tmp_path / "raw" / "template.parquet").touch()
+    (tmp_path / "weather").mkdir()
+    (tmp_path / "adsb").mkdir()
+    (tmp_path / "stack").mkdir()
+    (tmp_path / "orl.parquet").touch()
+    raw = {
+        "run": {"artifacts_dir": str(tmp_path / "artifacts")},
+        "data": {"raw_dir": str(tmp_path / "raw"), "scored_file": str(tmp_path / "raw" / "scored.parquet"),
+                 "template_file": str(tmp_path / "raw" / "template.parquet"),
+                 "weather_dir": str(tmp_path / "weather"), "train_months": [1, 2]},
+        "matched": {"es_months": [2]},
+        "features": {"orl_routes_file": str(tmp_path / "orl.parquet")},
+        "adsb": {"table_dir": str(tmp_path / "adsb"), "stack": {"models_dir": str(tmp_path / "stack")}},
+        "modules": {"uad": {"table": str(tmp_path / "no_such_uad_table.parquet"),
+                            "constants": str(tmp_path / "no_such_uad_constants.json")}},
+    }
+    cfg = K.parse_config(raw)
+    assert cfg["modules.uad.enabled"] is False          # the disabled-module precondition this test relies on
+    rep = api.validate(cfg, "dry-run")
+    assert "plan_refused" not in rep and not isinstance(rep["training_months"], str)   # sanity: not refused for
+                                                                                         # some other, unrelated reason
+    assert rep["paths"]["modules.uad.table"]["exists"] is False
+    assert rep["paths"]["modules.uad.table"]["required"] is False
+    assert api.dry_run_refused(rep) is False            # every REQUIRED input exists; the disabled uad path doesn't matter
+
+    broken = K.parse_config({**raw, "data": {**raw["data"], "weather_dir": str(tmp_path / "no_such_weather")}})
+    rep2 = api.validate(broken, "dry-run")
+    assert rep2["paths"]["data.weather_dir"]["exists"] is False
+    assert rep2["paths"]["data.weather_dir"]["required"] is True
+    assert api.dry_run_refused(rep2) is True
 
 
 # ---------------------------------------------------------------------------------------------- day-4 enablers
@@ -317,3 +384,13 @@ def test_blend_oof_is_the_cbv_formula_on_common_rows():
         api.blend_oof(a, b, 1.5)
     with pytest.raises(E.ValidationError, match="disagree on a label"):
         api.blend_oof(a, b.assign(y=b.y + 1), 0.5)
+
+
+def test_adsb_table_is_required_whenever_the_adsb_feature_is_on_even_without_the_matched_lane():
+    """Review 2 finding 4: dry_run marked adsb.table_dir required only under lanes.matched AND features.adsb, but fit and
+    predict check the table's sources under features.adsb alone (engine.py check_table_sources), so a missing table
+    passed the dry run and failed the real run. Mutation: gate it on lanes.matched again -> red."""
+    cfg = K.parse_config({"lanes": {"matched": False}, "features": {"adsb": True}})
+    assert api._required_paths(cfg)["adsb.table_dir"] is True
+    off = K.parse_config({"features": {"adsb": False}, "adsb": {"stack": {"enabled": False}}})   # the stack needs the feature
+    assert api._required_paths(off)["adsb.table_dir"] is False

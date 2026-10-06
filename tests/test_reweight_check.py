@@ -10,7 +10,7 @@ import pandas as pd
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-_spec = importlib.util.spec_from_file_location("reweight_check", ROOT / "scripts" / "reweight_check.py")
+_spec = importlib.util.spec_from_file_location("reweight_check", ROOT / "research" / "reweight_check.py")
 R = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(R)
 

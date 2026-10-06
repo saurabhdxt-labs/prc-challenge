@@ -1,17 +1,20 @@
 """Detached launcher for the R12 heavy steps, on v34_launch's pattern (its tested pure helpers are imported, not copied):
-its own session, a monitor-friendly log, preflight refusals, a PID file, the runner's in-process RSS self-abort, an RSS
-watchdog that kills ONLY its own child tree, and a memory-pressure guard (tools/mem_guard.py) beside every run.
+its own session, a monitor-friendly log, preflight refusals, a PID file, the runner's in-process RSS self-abort, and an
+RSS watchdog that kills ONLY its own child tree. With --machine-guards (the author's macOS machine; the run queue
+tools/prc_queue.py always passes it) it also runs the memory-pressure guard (tools/mem_guard.py) beside the run and adds
+the AC-power and reserved-window preflight refusals; without it, neither runs (the launcher then needs no macOS tool).
 
-    /opt/homebrew/bin/python3.11 -B scripts/analysis/r12_launch.py --step features --detach -- \
+    /opt/homebrew/bin/python3.11 -B scripts/analysis/r12_launch.py --step features --detach --machine-guards -- \
         features --store data/r12/features_<stamp> --final
-    /opt/homebrew/bin/python3.11 -B scripts/analysis/r12_launch.py --step tables --detach -- \
+    /opt/homebrew/bin/python3.11 -B scripts/analysis/r12_launch.py --step tables --detach --machine-guards -- \
         tables --store data/r12/features_<stamp> --out data/r12/tables_<stamp>
-    /opt/homebrew/bin/python3.11 -B scripts/analysis/r12_launch.py --step val --detach -- \
+    /opt/homebrew/bin/python3.11 -B scripts/analysis/r12_launch.py --step val --detach --machine-guards -- \
         --split holdout --arms r12,control,yhead,r12_noeobt --tables data/r12/tables_<stamp> --out data/r12/val_<...>
     add --smoke (paths under logs/r12_scratch, --days for the build steps, the validator's --smoke) for a < 5 min run.
 
-Preflight (refuses, never waits): AC power; not inside the machine's reserved window 11:40-12:15 at START; the heavy
-lock free (real runs; probed nonblocking, released at once, the runner takes it); no other R12 or v34 launcher alive;
+Preflight (refuses, never waits): with --machine-guards, AC power and not inside the machine's reserved window 11:40-12:15
+at START; always: the heavy lock free (real runs; probed nonblocking, released at once, the runner takes it); no other
+R12 or v34 launcher alive;
 the A12 fetch (scripts/adsb_fetch.py run) not alive — except a non-final feature build, which defers unfinished days.
 There is NO wall-time kill (a mem_guard-paused run is never killed for taking long); the only kill is the RSS watchdog.
 Monitor with: tail -f <log>; kill -0 <pid> (never pgrep -f).
@@ -100,13 +103,17 @@ def fetch_alive(ps_text: str) -> bool:
 
 
 def preflight(pmset: str, now: dt.datetime, lock_free: bool, others: bool, fetch: bool, step: str,
-              final: bool, smoke: bool = False) -> list:
-    """Every reason to refuse; empty = go. A smoke (< 5 min, scratch outputs, no lock) may run beside the fetch."""
+              final: bool, smoke: bool = False, machine_guards: bool = False) -> list:
+    """Every reason to refuse; empty = go. A smoke (< 5 min, scratch outputs, no lock) may run beside the fetch.
+    `machine_guards` (default OFF) gates the two macOS-only checks below (AC power via `pmset`, Phantom's reserved
+    track_record window): off, neither runs, so the launcher also works on a machine without `pmset` (e.g. Linux)
+    and inside the reserved window; on, both apply exactly as they did before --machine-guards existed."""
     reasons = []
-    if not V.on_ac_power(pmset):
-        reasons.append("not on AC power")
-    if V.in_phantom_window(now):
-        reasons.append("inside Phantom's track_record window 11:40-12:15")
+    if machine_guards:
+        if not V.on_ac_power(pmset):
+            reasons.append("not on AC power")
+        if V.in_phantom_window(now):
+            reasons.append("inside Phantom's track_record window 11:40-12:15")
     if not lock_free:
         reasons.append("heavy-compute lock is held by another job")
     if others:
@@ -159,12 +166,29 @@ def parse_args(argv=None) -> argparse.Namespace:
     ap.add_argument("--detach", action="store_true", help="re-launch in its own session and return at once")
     ap.add_argument("--smoke", action="store_true", help="a < 5 min run under logs/r12_scratch, no lock")
     ap.add_argument("--partial", action="store_true", help="allow a real, non-final feature build")
+    ap.add_argument("--machine-guards", action="store_true",
+                    help="apply the macOS-only AC-power and Phantom track_record-window preflight checks "
+                         "(default off, so the launcher also runs on a machine without `pmset`; the owner's "
+                         "queue, tools/prc_queue.py, always passes this)")
     ap.add_argument("--log", default=None, help=argparse.SUPPRESS)
     ap.add_argument("runner_args", nargs=argparse.REMAINDER, help="after --: the runner's own arguments")
     a = ap.parse_args(argv)
     if a.runner_args and a.runner_args[0] == "--":
         a.runner_args = a.runner_args[1:]
     return a
+
+
+def detach_argv(step: str, smoke: bool, partial: bool, machine_guards: bool, runner_args, log_path_: pathlib.Path,
+                script=None, py=None) -> list:
+    """The detached re-launch's argv: `py -B <this script> --step <step> --log <log_path_>` plus `--smoke` /
+    `--partial` / `--machine-guards` exactly when the parent had them, then the runner's own args after `--`.
+    Extracted from `main()` (item 4b) so --machine-guards (and the others) forward correctly without a real
+    subprocess."""
+    script = pathlib.Path(__file__).resolve() if script is None else script
+    py = PY if py is None else py
+    return ([py, "-B", str(script), "--step", step, "--log", str(log_path_)]
+            + (["--smoke"] if smoke else []) + (["--partial"] if partial else [])
+            + (["--machine-guards"] if machine_guards else []) + ["--", *runner_args])
 
 
 def main(argv=None) -> int:  # pragma: no cover - process orchestration; the pure parts above are tested
@@ -174,15 +198,14 @@ def main(argv=None) -> int:  # pragma: no cover - process orchestration; the pur
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     if a.detach:
         lp = log_path(a.step, a.smoke, dt.datetime.now())
-        args = ([PY, "-B", str(pathlib.Path(__file__).resolve()), "--step", a.step, "--log", str(lp)]
-                + (["--smoke"] if a.smoke else []) + (["--partial"] if a.partial else []) + ["--", *a.runner_args])
+        args = detach_argv(a.step, a.smoke, a.partial, a.machine_guards, a.runner_args, lp)
         p = subprocess.Popen(args, cwd=ROOT, start_new_session=True, stdin=subprocess.DEVNULL,
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         print(f"launched pid {p.pid}; log {lp}; mem_guard log {V.memguard_log(lp)}")
         return 0
     if not a.log:
         raise SystemExit("use --detach (the foreground form is the detached child's)")
-    return _run(a.step, a.smoke, a.runner_args, pathlib.Path(a.log))
+    return _run(a.step, a.smoke, a.runner_args, pathlib.Path(a.log), a.machine_guards)
 
 
 def _lock_free() -> bool:  # pragma: no cover - touches the real lock
@@ -197,18 +220,41 @@ def _lock_free() -> bool:  # pragma: no cover - touches the real lock
     return True
 
 
-def _run(step: str, smoke: bool, runner_args, log_path_: pathlib.Path) -> int:  # pragma: no cover
+def _gather_preflight_inputs(machine_guards: bool, run=subprocess.run) -> tuple:
+    """(pmset text, swap text, ps text) for one preflight check. `pmset` is macOS-only and is shelled out to only
+    when `machine_guards` is set -- off, it is skipped entirely (not just ignored downstream), so the launcher
+    does not require `pmset` to exist (e.g. on Linux)."""
+    pm = run(["pmset", "-g", "batt"], capture_output=True, text=True).stdout if machine_guards else ""
+    swap = run(["sysctl", "vm.swapusage"], capture_output=True, text=True).stdout.strip()
+    ps = run(["ps", "-A", "-o", "pid=,command="], capture_output=True, text=True).stdout
+    return pm, swap, ps
+
+
+def _attach_memguard(pid: int, log_path_: pathlib.Path, machine_guards: bool, log, start=None):
+    """Start mem_guard beside the run only under --machine-guards: tools/mem_guard.py shells out to the macOS-only
+    `memory_pressure` (~line 282), so starting it unconditionally would break the launcher on a machine without it
+    (e.g. Linux) even though --machine-guards already exists to gate exactly this kind of machine assumption
+    (finding 7). Off, mem_guard is skipped entirely (not started and then ignored); on, it starts exactly as
+    before. Returns the mem_guard command list, or None when skipped."""
+    start = V.start_memguard if start is None else start
+    if not machine_guards:
+        log("mem_guard: skipped (no --machine-guards)")
+        return None
+    g, _ = start(pid, log_path_)
+    log(f"mem_guard: {' '.join(g)}")
+    return g
+
+
+def _run(step: str, smoke: bool, runner_args, log_path_: pathlib.Path, machine_guards: bool = False) -> int:  # pragma: no cover
     s = spec(step)
     with open(log_path_, "a") as fh:
         def log(msg):
             fh.write(f"[{dt.datetime.now():%Y-%m-%d %H:%M:%S}] {msg}\n")
             fh.flush()
-        pm = subprocess.run(["pmset", "-g", "batt"], capture_output=True, text=True).stdout
-        swap = subprocess.run(["sysctl", "vm.swapusage"], capture_output=True, text=True).stdout.strip()
-        ps = subprocess.run(["ps", "-A", "-o", "pid=,command="], capture_output=True, text=True).stdout
+        pm, swap, ps = _gather_preflight_inputs(machine_guards)
         reasons = preflight(pm, dt.datetime.now(), True if smoke else _lock_free(),
                             V.others_alive(all_pidfiles(), V.pid_alive), fetch_alive(ps), step,
-                            "--final" in runner_args, smoke=smoke)
+                            "--final" in runner_args, smoke=smoke, machine_guards=machine_guards)
         log(f"R12 {step} ({'smoke' if smoke else 'run'}); limits self-abort {s.rss_abort_gib:g} GiB / watchdog "
             f"{s.watchdog_gib:g} GiB; expected {s.expected}")
         log(f"preflight: {swap}; {'OK' if not reasons else 'REFUSED: ' + '; '.join(reasons)}")
@@ -221,8 +267,7 @@ def _run(step: str, smoke: bool, runner_args, log_path_: pathlib.Path) -> int:  
             log(f"START {' '.join(cmd)}")
             t0 = time.time()
             p = subprocess.Popen(cmd, cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT)
-            g, _ = V.start_memguard(p.pid, log_path_)
-            log(f"mem_guard: {' '.join(g)}")
+            _attach_memguard(p.pid, log_path_, machine_guards, log)
 
             def rss_of(pid):
                 out = subprocess.run(["ps", "-A", "-o", "pid=,ppid=,rss="], capture_output=True, text=True).stdout

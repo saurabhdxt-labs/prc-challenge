@@ -110,6 +110,8 @@ def main(argv=None) -> int:
             rep = api.validate(args.config, args.protocol, out_dir=args.out, allow_heavy=args.allow_heavy,
                                overrides=args.overrides, save_models=args.save_models)
             print(_dump(rep if args.protocol == "dry-run" else {k: v for k, v in rep.items() if k != "folds"}))
+            if args.protocol == "dry-run" and api.dry_run_refused(rep):
+                return 1
             return 0
         target = args.artifact or args.config
         ov = args.overrides                          # refused by name with --artifact (api._artifact)

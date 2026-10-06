@@ -22,7 +22,7 @@ import pandas as pd
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-_spec = importlib.util.spec_from_file_location("fmf_checks", ROOT / "scripts/analysis/fmf_checks.py")
+_spec = importlib.util.spec_from_file_location("fmf_checks", ROOT / "research/analysis/fmf_checks.py")
 C = importlib.util.module_from_spec(_spec)
 sys.modules["fmf_checks"] = C
 _spec.loader.exec_module(C)

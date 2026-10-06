@@ -23,6 +23,7 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "research"))     # adsb_storm.py moved here (FP-W4)
 sys.path.insert(0, str(ROOT / "tests"))
 import adsb_storm as st  # noqa: E402
 import test_adsb_storm as world_mod  # noqa: E402  (the synthetic world; only the module object is imported)

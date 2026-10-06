@@ -214,7 +214,10 @@ def stack_arm(arm: str, pred: pd.DataFrame, train_table: pd.DataFrame, serve_tab
     man["gate"] = gate
     man["gate_evidence"] = {"source": "r12_stack: adsb_ship.gate_table on the R12 (TRC) tables' joined shares",
                             "transfer_PASS": bool(tr["rule"]["PASS"]), "joined_share_2025": c25, "joined_share_2026": c26,
-                            "equals_models_v4_gate": bool(same), "fold_record": str(paths["record"])}
+                            "equals_models_v4_gate": bool(same),
+                            # relative to `root` (check_out_dir keeps `out` under it): a shipped manifest never carries a
+                            # machine's absolute path
+                            "fold_record": str(paths["record"].resolve().relative_to(pathlib.Path(root).resolve()))}
     mp.write_text(json.dumps(R.json_clean(man), indent=1))
     resid = np.asarray(deps["predict"](fr, models, True), float)
     inc = deps["incumbent"]()

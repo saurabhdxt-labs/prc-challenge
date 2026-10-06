@@ -56,6 +56,18 @@ FINAL = {
         "adsb.sources.adsb_fi": True,
         "modules.uad.enabled": True,
     }),
+    #: THE final model (owner, 2026-10-06): v57 on open data only — adsb.fi off, so the open v51 table. Its artefact
+    #: (derived from the v50 donor on 2026-10-06; board file v59) records exactly this config hash.
+    "v57_open": ("configs/fm1_v57_open.yaml", "1dc07433357e5757c790d0a6e20ed7b5b22c056336e782f94cdc5cb7da165927", {
+        "adsb.stack.f_model": "lgbcat",
+        "adsb.stack.models_dir": "data/r12/r13_stack_full/models_lgbcat",
+        "adsb.table_dir": "data/r12/tables_51348d3e1cb3",
+        "modules.storm.mode": "anchor",
+        "run.threads": 12,
+        "modules.ldi.enabled": True,
+        "run.purpose": "scored_period",
+        "modules.uad.enabled": True,
+    }),
     #: a candidate, not behind a board file and without a stored artefact: the hash below is the config's own
     "v57_tc": ("configs/fm1_v57_tc.yaml", "9ba126281d66ccc6677ffe7dcd432d99a21470765e5385034356d20319064415", {
         "adsb.stack.f_model": "lgbcat",

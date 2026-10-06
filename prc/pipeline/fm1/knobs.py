@@ -418,8 +418,17 @@ LATE_KNOBS: tuple = tuple(k for k in SCHEMA if k.late)
 #: knob that feeds the matched learners' X, y, masks or parameters must never be listed (tests/fm1/test_fm1_reuse.py).
 #: adsb.table_dir is listed because what the learners read from it is guarded by DATA, not by the path: the
 #: adsb/train.parquet input hash, the design-column check and the encodings check (a new serve table only, AFI).
+#: data.scored_file / data.template_file: FP-W1 item 8 addendum, 2026-10-06. Neither is read anywhere in engine.fit's
+#: call graph -- data.scored_file is read only by eobt_clip.apply and ldi.apply (both reachable only from
+#: engine.predict) and compared-by-path (never read) in unmatched.check_e2_context (reachable only from
+#: engine.predict, via unmatched.serve); data.template_file is read only by engine.build_submission. Verified
+#: statically (this call-graph trace) and dynamically (tests/fm1/test_fm1_reuse.py::
+#: test_fit_never_reads_the_scored_or_template_file, a fixture-scale fit with pandas.read_parquet trapped for both
+#: paths). Listing them here means a new scored period's config no longer forces a full refit just to change which
+#: file predict-time / build-submission-time code reads.
 _REUSE_FREE_PREFIXES = ("run.purpose", "run.artifacts_dir", "calibration.mtx.", "modules.", "matched.blend.catboost_weight",
-                        "adsb.stack.", "adsb.support_gate.", "adsb.min_coverage", "adsb.sources.adsb_fi", "adsb.table_dir")
+                        "adsb.stack.", "adsb.support_gate.", "adsb.min_coverage", "adsb.sources.adsb_fi", "adsb.table_dir",
+                        "data.scored_file", "data.template_file")
 REUSE_FREE_KNOBS = frozenset(p for p in KNOBS
                              if any(p == q or (q.endswith(".") and p.startswith(q)) for q in _REUSE_FREE_PREFIXES))
 

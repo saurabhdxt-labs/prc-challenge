@@ -20,7 +20,7 @@ import pandas as pd
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-_spec = importlib.util.spec_from_file_location("dwl_checks", ROOT / "scripts/analysis/dwl_checks.py")
+_spec = importlib.util.spec_from_file_location("dwl_checks", ROOT / "research/analysis/dwl_checks.py")
 D = importlib.util.module_from_spec(_spec)
 sys.modules["dwl_checks"] = D
 _spec.loader.exec_module(D)

@@ -61,24 +61,45 @@ def test_fetch_alive_ignores_watchers_that_grep_for_it():
 
 
 @pytest.mark.parametrize("kw,reason", [
-    (dict(pmset=BATT), "not on AC power"),
-    (dict(now=dt.datetime(2026, 9, 26, 11, 50)), "track_record window"),
+    (dict(pmset=BATT, machine_guards=True), "not on AC power"),
+    (dict(now=dt.datetime(2026, 9, 26, 11, 50), machine_guards=True), "track_record window"),
     (dict(lock_free=False), "heavy-compute lock"),
     (dict(others=True), "another R12 or v34 launcher"),
     (dict(fetch=True, final=True), "A12 fetch is still running"),
     (dict(fetch=True, step="val"), "A12 fetch is still running"),
 ])
 def test_preflight_refusals(kw, reason):
-    """Each refusal fires on its own. Fails when any single check is dropped."""
+    """Each refusal fires on its own. Fails when any single check is dropped. The AC-power and track_record-window
+    cases now pass machine_guards=True explicitly (the test that asserted the old hard-coded refusal is
+    replaced by a test of the new argument) -- --machine-guards defaults to off, so these two checks no
+    longer fire without it."""
     args = dict(pmset=AC, now=NIGHT, lock_free=True, others=False, fetch=False, step="features", final=False)
     args.update(kw)
     assert any(reason in r for r in L.preflight(**args))
 
 
+def test_preflight_machine_guards_off_by_default_skips_ac_power_and_window_checks():
+    """Fails when `machine_guards` does not exist (TypeError) or defaults to True (BATT / the window would still
+    refuse without passing --machine-guards)."""
+    assert L.preflight(BATT, NIGHT, True, False, False, "features", False) == []
+    assert L.preflight(AC, dt.datetime(2026, 9, 26, 11, 50), True, False, False, "features", False) == []
+
+
+def test_preflight_machine_guards_on_reproduces_todays_refusals_and_messages():
+    """machine_guards=True must reproduce exactly the refusals and messages the launcher gave before --machine-guards
+    existed. Fails when the gated branch's messages differ from the pre-existing ones."""
+    assert L.preflight(BATT, NIGHT, True, False, False, "features", False, machine_guards=True) == \
+        ["not on AC power"]
+    assert L.preflight(AC, dt.datetime(2026, 9, 26, 11, 50), True, False, False, "features", False,
+                       machine_guards=True) == ["inside Phantom's track_record window 11:40-12:15"]
+
+
 def test_preflight_smoke_may_run_beside_the_fetch():
-    """A < 5 min smoke (scratch outputs, no lock) is not refused for the fetch; every other check still applies."""
-    assert L.preflight(AC, NIGHT, True, False, True, "val", False, smoke=True) == []
-    assert any("AC" in r for r in L.preflight(BATT, NIGHT, True, False, True, "val", False, smoke=True))
+    """A < 5 min smoke (scratch outputs, no lock) is not refused for the fetch; every other check still applies
+    (machine_guards=True here to exercise the AC-power check, consistent with the refusal tests above)."""
+    assert L.preflight(AC, NIGHT, True, False, True, "val", False, smoke=True, machine_guards=True) == []
+    assert any("AC" in r for r in L.preflight(BATT, NIGHT, True, False, True, "val", False, smoke=True,
+                                              machine_guards=True))
 
 
 def test_preflight_passes_and_allows_a_resumable_build_during_the_fetch():
@@ -130,3 +151,78 @@ def test_pidfiles_cover_r12_and_v34():
 def test_log_path_names_step_and_mode():
     p = L.log_path("val", smoke=True, now=dt.datetime(2026, 9, 26, 7, 0, 5))
     assert p == ROOT / "logs" / "r12_scratch" / "r12_val_smoke_20260926T070005.log"
+
+
+def test_detach_argv_forwards_machine_guards_when_given_and_omits_it_when_not():
+    """Item 4b (FP-W3, finding 5): the detached re-launch's argv was built inline inside `main()` (process
+    orchestration, pragma: no cover) and untested for --machine-guards forwarding specifically. Extracted to a
+    pure function: --machine-guards must reach the child's argv exactly when the parent had it, and not
+    otherwise; --smoke / --partial and the runner's own args (after --) still forward too. Mutation: drop the
+    --machine-guards branch -> the first assertion goes red; always append it -> the second assertion goes red."""
+    lp = pathlib.Path("/x/r12_features_run_20260101T000000.log")
+    with_guards = L.detach_argv("features", True, True, True, ["--store", "x"], lp)
+    assert with_guards == [L.PY, "-B", str(pathlib.Path(L.__file__).resolve()), "--step", "features", "--log",
+                           str(lp), "--smoke", "--partial", "--machine-guards", "--", "--store", "x"]
+    without_guards = L.detach_argv("features", False, False, False, ["--store", "x"], lp)
+    assert without_guards == [L.PY, "-B", str(pathlib.Path(L.__file__).resolve()), "--step", "features", "--log",
+                              str(lp), "--", "--store", "x"]
+    assert "--machine-guards" not in without_guards
+
+
+def test_machine_guards_defaults_off_and_is_settable():
+    """Fails when --machine-guards is missing from the parser (AttributeError) or defaults to True (the launcher
+    would then refuse off-AC-power / in-window runs even without the flag, breaking Linux / non-owner use)."""
+    assert L.parse_args(["--step", "features", "--", "features", "--store", "x"]).machine_guards is False
+    assert L.parse_args(["--step", "features", "--machine-guards", "--", "features", "--store",
+                         "x"]).machine_guards is True
+
+
+def test_gather_preflight_inputs_skips_pmset_when_machine_guards_is_off():
+    """Fails when pmset is still shelled out to regardless of `machine_guards` (pmset is macOS-only; the launcher
+    must not call it when machine_guards is off, e.g. on Linux)."""
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(cmd[0])
+        class R:
+            stdout = ""
+        return R()
+    pm, swap, ps = L._gather_preflight_inputs(False, run=fake_run)
+    assert pm == "" and calls == ["sysctl", "ps"]
+
+
+def test_gather_preflight_inputs_calls_pmset_when_machine_guards_is_on():
+    """Fails when pmset is skipped even with machine_guards=True (the AC-power check would then always pass)."""
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(cmd[0])
+        class R:
+            stdout = "Now drawing from 'AC Power'\n"
+        return R()
+    pm, swap, ps = L._gather_preflight_inputs(True, run=fake_run)
+    assert pm == "Now drawing from 'AC Power'\n" and calls == ["pmset", "sysctl", "ps"]
+
+
+def test_attach_memguard_starts_only_under_machine_guards():
+    """Item 6 (FP-W3, finding 7): `_run` started mem_guard (V.start_memguard) unconditionally, although
+    tools/mem_guard.py shells out to the macOS-only `memory_pressure` (~line 282) -- the same machine assumption
+    --machine-guards already gates for the AC-power / track_record checks. machine_guards=False must skip
+    start_memguard entirely (not just ignore its result), so the launcher also runs on a machine without it (e.g.
+    Linux). machine_guards=True must start it exactly as before. Mutation: drop the `if not machine_guards: return
+    None` guard -> start is called even when machine_guards is False -> the first assertion goes red."""
+    logs = []
+    calls = []
+
+    def fake_start(pid, lp):
+        calls.append((pid, lp))
+        return ["mem_guard", "--pid", str(pid)], object()
+    lp = pathlib.Path("/x/r12_features_run_20260101T000000.log")
+    assert L._attach_memguard(123, lp, False, logs.append, start=fake_start) is None
+    assert calls == []
+    assert any("skipped" in m and "machine-guards" in m for m in logs)
+    logs.clear()
+    g = L._attach_memguard(123, lp, True, logs.append, start=fake_start)
+    assert calls == [(123, lp)]
+    assert g == ["mem_guard", "--pid", "123"]
+    assert any("mem_guard:" in m for m in logs)

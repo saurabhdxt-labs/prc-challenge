@@ -33,7 +33,7 @@ def _load(name, rel):
     return mod
 
 
-TC = _load("tc_price", "scripts/analysis/tc_price.py")
+TC = _load("tc_price", "research/analysis/tc_price.py")
 T_TAIL_S = TC.bs.T_TAIL_S                     # the shipped threshold (3,000.0 s); never duplicated as a literal
 
 

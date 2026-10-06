@@ -49,7 +49,7 @@ for _p in (ROOT / "scripts", ROOT / "scripts/analysis"):
         sys.path.insert(0, str(_p))
 
 import mau_build as MB  # noqa: E402  (another lane's validated file; imported, never edited)
-from scripts.analysis import msw_build as W  # noqa: E402
+from research.analysis import msw_build as W  # noqa: E402  (moved here, FP-W4)
 
 RAW_FILES = sorted((ROOT / "data/raw").glob("training_2025-*.parquet"))
 MAU_TRAIN = ROOT / "reports/mau_training_rows.parquet"
@@ -492,7 +492,7 @@ def _run_main_into(tmp_path):
     depends on whichever tests ran first -- an order-dependent failure."""
     report, preds = tmp_path / "msw_report.json", tmp_path / "msw_cell_predictions.parquet"
     code = ("import sys; from pathlib import Path; sys.path.insert(0, sys.argv[1]); "
-            "from scripts.analysis import msw_build as W; "
+            "from research.analysis import msw_build as W; "
             "W.REPORT, W.PREDS = Path(sys.argv[2]), Path(sys.argv[3]); W.main()")
     proc = subprocess.run([sys.executable, "-B", "-c", code, str(ROOT), str(report), str(preds)],
                           capture_output=True, text=True, timeout=W.ALARM_S + 120)

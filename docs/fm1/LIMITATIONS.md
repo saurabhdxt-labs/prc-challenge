@@ -1,4 +1,4 @@
-# FM1 — limitations (first written 2026-09-28; updated 2026-10-04 after the line-by-line audit)
+# FM1 — limitations (first written 2026-09-28; updated 2026-10-06: open-data v57 as the final model, adsb.fi scope)
 
 1. **Validation is a reference point, not a score.** The 2025 validation (METHOD §6) runs at the screen tier with the ADS-B stack
    off; the full-tier configuration has no clean 2025 fold. Its only 2026 measurements are the public board (v50 251.4767,
@@ -14,8 +14,9 @@
    chosen after looking at 2025 February (the registration's provenance warning); it fired on 4 January-2026 days.
    The day test reads every LTFM departure of a local day: predict must receive whole days (PartialDayError otherwise).
 3. **The unmatched lane is the shipped chain, selected in-sample.** The v26 body, the Rome rules and ARC were chosen after
-   reading 2025 labels of all months or of the Jan/Jul holdout (PREREG_urp_u_chain_replay's FIT / SELECTION table: 12 of 13
-   steps in-sample); E2's coefficients and the two day-check p99 thresholds are frozen 2025 constants. A validation fold
+   reading 2025 labels of all months or of the Jan/Jul holdout (the chain-replay registration's FIT / SELECTION table,
+   kept in the development record: 12 of 13 steps in-sample); E2's coefficients and the two day-check p99 thresholds
+   are frozen 2025 constants. A validation fold
    therefore overstates what an unseen month would show for these components. The provisional `hgb` body is kept only as a
    non-default alternative and has no replay.
 3b. **ARC outside LIRF is unvalidated.** `modules.arc.airports` defaults to LIRF (the shipped scope); the FMA's all-airport
@@ -60,11 +61,14 @@
     rows (measured 2025 rate 0.014 %); above that the run refuses (`adsb.serve_missing_max_share`).
 11. **Stack residual rounding** depends on the batch size at the 1e-7 s level (float32 MLP); a row within 4e-7 s of a .5
     boundary could move by 1 s.
-12. **adsb.fi cannot be re-fetched** (the owner's live capture of July 2026; non-commercial terms, never redistributed),
-    so v55 is reproducible only on the machine that holds the capture. The challenge's eligibility page asks for external
-    data that is openly accessible and usable and for reproducible results; whether a non-commercial live capture meets
-    that is the organiser's call. v51 (251.1335) is the same model without it. Every build also needs the stored ADS-B
-    stack models, which the current code cannot regenerate byte for byte (REPRODUCE.md).
+12. **adsb.fi cannot be re-fetched** (the owner's live capture of July 2026; non-commercial terms, never redistributed,
+    attribution "Data: adsb.fi (https://adsb.fi)"), so board files v55 and v57 are reproducible only on the machine
+    that holds the capture. The challenge's eligibility page asks for external data that is openly accessible and
+    usable and for reproducible results; whether a non-commercial live capture meets that is the organiser's call.
+    v51 (251.1335) is the same model without it; the final model (open-data v57) does not use it either. Every build
+    also needs the stored ADS-B stack models (`data/r12/r13_stack_full/models_lgbcat/`), which are shipped in the
+    repository; regenerating them from scratch needs the development record and is not a documented public path
+    (REPRODUCE.md).
 13. **The CatBoost half is under-trained.** In the final fit CatBoost reached its round cap (best iteration 29,993 of
     `matched.catboost.max_rounds` 30,000 at learning rate 0.02; early stopping never fired). A higher cap needs a new full
     fit (~10 h). The board still measured the half-blend as worth +166 MSE (v53 vs v50).

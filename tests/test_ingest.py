@@ -22,6 +22,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "research"))     # ingest_downloads.py moved here (FP-W4)
 import ingest_downloads as ing  # noqa: E402
 
 

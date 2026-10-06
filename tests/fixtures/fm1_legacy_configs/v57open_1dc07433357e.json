@@ -1,0 +1,199 @@
+{
+ "hash": "1dc07433357e5757c790d0a6e20ed7b5b22c056336e782f94cdc5cb7da165927",
+ "overrides": [],
+ "values": {
+  "adsb": {
+   "min_coverage": 2,
+   "serve_missing_max_share": 0.001,
+   "sources": {
+    "adsb_fi": false,
+    "adsb_lol": true
+   },
+   "stack": {
+    "enabled": true,
+    "f_model": "lgbcat",
+    "models_dir": "data/r12/r13_stack_full/models_lgbcat",
+    "train_months": [
+     1,
+     7
+    ]
+   },
+   "support_gate": {
+    "rule": "manifest",
+    "threshold": 0.7
+   },
+   "table_dir": "data/r12/tables_51348d3e1cb3",
+   "train_dropout": {
+    "day": 0.0,
+    "flight": 0.0
+   }
+  },
+  "airports": {
+   "codes": [
+    "EDDF",
+    "EDDM",
+    "EGLL",
+    "EHAM",
+    "LEBL",
+    "LEMD",
+    "LFPG",
+    "LIRF",
+    "LSZH",
+    "LTFM"
+   ],
+   "tz": {
+    "EDDF": "Europe/Berlin",
+    "EDDM": "Europe/Berlin",
+    "EGLL": "Europe/London",
+    "EHAM": "Europe/Amsterdam",
+    "LEBL": "Europe/Madrid",
+    "LEMD": "Europe/Madrid",
+    "LFPG": "Europe/Paris",
+    "LIRF": "Europe/Rome",
+    "LSZH": "Europe/Zurich",
+    "LTFM": "Europe/Istanbul"
+   }
+  },
+  "calibration": {
+   "mtx": {
+    "enabled": "auto",
+    "lambda_rule": "james_stein",
+    "mode": "add",
+    "published_csv": "data/mtx/raw/taxi_out_additional_time_2026.csv",
+    "reference_csv": "data/mtx/raw/taxi_out_additional_time_2025.csv"
+   }
+  },
+  "data": {
+   "dayoff_tz": "UTC",
+   "raw_dir": "data/raw",
+   "scored_file": "data/raw/ranking.parquet",
+   "template_file": "data/raw/submitting.parquet",
+   "train_months": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12
+   ],
+   "training_glob": "training_2025-*.parquet",
+   "weather_dir": "data/weather"
+  },
+  "features": {
+   "adsb": true,
+   "order": true,
+   "orl_route_length": true,
+   "orl_routes_file": "data/osm/orl_routes.parquet",
+   "queue": true,
+   "weather": true
+  },
+  "lanes": {
+   "matched": true,
+   "unmatched": true
+  },
+  "matched": {
+   "blend": {
+    "catboost_weight": 0.5
+   },
+   "catboost": {
+    "depth": 8,
+    "l2_leaf_reg": 3.0,
+    "learning_rate": 0.02,
+    "max_rounds": 30000,
+    "patience": 200,
+    "subsample": 0.8
+   },
+   "es_months": [
+    3,
+    9
+   ],
+   "learner": "lightgbm",
+   "lightgbm": {
+    "bagging_fraction": 0.8,
+    "bagging_freq": 1,
+    "feature_fraction": 0.8,
+    "learning_rate": 0.01,
+    "max_rounds": 50000,
+    "min_data_in_leaf": 40,
+    "num_leaves": 255,
+    "patience": 200
+   },
+   "target": "delta"
+  },
+  "modules": {
+   "arc": {
+    "airports": [
+     "LIRF"
+    ],
+    "enabled": true
+   },
+   "eobt_clip": {
+    "airports": [
+     "LFPG"
+    ],
+    "enabled": false,
+    "min_rows": 1000,
+    "min_share": 0.15
+   },
+   "ldi": {
+    "delta_30_60_s": 35.44180751815995,
+    "delta_gt60_s": 122.4855891190231,
+    "delta_le30_s": 8.003118629519271,
+    "enabled": true
+   },
+   "rome": {
+    "e2": true,
+    "e2_day_p99": 15.941366958491995,
+    "e2w": true,
+    "e2w_day_p99": 9.042848041672684,
+    "enabled": true
+   },
+   "storm": {
+    "feature": false,
+    "mode": "anchor"
+   },
+   "tail_cells": {
+    "enabled": true
+   },
+   "uad": {
+    "constants": "configs/uad_constants_2025.json",
+    "enabled": true,
+    "table": "data/uad/2026_table_a3/table.parquet"
+   }
+  },
+  "run": {
+   "artifacts_dir": "artifacts/fm1",
+   "purpose": "scored_period",
+   "seeds": [
+    0,
+    1,
+    2
+   ],
+   "team": "merry-quicksand",
+   "threads": 12
+  },
+  "unmatched": {
+   "encoding_smooth": 50.0,
+   "hgb": {
+    "learning_rate": 0.1,
+    "max_iter": 1000,
+    "max_leaf_nodes": 15,
+    "min_samples_leaf": 100,
+    "n_iter_no_change": 50
+   },
+   "learner": "v26"
+  },
+  "validate": {
+   "boot_seed": 20260928,
+   "n_boot": 2000,
+   "screen_learning_rate": 0.05,
+   "tier": "screen"
+  }
+ }
+}

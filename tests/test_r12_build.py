@@ -13,6 +13,7 @@ import os
 import pathlib
 import subprocess
 import sys
+import types
 
 import numpy as np
 import pandas as pd
@@ -217,6 +218,49 @@ def test_source_universe_is_2025_all_year_plus_2026_janjul():
     u = B.source_universe()
     assert len(u) == 365 + 31 + 31
     assert "2025-06-15" in u and "2026-07-31" in u and "2026-02-01" not in u and "2024-12-31" not in u
+
+
+def test_source_universe_default_equals_an_independently_built_calendar():
+    """The default (months=None) must equal the old hard-coded set exactly, built here with the stdlib `datetime`
+    module (not pandas, not prc.months) so this check does not share a bug with the implementation it is checking.
+    Fails when source_universe's month-to-days expansion drops or adds a day (e.g. an off-by-one at a month
+    boundary) relative to this independent calendar walk."""
+    import datetime as _dt
+    want = set()
+    d = _dt.date(2025, 1, 1)
+    while d <= _dt.date(2025, 12, 31):
+        want.add(d.isoformat())
+        d += _dt.timedelta(days=1)
+    d = _dt.date(2026, 1, 1)
+    while d <= _dt.date(2026, 1, 31):
+        want.add(d.isoformat())
+        d += _dt.timedelta(days=1)
+    d = _dt.date(2026, 7, 1)
+    while d <= _dt.date(2026, 7, 31):
+        want.add(d.isoformat())
+        d += _dt.timedelta(days=1)
+    assert len(want) == 365 + 31 + 31
+    assert B.source_universe() == want
+
+
+def test_source_universe_months_argument_overrides_the_default():
+    """Fails when source_universe ignores `months` and always returns the hard-coded default (2026-10-15 would be
+    absent, and the day count would stay 427 instead of 31)."""
+    u = B.source_universe(months=["2026-10"])
+    assert u == {f"2026-10-{d:02d}" for d in range(1, 32)}
+    assert "2026-10-15" not in B.source_universe()  # the untouched default is unaffected
+
+
+def test_months_argument_lets_a_new_period_be_planned():
+    """The brief's CLI scenario at the function level: a day outside today's default universe raises from plan_day,
+    but once --months widens the universe (here simulated directly) the same day plans (status != refused). Fails
+    when source_universe's `months` plumbing is removed (plan_day would then raise "outside the source universe"
+    for 2026-10-15 even with a widened `months` argument)."""
+    with pytest.raises(ValueError, match="2026-10-15.*outside the source universe"):
+        B.plan_day("2026-10-15", {}, B.source_universe(), final=True)
+    widened = B.source_universe(months=["2026-10"])
+    p = B.plan_day("2026-10-15", {}, widened, final=True)
+    assert p["status"] == "missing"  # no source files for it, but not refused as outside the universe
 
 
 # ---------------------------------------------------------------- per-day plan
@@ -648,6 +692,14 @@ def test_features_takes_the_source_directories_on_the_command_line():
     assert B.parse_args(["features", "--store", "x"]).sources is None
 
 
+def test_features_months_defaults_to_the_prc_months_default_and_accepts_an_override():
+    """Fails when --months is dropped from the features subparser (AttributeError / SystemExit) or its default is
+    not prc.months.DEFAULT_MONTHS (today's universe would silently change)."""
+    import prc.months as MO
+    assert B.parse_args(["features", "--store", "x"]).months == MO.DEFAULT_MONTHS
+    assert B.parse_args(["features", "--store", "x", "--months", "2026-10"]).months == "2026-10"
+
+
 class ReadingBuilder(FakeBuilder):
     """As adsb_features.build_period does, opens every day file it is shown; a link it cannot follow is an error."""
     def __call__(self, flights, adsb_dir, git_sha):
@@ -746,3 +798,141 @@ def test_a_done_day_recorded_before_source_contains_existed_is_still_done(src, t
         jp.write_text(json.dumps(rec))
     counts = B.build_store(u, sources, store, version=V, final=True, git_sha="x", builder=FakeBuilder(), root=tmp_path)
     assert counts["done"] == 2 and counts["built"] == 0
+
+
+def _fake_universe(days, mvt_id_start):
+    rows = [{c: None for c in B.UNIVERSE_COLS} for _ in days]
+    for i, (r, d) in enumerate(zip(rows, days)):
+        r.update({"MVT_ID_mvt": float(mvt_id_start + i), "mvt_day": d, "month": int(d[5:7])})
+    return pd.DataFrame(rows, columns=B.UNIVERSE_COLS)
+
+
+def test_regression_a_period_after_2026_is_served_not_dropped(monkeypatch):
+    """Regression (final-product audit 2026-10-06): _universes took training days as "2025*" and serve days as
+    "2026*", so the days of a 2027 period matched neither universe and the tables came out EMPTY without an error.
+    A day outside the training year is a serve day. Mutation: restoring `d.startswith("2026")` for the serve
+    universe turns this red."""
+    monkeypatch.setattr(B, "training_universe", lambda months=None: _fake_universe(["2025-03-10"], 1))
+    monkeypatch.setattr(B, "serve_universe", lambda: _fake_universe(["2027-02-03", "2026-01-15"], 100))
+    tr, sv = B._universes(["2027-02-03"])
+    assert len(tr) == 0
+    assert list(sv.mvt_day) == ["2027-02-03"]
+
+
+def test_universes_split_today_unchanged(monkeypatch):
+    """Invariant: a 2025 day goes to training and a 2026 day to serve, exactly as before the change."""
+    monkeypatch.setattr(B, "training_universe", lambda months=None: _fake_universe(["2025-03-10"], 1))
+    monkeypatch.setattr(B, "serve_universe", lambda: _fake_universe(["2026-01-15"], 100))
+    tr, sv = B._universes(["2025-03-10", "2026-01-15"])
+    assert list(tr.mvt_day) == ["2025-03-10"] and list(sv.mvt_day) == ["2026-01-15"]
+    tr, sv = B._universes(["2025-03-10"])
+    assert list(tr.mvt_day) == ["2025-03-10"] and len(sv) == 0
+
+
+def test_regression_months_restrict_the_days_built_when_no_days_are_given(src, tmp_path):
+    """Regression (final-product audit 2026-10-06): `features --months 2026-10` without `--days` walked EVERY day of
+    the flight universe (training 2025 + the scored file) and plan_day refused the first 2025 day as "outside the
+    source universe". Without `days`, only the universe days inside `universe_days` are built. Mutation: walking
+    sorted(groups) again turns this red."""
+    sources, _ = B.resolve_sources(src)
+    u = _flights([("2025-01-31", 1), ("2025-02-01", 1)])
+    fb = FakeBuilder()
+    c = B.build_store(u, sources, _store(tmp_path), version=V, final=True, git_sha="x", builder=fb, root=tmp_path,
+                      universe_days={"2025-02-01"})
+    assert c["n_days"] == 1 and len(fb.calls) == 1 and fb.calls[0]["n"] == 1
+
+
+def test_build_store_without_months_still_walks_every_universe_day(src, tmp_path):
+    """Invariant: with the default universe_days (2025 + Jan/Jul 2026) every day of a 2025 flight universe is walked,
+    as before the change."""
+    sources, _ = B.resolve_sources(src)
+    u = _flights([("2025-01-31", 1), ("2025-02-01", 1)])
+    c = B.build_store(u, sources, _store(tmp_path), version=V, final=True, git_sha="x", builder=FakeBuilder(),
+                      root=tmp_path)
+    assert c["n_days"] == 2
+
+
+# ---------------------------------------------------------------- item 4a: --months wiring fails fast (FP-W3)
+
+def test_build_store_logs_how_many_universe_days_it_skipped(src, tmp_path):
+    """Review H1 note (FP-W3 item 5): when `days` is None and `universe_days` excludes some of the flight
+    universe's days, build_store silently walked fewer days with no line saying so. Now logs one line naming the
+    count and the requested months. Mutation: drop the `if skipped:` log call -> the first assertion below finds
+    no matching line -> red."""
+    sources, _ = B.resolve_sources(src)
+    u = _flights([("2025-01-31", 1), ("2025-02-01", 1)])
+    logged = []
+    c = B.build_store(u, sources, _store(tmp_path), version=V, final=True, git_sha="x", builder=FakeBuilder(),
+                      root=tmp_path, universe_days={"2025-02-01"}, log=logged.append)
+    assert c["n_days"] == 1
+    assert any("skipped 1" in m and "2025-01" in m for m in logged), logged
+
+
+def test_build_store_does_not_log_a_skip_line_when_nothing_was_skipped(src, tmp_path):
+    """Negative case for item 5: the default universe_days (every day of the flight universe) skips nothing, so no
+    skip line is logged -- the new line must not fire on every build. Mutation: log the skip line unconditionally
+    -> this assertion goes red."""
+    sources, _ = B.resolve_sources(src)
+    u = _flights([("2025-01-31", 1), ("2025-02-01", 1)])
+    logged = []
+    B.build_store(u, sources, _store(tmp_path), version=V, final=True, git_sha="x", builder=FakeBuilder(),
+                  root=tmp_path, log=logged.append)
+    assert not any("skipped" in m for m in logged), logged
+
+
+def test_months_universe_days_parses_the_spec_then_builds_the_day_set():
+    """The extracted pure function (item 4a): a valid spec builds the day set; a malformed one raises naming the
+    bad piece (prc.months.parse_months) without any day-set work. Mutation: drop the parse_months call (pass the
+    spec straight to source_universe) -> TypeError / wrong result -> red."""
+    assert B.months_universe_days("2026-10") == {f"2026-10-{d:02d}" for d in range(1, 32)}
+    with pytest.raises(ValueError, match="malformed month"):
+        B.months_universe_days("not-a-month")
+
+
+def test_main_body_wires_months_into_build_store_as_universe_days(monkeypatch):
+    """Item 4a (finding 5): --months must reach build_store as exactly that month's universe_days. Mutation: wire
+    universe_days from the default months instead of a.months -> the captured set would be today's default
+    (427 days), not October's 31 -> red."""
+    calls = []
+
+    def fake_universes(days):
+        calls.append("universes")
+        return _flights([("2026-10-15", 1)]), pd.DataFrame(columns=B.UNIVERSE_COLS)
+
+    def fake_resolve(dirs):
+        return {}, {"n_sources": 0, "legacy_accepted": 0, "unverified_files": 0, "manifest_without_file": 0}
+    captured = {}
+
+    def fake_build_store(u, sources, store, **kw):
+        captured.update(kw)
+        return {"built": 0, "done": 0, "deferred": 0, "missing": 0, "n_days": 0}
+    monkeypatch.setattr(B, "_universes", fake_universes)
+    monkeypatch.setattr(B, "_resolve_with_retry", fake_resolve)
+    monkeypatch.setattr(B, "build_store", fake_build_store)
+
+    class FakeG:
+        @staticmethod
+        def peak_rss():
+            return 0
+    a = types.SimpleNamespace(cmd="features", months="2026-10", sources=None, store="store_x", final=False)
+    rc = B._main_body(a, None, "verX", 0.0, lambda m: None, FakeG)
+    assert rc == 0
+    assert captured["universe_days"] == {f"2026-10-{d:02d}" for d in range(1, 32)}
+    assert calls == ["universes"]
+
+
+def test_main_body_refuses_a_malformed_months_spec_before_universes_load(monkeypatch):
+    """Item 4a (finding 5): a malformed --months must fail in milliseconds, before the (real-cache) training/serve
+    universes load -- not deep inside the features branch, after _universes(days) already ran. Mutation: move the
+    months_universe_days call back after `tr_u, sv_u = _universes(days)` -> `calls` would be ["universes"] instead
+    of [] when the ValueError fires -> red."""
+    calls = []
+
+    def fake_universes(days):
+        calls.append("universes")
+        return _flights([("2026-10-15", 1)]), pd.DataFrame(columns=B.UNIVERSE_COLS)
+    monkeypatch.setattr(B, "_universes", fake_universes)
+    a = types.SimpleNamespace(cmd="features", months="not-a-month", sources=None, store="store_x", final=False)
+    with pytest.raises(ValueError, match="malformed month"):
+        B._main_body(a, None, "verX", 0.0, lambda m: None, None)
+    assert calls == []

@@ -29,6 +29,7 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "research"))     # unm_congestion_resid.py moved here (FP-W4)
 import unm_congestion_resid as ur  # noqa: E402
 import unm_congestion as uc  # noqa: E402
 import stratum_fold as sf  # noqa: E402
@@ -577,7 +578,7 @@ def test_smoke_paths_never_touch_the_real_outputs_nor_e3cs():
     assert ur.REFERENCE == ROOT / "data" / "cache_stand" / "unm_congestion_lomo.parquet" == uc.output_paths(False)["lomo"]
     assert ur.E3C_WITNESS_2026 == uc.output_paths(False)["witness_2026"]
     for cmd in (ur.COMMAND_LOMO, ur.COMMAND_SCORE):
-        assert "OMP_NUM_THREADS=1 nice -n 19 /opt/homebrew/bin/python3.11 -B -u scripts/unm_congestion_resid.py" in cmd and 'echo "exit $?"' in cmd
+        assert "OMP_NUM_THREADS=1 nice -n 19 /opt/homebrew/bin/python3.11 -B -u research/unm_congestion_resid.py" in cmd and 'echo "exit $?"' in cmd
 
 
 def test_registered_constants_are_the_preregs():

@@ -70,6 +70,10 @@ def render_reference(schema=K.SCHEMA) -> str:
         "",
         "Status: " + "; ".join(f"`{s}` = {n}" for s, n in STATUS_NOTE.items()) + ".",
         "",
+        "The evidence column names where each value was established: a line of code in this repository, or a file of",
+        "the development record (registrations, reports and run logs under `plans/`, `reports/`, `logs/`), which is not",
+        "part of this repository.",
+        "",
     ]
     by_section: dict = {}
     for k in schema:

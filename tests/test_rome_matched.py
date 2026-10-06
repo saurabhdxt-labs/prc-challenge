@@ -14,6 +14,7 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "research"))     # rome_matched.py moved here (FP-W4)
 import rome_fill as rf  # noqa: E402
 import rome_matched as rm  # noqa: E402
 import stratum_fold as sf  # noqa: E402

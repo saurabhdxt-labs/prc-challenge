@@ -217,6 +217,9 @@ def test_stack_arm_end_to_end(tmp_path):
         assert (out / f).exists()
     man = json.loads((out / "models_r12" / "MANIFEST.json").read_text())
     assert man["gate"]["LFPG"]["allowed"] is True and man["gate_evidence"]["transfer_PASS"] is True
+    # Regression (final-product audit 2026-10-06): the manifest recorded the fold record's ABSOLUTE path, so the shipped
+    # models carried the author's home directory. It is recorded relative to `root`. Mutation: str(paths["record"]) -> red.
+    assert man["gate_evidence"]["fold_record"] == "logs/r12_scratch/stack/record_r12.parquet"
     assert calls["predict_oof"] is True and calls["train"]["seeds"] == [0]
     oof = pd.read_parquet(out / "oof_r12.parquet")
     lfpg_cov = oof[(oof.ap == "LFPG") & (oof.coverage >= 2) & ~oof["pop"]]

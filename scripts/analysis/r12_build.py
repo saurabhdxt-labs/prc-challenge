@@ -47,6 +47,8 @@ import numpy as np
 import pandas as pd
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+from prc.months import DEFAULT_MONTHS, parse_months  # noqa: E402
 
 
 def _load(name: str, rel: str):
@@ -178,11 +180,15 @@ def store_sources(store_dir, days) -> list:
     return sorted(out)
 
 
-def source_universe() -> set:
-    """Every day ADS-B could exist for in this project: all of 2025, January and July 2026."""
-    rng = [pd.date_range("2025-01-01", "2025-12-31"), pd.date_range("2026-01-01", "2026-01-31"),
-           pd.date_range("2026-07-01", "2026-07-31")]
-    return {d.strftime("%Y-%m-%d") for r in rng for d in r}
+def source_universe(months=None) -> set:
+    """Every day of `months` (default: parse_months(DEFAULT_MONTHS), i.e. all of 2025 plus January and July 2026 —
+    today's source universe, unchanged from before --months existed)."""
+    months = parse_months(DEFAULT_MONTHS) if months is None else months
+    out = set()
+    for ym in months:
+        start = pd.Timestamp(f"{ym}-01")
+        out.update(d.strftime("%Y-%m-%d") for d in pd.date_range(start, start + pd.offsets.MonthEnd(0)))
+    return out
 
 
 def plan_day(day: str, sources: dict, universe: set, final: bool) -> dict:
@@ -282,7 +288,16 @@ def build_store(universe: pd.DataFrame, sources: dict, store_dir, version: str, 
     if not universe.MVT_ID_mvt.is_unique:
         raise ValueError("universe MVT ids are not unique")
     groups = universe.groupby("mvt_day").groups
-    todo = sorted(groups) if days is None else sorted(set(days))
+    # without explicit days, build the universe days inside the requested months (--months); by default the two coincide
+    if days is None:
+        todo = sorted(d for d in groups if d in universe_days)
+        skipped = sorted(d for d in groups if d not in universe_days)
+        if skipped:
+            months = sorted({d[:7] for d in universe_days})
+            log(f"skipped {len(skipped)} universe day(s) outside the requested months {months}: {skipped[:5]}"
+                + (f" (+{len(skipped) - 5} more)" if len(skipped) > 5 else ""))
+    else:
+        todo = sorted(set(days))
     unknown = [d for d in todo if d not in groups]
     if unknown:
         raise ValueError(f"days with no universe flights: {unknown}")
@@ -485,6 +500,9 @@ def parse_args(argv=None) -> argparse.Namespace:
                            help="record missing days / neighbours instead of deferring (after the fetch finished)")
             p.add_argument("--sources", default=None, type=lambda v: [x.strip() for x in v.split(",") if x.strip()],
                            help="comma-separated day-file directories instead of the default three (e.g. a union directory)")
+            p.add_argument("--months", default=DEFAULT_MONTHS,
+                           help="months whose days make up the source universe (prc.months.parse_months syntax); "
+                                "default is today's universe, all of 2025 plus January and July 2026")
         else:
             p.add_argument("--out", required=True)
     return ap.parse_args(argv)
@@ -497,7 +515,7 @@ def _universes(days) -> tuple:  # pragma: no cover - real caches; exercised by t
         months = sorted({m + k for d in days if d.startswith("2025") for m in [int(d[5:7])] for k in (-1, 0, 1)
                          if 1 <= m + k <= 12})
     want_tr = days is None or any(d.startswith("2025") for d in days)
-    want_sv = days is None or any(d.startswith("2026") for d in days)
+    want_sv = days is None or any(not d.startswith("2025") for d in days)   # any day outside the training year
     tr = training_universe(months=months) if want_tr else pd.DataFrame(columns=UNIVERSE_COLS)
     sv = serve_universe() if want_sv else pd.DataFrame(columns=UNIVERSE_COLS)
     if days is not None:
@@ -528,7 +546,16 @@ def main(argv=None) -> int:  # pragma: no cover - real-data entry point; exercis
             G.release_lock(fh)
 
 
+def months_universe_days(months_spec: str) -> set:
+    """`--months` spec -> the source universe day set (prc.months.parse_months then source_universe). Extracted so
+    `_main_body` can parse `--months` BEFORE the (real-cache) training/serve universes load: a malformed spec then
+    fails in milliseconds instead of after that read (finding 5)."""
+    return source_universe(months=parse_months(months_spec))
+
+
 def _main_body(a, days, version, t0, log, G) -> int:  # pragma: no cover - real-data body of main
+    # parsed before _universes(days) (a real-cache read): a malformed --months fails fast, not after that read
+    universe_days = months_universe_days(a.months) if a.cmd == "features" else None
     tr_u, sv_u = _universes(days)
     u = pd.concat([x for x in (tr_u, sv_u) if len(x)], ignore_index=True)
     log(f"universe {len(u):,} flights on {u.mvt_day.nunique()} days ({len(tr_u):,} training, {len(sv_u):,} serve); "
@@ -539,7 +566,7 @@ def _main_body(a, days, version, t0, log, G) -> int:  # pragma: no cover - real-
             f"{diag['unverified_files']}; "
             f"manifest-without-file {diag['manifest_without_file']}")
         counts = build_store(u, sources, a.store, version=version, final=a.final, git_sha=AF._git_sha(), days=days,
-                             log=log)
+                             universe_days=universe_days, log=log)
         log(f"COUNTS {json.dumps(counts)}  wall {time.time() - t0:.0f}s  peak RSS {G.peak_rss() / 1024 ** 3:.2f} GiB")
         return 0
     out = check_out_dir(a.out)

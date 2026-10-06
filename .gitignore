@@ -1,5 +1,13 @@
 # Data NEVER enters the repo. The challenge supplies it; redistribution is not ours to do.
-data/
+# One exception: the stored ADS-B stack models (fitted models, no raw data; 7.4 MB) that every final config reads and a
+# clone cannot regenerate (docs/fm1/DATA_SOURCES.md). Git cannot re-include a file under an excluded directory, so the
+# path is opened one level at a time.
+data/*
+!data/r12/
+data/r12/*
+!data/r12/r13_stack_full/
+data/r12/r13_stack_full/*
+!data/r12/r13_stack_full/models_lgbcat/
 *.parquet
 *.csv
 *.zip

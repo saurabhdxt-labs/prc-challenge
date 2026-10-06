@@ -20,6 +20,7 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "research"))     # adsb_storm.py moved here (FP-W4)
 import adsb_storm as st  # noqa: E402
 
 bs = st.bs

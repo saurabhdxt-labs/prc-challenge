@@ -32,7 +32,7 @@ for _p in (ROOT / "scripts", ROOT / "scripts/analysis"):
         sys.path.insert(0, str(_p))
 
 from scripts.analysis import mxi_build as X  # noqa: E402
-from scripts.analysis import msw_build as W  # noqa: E402
+from research.analysis import msw_build as W  # noqa: E402  (moved here, FP-W4)
 
 
 def _xy(n=3000, seed=0):

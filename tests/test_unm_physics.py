@@ -35,6 +35,7 @@ from sklearn.ensemble import HistGradientBoostingRegressor as HGR
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "research"))     # unm_physics.py moved here (FP-W4)
 import unm_physics as up  # noqa: E402
 import unm_congestion as uc  # noqa: E402
 import unm_congestion_ship as us  # noqa: E402
@@ -1037,7 +1038,7 @@ def test_smoke_paths_never_touch_the_real_outputs_nor_the_parents():
     assert not (set(smoke.values()) & set(real.values())) and not ((set(smoke.values()) | set(real.values())) & parents)
     assert up.REFERENCE == ROOT / "data" / "cache_stand" / "unm_congestion_lomo.parquet"
     for cmd in (up.COMMAND_LOMO, up.COMMAND_SCORE, up.COMMAND_SHIP):
-        assert "OMP_NUM_THREADS=1 nice -n 19 /opt/homebrew/bin/python3.11 -B -u scripts/unm_physics.py" in cmd and 'echo "exit $?"' in cmd
+        assert "OMP_NUM_THREADS=1 nice -n 19 /opt/homebrew/bin/python3.11 -B -u research/unm_physics.py" in cmd and 'echo "exit $?"' in cmd
 
 
 @pytest.mark.devtree
@@ -1065,7 +1066,7 @@ def test_composed_modules_are_untouched():
     prc/weather.py is another session's to edit and is NOT pinned here: the frozen parquet's sha256 is (see above).
     Rehearsed 2026-09-11 RED (a TEST-side mutation, no other file edited): reports/bug_classes.md, modified in the working
     tree by another session, appended to the list -- the check reports it as touched."""
-    rels = ["scripts/build_submission.py", "scripts/stratum_fold.py", "scripts/unm_congestion.py", "scripts/unm_congestion_resid.py",
+    rels = ["scripts/build_submission.py", "scripts/stratum_fold.py", "scripts/unm_congestion.py", "research/unm_congestion_resid.py",
             "scripts/unm_congestion_ship.py", "scripts/stand_ab.py"]
     rc = _tracked_clean(rels)
     if rc not in (0, 1):

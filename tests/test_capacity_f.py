@@ -14,6 +14,7 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "research"))     # capacity_f.py moved here (FP-W4)
 import capacity_f as cf  # noqa: E402
 
 

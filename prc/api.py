@@ -93,6 +93,23 @@ def validate(config, protocol: str, out_dir=None, allow_heavy: bool = False, ove
     return _P.run(cfg, protocol, out_dir=out_dir, allow_heavy=allow_heavy, log=log, save_models=save_models)
 
 
+def _required_paths(cfg) -> dict:
+    """path knob -> True if the enabled config reads it, so dry_run can tell a required input from one under a
+    switched-off module/feature. Mirrors the gates in engine.fit_inputs (~101-114) and stages.plan's `on` dict: a
+    path under a module/feature switch that is off is never read, so its absence is not a refusal (review finding
+    7). A path not named here defaults to required (the conservative choice for anything this map misses)."""
+    return {
+        "data.weather_dir": cfg["lanes.matched"] and cfg["features.weather"],
+        "features.orl_routes_file": cfg["lanes.matched"] and cfg["features.orl_route_length"],
+        "adsb.table_dir": cfg["features.adsb"],   # fit / predict check its sources under features.adsb alone
+        "adsb.stack.models_dir": cfg["lanes.matched"] and cfg["adsb.stack.enabled"],
+        "modules.uad.table": cfg["modules.uad.enabled"],
+        "modules.uad.constants": cfg["modules.uad.enabled"],
+        "calibration.mtx.reference_csv": cfg.mtx_enabled,
+        "calibration.mtx.published_csv": cfg.mtx_enabled,
+    }
+
+
 def dry_run(cfg: FM1Config) -> dict:
     """Everything that can be checked without fitting: the config, the stage plan (or what blocks it), every input path."""
     report = {"config_hash": cfg.hash, "differs_from_defaults": _K.differs_from_defaults(cfg),
@@ -102,16 +119,29 @@ def dry_run(cfg: FM1Config) -> dict:
     except errors.ComponentNotPortedError as exc:
         report["stages"] = None
         report["plan_refused"] = str(exc)
+    required = _required_paths(cfg)
     paths = {}
     for k in _K.SCHEMA:
         if k.kind == "path" and k.path != "run.artifacts_dir":
-            paths[k.path] = {"path": str(cfg.path(k.path)), "exists": cfg.path(k.path).exists()}
+            paths[k.path] = {"path": str(cfg.path(k.path)), "exists": cfg.path(k.path).exists(),
+                             "required": required.get(k.path, True)}
     report["paths"] = paths
     try:
         report["training_months"] = {m: p.name for m, p in _G.training_files(cfg).items()}
     except errors.SchemaError as exc:
         report["training_months"] = f"REFUSED: {exc}"
     return report
+
+
+def dry_run_refused(rep: dict) -> bool:
+    """A dry-run report (dry_run above) counts as refused when a check named a problem instead of resolving:
+    `training_months` is the "REFUSED: ..." string dry_run substitutes for the {month: filename} dict when
+    training_files() raises SchemaError, `plan_refused` is present (the stage plan could not be built, a
+    ComponentNotPortedError), or a REQUIRED path (`paths[...]["required"]` True) does not exist (review finding
+    7: a path under a switched-off module, `required` False, missing is not a refusal). The CLI (`python -m prc
+    validate --protocol dry-run`) exits 1 when this is True -- its help text already promised 1 = refused."""
+    missing_required = any(v.get("required") and not v.get("exists") for v in rep.get("paths", {}).values())
+    return isinstance(rep.get("training_months"), str) or "plan_refused" in rep or missing_required
 
 
 def _records(x) -> pd.DataFrame:

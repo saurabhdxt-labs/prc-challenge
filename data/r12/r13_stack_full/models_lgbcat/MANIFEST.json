@@ -1,0 +1,158 @@
+{
+ "feats": [
+  "joined",
+  "join_callsign",
+  "dt_takeoff",
+  "first_seen_rel_mvt",
+  "n_ground",
+  "ground_rate_pm",
+  "mlat_share",
+  "first_ground_rel_mvt",
+  "first_ground_gs",
+  "first_ground_slow",
+  "first_move_rel_mvt",
+  "first_ground_rel_aobt3",
+  "turn_in_track",
+  "dwell_end_rel_mvt",
+  "dwell_s",
+  "dwell_end_rel_aobt3",
+  "n_stops",
+  "stop_s",
+  "path_m",
+  "taxi_med_gs",
+  "sensor_rel_mvt",
+  "sensor_rel_aobt3",
+  "dwell_to_centroid_m",
+  "moving_mvt_m10",
+  "moving_dwell_end",
+  "ground_seen_mvt_m10",
+  "first_ground_to_stand_m",
+  "stand_others_n",
+  "travel_s_first_to_stand",
+  "implied_offblock_rel_aobt3",
+  "implied_taxi_s",
+  "join_mvt_anchored",
+  "mvt_anchor_gap_s"
+ ],
+ "seeds": [
+  0,
+  1,
+  2
+ ],
+ "folds": 5,
+ "airports": [
+  "EDDF",
+  "EDDM",
+  "EGLL",
+  "EHAM",
+  "LEBL",
+  "LEMD",
+  "LFPG",
+  "LIRF",
+  "LSZH",
+  "LTFM"
+ ],
+ "target_scale": 300.0,
+ "nn": {
+  "hidden": 128,
+  "dropout": 0.1,
+  "batch": 8192
+ },
+ "gate": {
+  "EDDF": {
+   "allowed": true,
+   "rule": "0.7x gate (0.623 vs 0.618)",
+   "c25": 0.88305435817052,
+   "c26": 0.6226599063962559
+  },
+  "EDDM": {
+   "allowed": true,
+   "rule": "0.7x gate (0.970 vs 0.430)",
+   "c25": 0.6144732870510111,
+   "c26": 0.9699160447761194
+  },
+  "EGLL": {
+   "allowed": false,
+   "rule": "ADN.7 newly covered (transfer FAIL)",
+   "c25": 0.42828654701641355,
+   "c26": 0.9023287532834916
+  },
+  "EHAM": {
+   "allowed": true,
+   "rule": "0.7x gate (0.978 vs 0.690)",
+   "c25": 0.9851323674429189,
+   "c26": 0.9776882302033751
+  },
+  "LEBL": {
+   "allowed": true,
+   "rule": "0.7x gate (0.946 vs 0.657)",
+   "c25": 0.9387203471209589,
+   "c26": 0.9464876172481274
+  },
+  "LEMD": {
+   "allowed": false,
+   "rule": "ADN.7 newly covered (transfer FAIL)",
+   "c25": 0.17217391304347826,
+   "c26": 0.79513018847369
+  },
+  "LFPG": {
+   "allowed": false,
+   "rule": "ADN.7 newly covered (transfer FAIL)",
+   "c25": 0.05865071870737593,
+   "c26": 0.1406050385814298
+  },
+  "LIRF": {
+   "allowed": true,
+   "rule": "0.7x gate (0.299 vs 0.378) fails; coverage override: RWC.3 SHIP (owner, SHIP-ADN.5)",
+   "c25": 0.539341972530457,
+   "c26": 0.29868758485442753
+  },
+  "LSZH": {
+   "allowed": true,
+   "rule": "0.7x gate (0.959 vs 0.656)",
+   "c25": 0.9371194869173212,
+   "c26": 0.9590058245520431
+  },
+  "LTFM": {
+   "allowed": false,
+   "rule": "ADN.7 newly covered (transfer FAIL)",
+   "c25": 0.0,
+   "c26": 0.00012804097311139564
+  }
+ },
+ "git_sha": "fdeb704a64e5de5125402441c212e7d9a49cd36e-dirty",
+ "trained": "2026-09-27T22:18:18.142761-04:00",
+ "n_train_joined_rows": 172182,
+ "blend": "B = mean(G, N) residual, seconds",
+ "ship_learner": "B",
+ "gate_evidence": {
+  "source": "r12_stack: adsb_ship.gate_table on the R12 (TRC) tables' joined shares",
+  "transfer_PASS": false,
+  "joined_share_2025": {
+   "EDDF": 0.88305435817052,
+   "EDDM": 0.6144732870510111,
+   "EGLL": 0.42828654701641355,
+   "EHAM": 0.9851323674429189,
+   "LEBL": 0.9387203471209589,
+   "LEMD": 0.17217391304347826,
+   "LFPG": 0.05865071870737593,
+   "LIRF": 0.539341972530457,
+   "LSZH": 0.9371194869173212,
+   "LTFM": 0.0
+  },
+  "joined_share_2026": {
+   "EDDF": 0.6226599063962559,
+   "EDDM": 0.9699160447761194,
+   "EGLL": 0.9023287532834916,
+   "EHAM": 0.9776882302033751,
+   "LEBL": 0.9464876172481274,
+   "LEMD": 0.79513018847369,
+   "LFPG": 0.1406050385814298,
+   "LIRF": 0.29868758485442753,
+   "LSZH": 0.9590058245520431,
+   "LTFM": 0.00012804097311139564
+  },
+  "equals_models_v4_gate": false,
+  "fold_record": "data/r12/r13_stack_full/record_lgbcat.parquet"
+ }
+}

@@ -22,7 +22,7 @@ import pandas as pd
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-_spec = importlib.util.spec_from_file_location("rul_ruler", ROOT / "scripts" / "analysis" / "rul_ruler.py")
+_spec = importlib.util.spec_from_file_location("rul_ruler", ROOT / "research" / "analysis" / "rul_ruler.py")
 R = importlib.util.module_from_spec(_spec)
 sys.modules["rul_ruler"] = R                     # dataclasses resolve their module through sys.modules
 _spec.loader.exec_module(R)

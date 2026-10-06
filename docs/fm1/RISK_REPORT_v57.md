@@ -51,8 +51,8 @@ differs from v55 where the ADS-B store has no ground coverage at the stand (ther
    registered label-free checks, and v57 rebuilt with that check in place is the same file. For tables built from now
    on the report holds the sha256 of the table and the stand positions it was given; the table behind v57 is tied to
    its report only by sharing a directory (both hashes are in the rebuild's manifest).
-7. **Selection on the scored set** (RISK_REPORT_v55 §3.1) applies to keeping v57: it is our best single model because
-   the board says so. Nothing inside the stage was set from the board.
+7. **Selection on the scored set** (RISK_REPORT_v55 §3.1) applies to keeping v57: it is our best single board file
+   because the board says so. Nothing inside the stage was set from the board.
 
 ## 4. Residual uncertainty
 

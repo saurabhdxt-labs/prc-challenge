@@ -19,6 +19,7 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "research"))     # unm_congestion_resid_ship.py / unm_congestion_resid.py moved here (FP-W4)
 import unm_congestion_resid_ship as rs  # noqa: E402
 import unm_congestion_resid as ur  # noqa: E402
 import unm_congestion_ship as us  # noqa: E402

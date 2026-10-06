@@ -9,6 +9,8 @@ import pathlib
 
 import numpy as np
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
 
 from prc.pipeline.fm1 import errors as E
@@ -267,10 +269,42 @@ def test_serve_rows_without_a_table_row_are_no_data_up_to_the_share(e2e_world):
     assert n == 1
     row = out[out.MVT_ID_mvt == -1.0].iloc[0]
     assert row.coverage == 0.0 and row.adsb_day_present == 0.0 and np.isnan(row.dwell_s)
-    with pytest.raises(E.SchemaError, match=r"1 of 100 scored matched rows \(1\.0000%\).*serve_missing_max_share = 0\.005"):
+    with pytest.raises(E.SchemaError,
+                       match=r"1 absent \+ 0 with adsb_day_present==0 of 100 scored matched rows \(1\.0000%\).*"
+                             r"serve_missing_max_share = 0\.005"):
         F.attach_adsb(fr, src, serve=True, max_missing_share=0.005)
     with pytest.raises(E.SchemaError, match="the tables must cover"):
         F.attach_adsb(fr, src, serve=False)
+
+
+def test_serve_rows_present_but_on_a_day_with_no_adsb_file_count_toward_the_share(e2e_world, tmp_path):
+    """Review finding 1 (FP-W3 item 1, HIGH): a scored row that HAS a table row but `adsb_day_present == 0` (the
+    day's ADS-B file was missing when the R12 table was built) passed the guard silently -- only rows physically
+    ABSENT from the table were counted against adsb.serve_missing_max_share, so the stack gate (components.py
+    ~117, coverage >= min_coverage) quietly drops these rows and the period is served with no ADS-B and no error.
+    Mutation: drop the `n_day_absent` term from `share` -> the pytest.raises block below finds nothing to catch ->
+    red."""
+    src = e2e_world[0] / "adsb"
+    ids = pd.read_parquet(src / "train.parquet", columns=["MVT_ID_mvt"]).MVT_ID_mvt.to_numpy()[:99]
+    t = pq.read_table(src / "train.parquet").to_pandas()
+    t = t.set_index(t.MVT_ID_mvt.to_numpy(dtype="float64"))
+    sub = t.loc[ids].reset_index(drop=True)
+    sub.loc[0, "adsb_day_present"] = 0.0          # present in the table, but the day's ADS-B file was missing
+    sub_table = pa.Table.from_pandas(sub, preserve_index=False)
+    pq.write_table(sub_table, tmp_path / "train.parquet")
+    pq.write_table(sub_table.schema.empty_table(), tmp_path / "serve.parquet")
+    fr = pd.DataFrame({"MVT_ID_mvt": ids})
+    out, n = F.attach_adsb(fr, tmp_path, serve=True, max_missing_share=0.02)
+    # the returned count (the build manifest's n_adsb_missing) is every row served with no ADS-B data: absent rows AND
+    # rows on a day with no ADS-B file (review 2 finding 6; it counted only absent rows, disagreeing with the guard).
+    # Mutation: return len(missing) again -> red.
+    assert n == 1
+    row = out[out.MVT_ID_mvt == ids[0]].iloc[0]
+    assert row.adsb_day_present == 0.0
+    with pytest.raises(E.SchemaError,
+                       match=r"0 absent \+ 1 with adsb_day_present==0 of 99 scored matched rows \(1\.0101%\).*"
+                             r"serve_missing_max_share = 0\.005"):
+        F.attach_adsb(fr, tmp_path, serve=True, max_missing_share=0.005)
 
 
 def test_dayoff_utc_vs_local():

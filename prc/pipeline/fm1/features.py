@@ -254,10 +254,18 @@ def attach_adsb(frame: pd.DataFrame, table_dir, serve: bool = False, max_missing
     ids = frame.MVT_ID_mvt.to_numpy(dtype="float64")
     files = ("train.parquet", "serve.parquet") if serve else ("train.parquet",)
     t, missing = read_adsb_tables(table_dir, ids, allow_missing=serve, files=files)
-    share = len(missing) / max(len(ids), 1)
+    # a row CAN have a table row and still carry no ADS-B signal: adsb_day_present == 0 means the day's ADS-B file
+    # was missing when the table was built (R12 build report.json's n_missing_day_rows). Such a row is never in
+    # `missing` (read_adsb_tables only reports rows with NO table row at all), so without counting it here too the
+    # stack gate (components.py stack_values: coverage >= min_coverage) silently drops it and the guard never fires
+    # (review finding 1).
+    present = np.setdiff1d(ids, missing)
+    n_day_absent = int((t.reindex(present)["adsb_day_present"].to_numpy(dtype="float64") == 0.0).sum())
+    share = (len(missing) + n_day_absent) / max(len(ids), 1)
     if serve and share > max_missing_share:
-        raise E.SchemaError(f"{len(missing):,} of {len(ids):,} scored matched rows ({share:.4%}) have no ADS-B table row in "
-                            f"{table_dir}; above adsb.serve_missing_max_share = {max_missing_share:g}")
+        raise E.SchemaError(f"{len(missing):,} absent + {n_day_absent:,} with adsb_day_present==0 of {len(ids):,} "
+                            f"scored matched rows ({share:.4%}) have no ADS-B data in {table_dir}; above "
+                            f"adsb.serve_missing_max_share = {max_missing_share:g}")
     got = t.reindex(ids)
     out = frame.copy()
     for c in t.columns:
@@ -266,7 +274,7 @@ def attach_adsb(frame: pd.DataFrame, table_dir, serve: bool = False, max_missing
         miss = np.isin(ids, missing)
         out.loc[miss, "coverage"] = 0.0
         out.loc[miss, "adsb_day_present"] = 0.0
-    return out, int(len(missing))
+    return out, int(len(missing) + n_day_absent)      # every row served with no ADS-B data, as the guard counts them
 
 
 def check_table_sources(table_dir, adsb_fi: bool) -> list:

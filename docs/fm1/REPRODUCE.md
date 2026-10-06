@@ -1,4 +1,4 @@
-# FM1 — reproduction guide (updated 2026-10-04: final configs, environment pins, clone tier)
+# FM1 — reproduction guide (updated 2026-10-06: the final model, open-data v57; getting the data; running on a new period)
 
 Environment: Python 3.11.15 (`.python-version`) with `requirements.txt` (runtime) and `requirements-dev.txt` (tests);
 CatBoost 1.2.10 lives only in `~/.venvs/prc-catboost` (`requirements-catboost.txt`) and is used through the worker
@@ -25,24 +25,82 @@ python -B tools/fm1_replay_gate.py --out <new dir> [--per-stratum 100 --runs 2] 
 python -B tools/run_suite.py                                                                          # the suite
 ```
 
-`configs/fm1.yaml` holds every knob at its documented default (a test pins this). The final runs are three config files
-that write their command-line overrides in and resolve to the stored artefacts' config hashes
-(`tests/fm1/test_fm1_final_configs.py`): `configs/fm1_v50.yaml`, the forecaster (lgbcat ADS-B stack on the
-`tables_51348d3e1cb3` tables, storm anchor on, LDI on, 12 threads), and `configs/fm1_v55.yaml`, the scored-period build
-(v50 + MTX + the adsb.fi serve table; `adsb.sources.adsb_fi`). `configs/fm1_v57.yaml` is board file v57, the team's
-best: v55 with the optional stand-exit stage on (`modules.uad.enabled`). `configs/fm1_v57_tc.yaml` is a candidate that is
-not uploaded on its own: v57 with the unmatched body's tail-cell rule off (`modules.tail_cells.enabled` false). The storm-as-feature form is refused by name when
-switched on. LDI needs whole local days per predict call. A fit
+`configs/fm1.yaml` holds every knob at its documented default (a test pins this). Five config files write their
+command-line overrides in (`tests/fm1/test_fm1_final_configs.py` pins each one's config hash and its exact overrides);
+four resolve to stored artefacts (v50, v55, v57, and the final model `fm1_v57_open.yaml`, derived on 2026-10-06), and
+`fm1_v57_tc.yaml` (a candidate) is pinned to its own hash because no artefact was ever built for it:
+
+- `configs/fm1_v50.yaml` — the forecaster (lgbcat ADS-B stack on the `tables_51348d3e1cb3` tables, storm anchor on,
+  LDI on, 12 threads).
+- `configs/fm1_v55.yaml` — the scored-period build (v50 + MTX + the adsb.fi serve table; `adsb.sources.adsb_fi`).
+- `configs/fm1_v57.yaml` — board file v57, the best single board file: v55 with the optional stand-exit stage on
+  (`modules.uad.enabled`).
+- **`configs/fm1_v57_open.yaml` — THE FINAL MODEL**: v57 on open data only (`adsb.sources.adsb_fi: false`,
+  `adsb.table_dir: data/r12/tables_51348d3e1cb3`, the open table v50 and v51 serve); board file v59 (248.5486).
+- `configs/fm1_v57_tc.yaml` — a candidate not uploaded on its own: v57 with the unmatched body's tail-cell rule off
+  (`modules.tail_cells.enabled` false). No stored artefact; its pinned hash is the configuration's own.
+
+The storm-as-feature form is refused by name when switched on. LDI needs whole local days per predict call. A fit
 over the twelve months is a heavy job (`--allow-heavy`, the pre-run checks first, one heavy job at a time). Validation folds
 with a single training month must switch E2W off (`--set modules.rome.e2w=false`: its beta_W is fitted leave-one-month-out).
+
+## Getting the data
+
+In this order (every command's flags are from its own `--help`):
+
+1. **Challenge files.** `python scripts/fetch_data.py [--bucket prc-2026-datasets] [--dst data/raw] [--force]` —
+   needs `PRC_ACCESS_KEY` and `PRC_SECRET_KEY` in the environment, or a `KEY=value` file at `~/.prc-challenge.env`
+   (`prc/s3.py:66-84`). Pulls the organiser's movement parquet files into `data/raw/`, verified against the
+   bucket's ETag (single-part uploads) or size (multipart); recorded in `data/raw/FETCH_MANIFEST.json`. On this
+   machine `data/raw/` holds 315 MB (`du -sh`, 2026-10-06); fetch duration is network-bound and not measured here.
+
+2. **adsb.lol.** `python scripts/adsb_fetch.py index --year <year>` builds `data/adsb/v2/RELEASES_<year>.json` from
+   the GitHub API; then `python scripts/adsb_fetch.py run [--year <year >= 2025>] [--months M1,M2,...] [--limit N]`
+   fetches daily archives and extracts ground-level samples at the ten scored airports into `data/adsb/v2/` (2025
+   January + July), `data/adsb/v2/y2025_other` (2025, other months) or `data/adsb/v2/y2026` (2026); resumable, one
+   day at a time, and stops if free disk falls below its floor. Where it writes (`scripts/adsb_fetch.py`
+   `out_dir_for`): a run WITH `--months` goes to `data/adsb/v2/y<year>_other`; a run without `--months`
+   fetches January and July of that year (`day_list`) into `data/adsb/v2` for 2025 and `data/adsb/v2/y<year>` otherwise. On this machine `data/adsb/`
+   holds 31 GB; duration is network- and disk-bound and not measured here.
+
+3. **Stand / order caches.** `python scripts/stand_ab.py cache` and `python scripts/stand_ab.py order-cache` write
+   per-month feature caches to `data/cache_stand/` and `data/cache_order/` for the training months;
+   `python scripts/stand_ab.py --ranking cache` and `python scripts/stand_ab.py --ranking order-cache` (the flag goes
+   BEFORE the sub-command) write `<cache dir>/ranking.parquet` for the scored file instead. `scripts/analysis/r12_build.py` reads both
+   (`STAND_DIR` / `ORDER_DIR` = `data/cache_stand` / `data/cache_order`, `r12_build.py:68`; the training-universe
+   join at `r12_build.py:419-449`) plus `cache_stand/ranking.parquet`. On this machine `data/cache_stand/` holds
+   9.5 GB and `data/cache_order/` holds 38 MB.
+
+4. **Weather.** `python scripts/fetch_weather.py [--smoke] [--out-dir DIR] [--refetch] [--months MONTHS]` writes
+   one CSV per (airport, month) to `data/weather/`, for every month the caches use plus both scored months by
+   default; frozen on disk and never re-fetched by a run once saved (a month already on disk is skipped). On this
+   machine `data/weather/` holds 24 MB.
+
+5. **MTX.** No fetch script: download `taxi_out_additional_time_2025.csv` and `taxi_out_additional_time_2026.csv`
+   by hand from `https://www.eurocontrol.int/performance/data/download/csv/...` and save them to
+   `data/mtx/raw/taxi_out_additional_time_<year>.csv`; record their sha256 in `data/mtx/raw/MANIFEST.json`.
+   `scripts/analysis/mtx_source.py` parses the files (`load_monthly_csv`); the 2026 file is a live publication (it
+   grows through the year) and is never re-fetched by a run once saved. On this machine `data/mtx/` holds 18 MB.
+
+6. **The uad stand-exit table** (only needed for the `uad` stage, on in the final model and in board file v57):
+   `scripts/analysis/uad_build.py parked --rows ... --adsb-dir ... --out ...` then `scripts/analysis/uad_build.py
+   table --rows ... --adsb-dir ... --parked ... [--alias-from ...] --out ...` — the exact arguments the final
+   configuration uses are in "What a clone of the repository can run" below. On this machine `data/uad/` holds
+   145 MB.
+
+Sizes above are what this machine's `data/` directories hold today (`du -sh`, 2026-10-06), not a specification; a
+fresh fetch may differ, and no step above prints a wall-clock duration this project has recorded, so none is given
+beyond what is noted.
 
 ## Reproducing the board file v55
 
 ```
 python -m prc fit --config configs/fm1_v50.yaml --allow-heavy                                     # the donor (~10 h)
-python -m prc fit --config configs/fm1_v55.yaml --allow-heavy --reuse-from artifacts/fm1/2d29ad344b45-1c61fcc2
+python -m prc fit --config configs/fm1_v55.yaml --allow-heavy --reuse-from <the directory the v50 fit printed>
 python -m prc build-submission --config configs/fm1_v55.yaml --out <new dir> --version 55
 ```
+
+On the author's machine the v50 fit's own artefact directory was `artifacts/fm1/2d29ad344b45-1c61fcc2`.
 
 The uploaded file is `merry-quicksand_v55.parquet`, sha256 `225ab0be205a0a254d0c27e726ec33d6007981b98f937f9b00739499e5ac537d`
 (344,841 rows). The rebuild check — the current code serving the stored v55 artefact
@@ -56,9 +114,11 @@ The uploaded file is `merry-quicksand_v55.parquet`, sha256 `225ab0be205a0a254d0c
 ## Reproducing the board file v57
 
 ```
-python -m prc fit --config configs/fm1_v57.yaml --allow-heavy --reuse-from artifacts/fm1/2d29ad344b45-1c61fcc2
+python -m prc fit --config configs/fm1_v57.yaml --allow-heavy --reuse-from <the directory the v50 fit printed>
 python -m prc build-submission --config configs/fm1_v57.yaml --out <new dir> --version 57
 ```
+
+On the author's machine the v50 fit's own artefact directory was `artifacts/fm1/2d29ad344b45-1c61fcc2`.
 
 The uploaded file is `merry-quicksand_v57.parquet`, sha256 `4bf0f915b90ae7374aa97e435a254d9d2bf73292bda30f47cad55d97c154350b`
 (344,841 rows). These two commands wrote it on 2026-10-05 with the committed code and a clean tree (artefact
@@ -78,6 +138,33 @@ byte for byte as before (table sha256 `15ab2b08…` above). A rebuild from a fre
 been tried. The stage reads `report.json` beside the table (the build report: parameter hash, the label-free checks,
 and for tables built from now on the sha256 of the files written) and refuses a table whose report fails the
 registered checks or names another table; keep the two files together.
+
+## Reproducing the final model (open-data v57)
+
+```
+python -m prc fit --config configs/fm1_v50.yaml --allow-heavy                                     # the donor (~10 h)
+python -m prc fit --config configs/fm1_v57_open.yaml --allow-heavy --reuse-from <the directory the v50 fit printed>
+python -m prc build-submission --config configs/fm1_v57_open.yaml --out <new dir> --version <N>
+```
+
+Builds from the artefacts stored before 2026-10-06 (v50, v55, v57) log one changed input,
+`stack/MANIFEST.json`: its one absolute path was made repository-relative after they were fitted. No stage reads that
+field; the v57 rebuild after the change wrote the same file (sha256 `4bf0f915…`).
+
+When more than one artefact exists for the same config hash (for example after re-deriving it on changed inputs),
+`build-submission` refuses to guess ("2 artefacts for config … (different data); pass the artefact directory
+explicitly"): add `--artifact <the directory the fit printed>`.
+
+`configs/fm1_v57_open.yaml` is `configs/fm1_v57.yaml` with two changes: `adsb.sources.adsb_fi: false` and
+`adsb.table_dir: data/r12/tables_51348d3e1cb3` (the open table v50 and the MTX build, v51, serve) in place of
+`data/r12/tables_51348d3e1cb3_afi`. Every input is the challenge's own files or open, re-fetchable data
+(DATA_SOURCES.md); nothing comes from the owner's adsb.fi capture, so unlike v55 and v57 this build does not need
+the machine that holds that capture. Board file v59 (2026-10-06) is its build: public board **248.5486**, file
+sha256 `7c64bf9fef4d8bae…`. Rebuild check (2026-10-06): after the shipped stack manifest's one absolute path was made
+repository-relative, the artefact was re-derived from the v50 donor (`1dc07433357e-ef56e51e` on the author's machine;
+a reader's directory name follows its own input digest) and `build-submission --artifact` from it wrote a file
+byte-identical to the uploaded v59 (same sha256). The stand-exit table and constants it reads (`modules.uad`) are the same derived inputs v57 uses,
+below.
 
 ## Reproducing the board file v58
 
@@ -115,10 +202,11 @@ file or MTX reference is named, not refused; a broken raw directory stops the bu
 `fit --reuse-from <donor artefact dir>` builds a variant artefact from a donor's fitted matched learners when only
 predict-time or light-fit knobs differ (`knobs.REUSE_FREE_KNOBS`: `run.purpose`, `run.artifacts_dir`, `calibration.mtx.*`,
 `modules.*`, `matched.blend.catboost_weight`, `adsb.stack.*`, `adsb.support_gate.*`, `adsb.min_coverage`,
-`adsb.sources.adsb_fi`, `adsb.table_dir`). Frames, encodings,
+`adsb.sources.adsb_fi`, `adsb.table_dir`, `data.scored_file`, `data.template_file`). Frames, encodings,
 the unmatched lane and MTX are recomputed; the recomputed design columns, encodings and row counts must equal the donor's,
-and the learners' input files (raw months, weather, routes, the ADS-B training table `train.parquet`) must be the
-same — otherwise `ReuseError`; a new serve table is allowed (that is how v55 was derived).
+and the learners' input files (raw training months, the training months' weather, routes, the ADS-B training table
+`train.parquet`) must be the same — otherwise `ReuseError`; a new serve table, a new scored file and weather for months
+the learners do not read are allowed (that is how v55 was derived and how a new period is served).
 A derived artefact predicts bit-identically to a full fit of the same config (tests/fm1/test_fm1_reuse.py, five variants).
 
 ## Runtimes and resources (measured 2026-10-01 / 02, this machine: 18 cores, 24 GiB)
@@ -136,7 +224,7 @@ identically (344,841 × 30 cells, 0 different).
 Measured earlier: AT14 stored-tier gate 158 s, peak 2.6 GB (parent + one booster child); AT9 e2e world: `fit` 4 s,
 `build-submission` 21 s, parent peak 0.31 GB, two independent runs byte-identical.
 
-## What a clone of the repository can run (2026-10-04)
+## What a clone of the repository can run (2026-10-06)
 
 A clone carries the package (`prc/`), the configs, the code FM1 loads by path (`scripts/`, the E2 rules file), the tools,
 the tests and these docs. Without data, artefacts or the project's development record (registrations, reports, logs),
@@ -146,18 +234,22 @@ document why a default was chosen and are checked only in the development tree (
 
 The test suite has a **clone tier**: every test not marked `devtree` (tests/conftest.py) runs from a fresh clone —
 `python -m pytest -m "not devtree" tests`, or `python tools/clone_check.py`, which builds a tree of exactly the tracked
-files in a new git repository and runs that tier there (2026-10-04, the committed files: 2,887 passed, 76 skipped where
-an optional local file is absent, 138 devtree tests deselected). Tests that read the data, the stored artefacts or the
+files in a new git repository and runs that tier there (2026-10-06, on the final tree without the development record: 3,535 passed,
+76 skipped, 149 deselected, 11 min 21 s on the author's machine). Tests that read the data, the stored artefacts or the
 development record are marked `devtree` (automatically for every test on the real-data-shaped worlds,
 tests/fm1/conftest.py) and run in the full suite on the development machine.
 
 To fit or predict, a clone also needs the inputs every path knob names (CONFIG_REFERENCE.md): the raw challenge files and
-weather (DATA_SOURCES.md) and the derived inputs below, each rebuilt by code in the repository (heavy steps run through
-`scripts/analysis/r12_launch.py`, which takes the machine-wide lock and a memory guard):
+weather (DATA_SOURCES.md) and the derived inputs below, each rebuilt by code in the repository. Heavy steps run through
+`scripts/analysis/r12_launch.py`, which takes the machine-wide lock; its memory guard (`tools/mem_guard.py`, macOS
+`memory_pressure`), power check (`pmset`) and reserved-window check run only with `--machine-guards` (the author's own
+machine, where the run queue `tools/prc_queue.py` always passes it). A reader runs the launcher without that flag, or
+runs the step's runner directly (e.g. `python scripts/analysis/r12_build.py features ...` in place of
+`r12_launch.py --step features --detach -- features ...`):
 
 | input (knob) | built by | final configuration |
 |---|---|---|
-| ADS-B tables (`adsb.table_dir`) | `scripts/analysis/r12_build.py features`, then `tables` | `data/r12/tables_51348d3e1cb3` |
+| ADS-B tables (`adsb.table_dir`) | `scripts/analysis/r12_build.py features`, then `tables` | `data/r12/tables_51348d3e1cb3` — served by v50, v51 and the final model (open-data v57); the adsb.fi-merged `data/r12/tables_51348d3e1cb3_afi` (below) is served by v55 and board file v57 |
 | holdout fits feeding the stack | `scripts/analysis/r12_validate.py` (LightGBM base on the older `tables_801f9bcac9a5`; CatBoost half via `scripts/analysis/r12_validate.py --arms cat --screen --seeds 0,1,2`, learning rate 0.05), assembled by `r13_cat.py assemble` | `data/r12/r13_arms_full` |
 | ADS-B stack models (`adsb.stack.models_dir`) | `scripts/analysis/r12_stack.py oof --val data/r12/r13_arms_full --tables data/r12/tables_51348d3e1cb3 --arms r12,lgbcat --out data/r12/r13_stack_full` | `data/r12/r13_stack_full/models_lgbcat` (MANIFEST.json: seeds 0–2, 5 folds, gate, git sha) |
 | ORL route table (`features.orl_routes_file`) | `scripts/analysis/orl_build.py fetch`, then `build` | `data/osm/orl_routes.parquet` |
@@ -181,7 +273,62 @@ artefact carries its own copy of the stack models, so predicting with a saved ar
 **What HEAD cannot rebuild exactly.** The stored stack (`models_lgbcat`) was trained on a LightGBM holdout built on the
 `tables_801f9bcac9a5` tables, whose feature version the current `scripts/adsb_features.py` no longer produces
 (`r12_validate` refuses a stamp mismatch), so the stack is a stored input of FM1 rather than something a clone can
-regenerate byte for byte; its MANIFEST records seeds, folds and gate, and a git sha that predates its producer scripts
+regenerate byte for byte. It is shipped in the repository (`data/r12/r13_stack_full/models_lgbcat/`, 46 files: 15
+LightGBM text models, 15 torch nets and 15 normalisation-stat files, plus MANIFEST.json; fitted models, no raw
+data), so a clone has it already — regenerating it from scratch needs the development record and is not a
+documented public path. Its MANIFEST records seeds, folds and gate, and a git sha that predates its producer scripts
 (LIMITATIONS 18). The OpenStreetMap route table is fetched live (Overpass has no snapshot date in the query; the manifest
-records the OSM base time of the fetch used). The adsb.fi capture cannot be re-fetched (LIMITATIONS 12).
+records the OSM base time of the fetch used). The adsb.fi capture cannot be re-fetched (LIMITATIONS 12); the final
+model does not need it.
 
+## Running the final model on a new period
+
+To score a period other than January + July 2026 (say October 2026): rebuild the period's derived inputs, point a
+copy of `configs/fm1_v57_open.yaml` at them, make a derived artefact from the final model's (no learner is
+retrained) and build. Every knob changed below is one that `fit --reuse-from` accepts without retraining
+(`knobs.REUSE_FREE_KNOBS`, `prc/pipeline/fm1/knobs.py`; `data.scored_file` and `data.template_file` were added on
+2026-10-06 after a test showed the fit never reads them, `tests/fm1/test_fm1_reuse.py`).
+
+1. **The challenge files.** Put the new period's scored departures at `data/raw/ranking.parquet` (keep the old file
+   elsewhere) and its submission template where `data.template_file` points. The Rome E2 rule reads the scored
+   file under that exact name (its code is hash-frozen), which is also `data.scored_file`'s default.
+2. **Caches, then ADS-B.** First the scored file's caches: `python scripts/stand_ab.py --ranking cache` and
+   `python scripts/stand_ab.py --ranking order-cache` (`r12_build` reads them for the serve universe). They overwrite
+   the January + July 2026 caches `data/cache_stand/ranking.parquet` and `data/cache_order/ranking.parquet`: move those
+   aside first to keep them. Then
+   `python scripts/adsb_fetch.py index --year <Y>` and `python scripts/adsb_fetch.py run --year <Y> --months <M,...>`
+   (with `--months` it writes `data/adsb/v2/y<Y>_other`). Add the new days to the SAME feature store the final
+   model's training table came from: `python scripts/analysis/r12_build.py features --store <that store> --months
+   <spec> --sources data/adsb/v2,data/adsb/v2/y2025_other,data/adsb/v2/y2026,data/adsb/v2/y<Y>_other --final`
+   (always pass `--sources` listing the new directory: the default lists only the three directories named there).
+   Then rebuild the tables WITHOUT `--days`: `python scripts/analysis/r12_build.py tables --store <that store>
+   --out data/r12/tables_<new>`. Its `train.parquet` is assembled from the 2025 training days exactly as before
+   (`fit --reuse-from` compares its hash with the donor's), and `serve.parquet` holds the new scored file's days.
+   With `--days` limited to the new period no `train.parquet` is written and the derived fit stops. `--months`
+   syntax (`prc/months.py`): `2026-10`, or an inclusive range `2026-08..2026-10`, comma-separated.
+3. **Weather.** `python scripts/fetch_weather.py --months <spec>`.
+4. **Stand-exit table** (the `uad` stage), the two passes as they were run for 2026:
+   `python scripts/analysis/uad_build.py parked --rows data/raw/ranking.parquet --adsb-dir data/adsb/v2/y<Y>_other
+   --out data/uad/<period>_parked`, then `python scripts/analysis/uad_build.py table --rows data/raw/ranking.parquet
+   --adsb-dir data/adsb/v2/y<Y>_other --parked data/uad/2025_parked data/uad/<period>_parked --alias-from
+   data/uad/2025_table_a3 --out data/uad/<period>_table` (the 2026 table was built with `--adsb-dir
+   data/adsb/v2/y2026 data/adsb/v2/y2025_other --parked data/uad/2025_parked data/uad/2026_parked`); the stage's
+   offsets and weights (`configs/uad_constants_2025.json`) are fixed and are not refitted.
+5. **MTX.** If EUROCONTROL has published the period's year file, set `calibration.mtx.published_csv` to it; an
+   airport-month with no published value in it is left unchanged, and MTX calibrates one scored year at a time (a
+   period spanning two years must be built per year). If no file exists yet for that year, set
+   `calibration.mtx.enabled: off` (the file is a required input while MTX is on: the dry run and the build refuse a
+   missing one).
+6. **Config and build.** In a copy of `configs/fm1_v57_open.yaml` set `adsb.table_dir: data/r12/tables_<new>`,
+   `modules.uad.table` to the new stand-exit table and, if changed, `calibration.mtx.published_csv` and
+   `data.template_file`. Then
+   `python -m prc fit --config <copy>.yaml --allow-heavy --reuse-from <the final model's artefact directory>` (minutes: the matched
+   learners are the donor's) and `python -m prc build-submission --config <copy>.yaml --out <dir> --version <N>`.
+
+**Guards a reader will meet.** The build refuses when more than 0.1 % of the scored rows have no row in the ADS-B
+table (`adsb.serve_missing_max_share`, LIMITATIONS 10): fetch the missing days and rebuild with `--final`. The E2
+check refuses when `data/raw/ranking.parquet` is missing or is not `data.scored_file`.
+
+**Not verified end-to-end.** No data of a later period existed when this was written, so this path has been checked
+piece by piece (each command's arguments, the reuse rule, the month parser, the year directory), not run on a new
+period.

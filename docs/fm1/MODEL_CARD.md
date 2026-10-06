@@ -1,11 +1,17 @@
-# FM1 — model card (updated 2026-10-05)
+# FM1 — model card (updated 2026-10-06)
 
-Status: **final.** The forecaster (only the challenge files and public open data: no scored-period aggregate, no private capture) is board file v50
-(`configs/fm1_v50.yaml`, public board 251.4767); the scored-period build is v55 (`configs/fm1_v55.yaml`, 249.9168); the
-best single model is v57, v55 plus the stand-exit stage for departures without a flight-plan record
-(`configs/fm1_v57.yaml`, 247.3187). The team's best board file is v58 (246.2224): an average of board files with
-weights fitted on their board scores, which is not an FM1 output (METHOD §8). Claims and their evidence: CLAIMS.md;
-risks: RISK_REPORT_v55.md, RISK_REPORT_v57.md and RISK_REPORT_v58.md.
+Status: **final.** **The final model is open-data v57** (`configs/fm1_v57_open.yaml`): the forecaster v50 plus
+monthly calibration to EUROCONTROL's published 2026 taxi-out means (MTX) plus the ADS-B stand-exit stage for
+departures without a flight-plan record (`uad`), served on open, re-fetchable inputs only — no adsb.fi anywhere.
+Its board score is 248.5486 (board file v59, uploaded 2026-10-06).
+
+The forecaster on its own (only the challenge files and public open data: no scored-period aggregate, no private
+capture) is board file v50 (`configs/fm1_v50.yaml`, public board 251.4767). Board files v55 (`configs/fm1_v55.yaml`,
+249.9168) and v57 (`configs/fm1_v57.yaml`, 247.3187, the best single board file) add the owner's adsb.fi capture of
+July 2026 to the ADS-B serve table; the final model does not use it. The best board file is v58 (246.2224): an
+average of board files with weights fitted on their board scores, which is not an FM1 output and carries adsb.fi
+through its v55 and v57 members (METHOD §8). Claims and their evidence: CLAIMS.md; risks: RISK_REPORT_v55.md,
+RISK_REPORT_v57.md and RISK_REPORT_v58.md.
 
 ## Intended use
 
@@ -21,9 +27,11 @@ from 2025's without a drift check (LIMITATIONS.md 9, 14).
 
 - Inputs: the organiser's raw movement rows (30 columns, one row per DEP or ARR; contract `prc/pipeline/fm1/rows.py`),
   the METAR archive, the OpenStreetMap route table and the ADS-B tables built from adsb.lol tracks. The scored-period
-  build (v51, v55) adds EUROCONTROL's published monthly taxi-out means (MTX) and, in v55, the owner's adsb.fi capture of
-  July 2026 in the serve table. The optional `uad` stage reads a stand-exit table built from the same adsb.lol tracks. A scored departure never carries a label; no design column is a label, a label
-  derivative or a `*_sec` column (refused, AT2).
+  build (v51, v55, v57, and the final model) adds EUROCONTROL's published monthly taxi-out means (MTX) and, in board
+  files v55 and v57 only, the owner's adsb.fi capture of July 2026 in the serve table. The optional `uad` stage reads
+  a stand-exit table built from the same adsb.lol tracks; it is on in the final model and in board file v57. The
+  final model adds MTX and `uad` on the open ADS-B table and never reads the adsb.fi capture. A scored departure
+  never carries a label; no design column is a label, a label derivative or a `*_sec` column (refused, AT2).
 - Output: one row per scored departure — `MVT_ID_mvt`, `TAXITIME_SEC_mvt` (int32, >= 1), **`decided_by`** (the last value
   stage that wrote the row: `base_lightgbm`, `base_catboost`, `adsb_stack`, `cbv_blend`, `unmatched_body`, `rome`, `arc`, `rome_e2`,
   `rome_e2w`, `storm`, `uad`, `ldi`, with `+mtx` when calibration moved it), `lane`, and every component's own output (`F`,
@@ -44,7 +52,7 @@ from 2025's without a drift check (LIMITATIONS.md 9, 14).
 | ARC arrival-row clock recovery (LIRF) | yes | yes | 42 |
 | storm anchor | yes | yes | 581 |
 | LDI LTFM de-icing shift | yes | yes | 1,885 |
-| ADS-B stand-exit estimate for departures without a flight-plan record (`uad`) | no | no | — (optional; on in v57, `configs/fm1_v57.yaml`, where it decides 501 rows: 377 the unmatched body decides in v55 and 124 the storm anchor) |
+| ADS-B stand-exit estimate for departures without a flight-plan record (`uad`) | no | no | — (optional; on in the final model, `configs/fm1_v57_open.yaml`, and in board file v57, `configs/fm1_v57.yaml`, where it decides 501 rows: 377 the unmatched body decides in v55 and 124 the storm anchor) |
 | tail-cell rule of the unmatched body (`modules.tail_cells.enabled`) | on | on | — (the shipped rule; off in the candidate `configs/fm1_v57_tc.yaml`, where 10 rows change) |
 | MTX monthly calibration (last) | no (forecaster) | yes | moved 236,515 rows |
 | adsb.fi July-2026 serve rows | no | yes (serve table only; the learners are v50's) | — |
@@ -52,14 +60,16 @@ from 2025's without a drift check (LIMITATIONS.md 9, 14).
 | coverage-ratio support gate | off | off | — (no better on the board, v52) |
 | XGBoost | cut | cut | refused by name |
 
-Row counts from `submissions/merry-quicksand_v55.parquet.meta.json` (`decided_by`).
+Row counts from v55's submission metadata (`decided_by`), written at build time; submission files and their
+metadata are not part of the repository.
 
 ## Metrics
 
 | measurement | value | what it is |
 |---|---|---|
+| public board, open-data v57 (the final model) | 248.5486 (v59) | `configs/fm1_v57_open.yaml`: v57 served on the open ADS-B table only, no adsb.fi |
 | public board, v58 | 246.2224 s RMSE | an average of board files, weights fitted on the board (not an FM1 output); one evaluation |
-| public board, v57 | 247.3187 s RMSE | v55 + the stand-exit stage (501 rows); the best single model; one evaluation of the scored set |
+| public board, v57 | 247.3187 s RMSE | v55 + the stand-exit stage (501 rows); the best single board file; one evaluation of the scored set |
 | public board, v55 | 249.9168 s RMSE | the scored-period build; one evaluation of the scored set |
 | public board, v50 | 251.4767 s RMSE | the forecaster |
 | 2025 validation, protocol S (leave one month out), screen tier, ADS-B stack off | January 327.07 s, July 266.21 s (pooled 294.92 s) | a 2025 reference for a reduced configuration, not the final model's score (METHOD §6) |
@@ -74,7 +84,9 @@ each component: the swap-study ablations (METHOD §5) and the board history of w
 - AT7: the package's composition functions reproduce the v36 R12 lane on all 339,551 matched rows exactly.
 - The unmatched lane reproduces the shipped v26–v33 chain on all 5,290 unmatched scored rows except ARN's 8 (ARN dropped;
   `tests/fm1/test_fm1_unmatched.py`).
-- The two final configs resolve to the stored artefacts' config hashes (`tests/fm1/test_fm1_final_configs.py`).
+- The final configs listed in `tests/fm1/test_fm1_final_configs.py` (v50, v55, v57, v57_open, v57_tc) resolve to
+  their recorded config hashes and stored artefacts (v57_open, the final model, derived on 2026-10-06); v57_tc (a
+  candidate) has no artefact, so its recorded hash is the configuration's own.
 
 ## Licences
 

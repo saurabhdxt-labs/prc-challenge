@@ -446,3 +446,43 @@ def test_a_skipped_day_whose_previous_record_is_not_ok_carries_no_provenance(tmp
     man = af.run_days(["2025-02-01"], out_dir=out, fetch=io.fetch, extract=io.extract, log=lambda *a: None,
                       free_gib=lambda: 100.0)
     assert man["days"][0]["status"] == "skipped" and man["days"][0]["previous"] is None
+
+
+def test_year_type_accepts_any_integer_from_2025_on():
+    """Fails when year_type is hard-coded to {2025, 2026} (a `choices`-style check) instead of a >= 2025 bound
+    (2030 would then be refused)."""
+    assert af.year_type("2025") == 2025 and af.year_type("2026") == 2026 and af.year_type("2030") == 2030
+
+
+def test_year_type_refuses_below_2025_naming_the_value():
+    """Fails when the `year < 2025` lower bound is removed (2024 would be accepted and no error raised)."""
+    import argparse
+    with pytest.raises(argparse.ArgumentTypeError, match="2024"):
+        af.year_type("2024")
+
+
+def test_run_year_has_no_choices_restriction_and_keeps_its_default():
+    """`run --year` accepts a year `choices=[2025, 2026]` never allowed before (e.g. 2030), and still defaults to
+    2025 when omitted. Fails when `choices` is still attached to the argument (2030 would raise SystemExit) or the
+    default changes (omitting --year would not give 2025)."""
+    assert af.build_parser().parse_args(["run"]).year == 2025
+    assert af.build_parser().parse_args(["run", "--year", "2030"]).year == 2030
+
+
+def test_run_year_below_2025_is_refused_by_the_cli_with_a_clear_message(capsys):
+    """Fails when `run --year 2024` is silently accepted instead of being refused (SystemExit(2) from argparse,
+    with the reason on stderr)."""
+    with pytest.raises(SystemExit) as e:
+        af.build_parser().parse_args(["run", "--year", "2024"])
+    assert e.value.code == 2
+    assert "must be >= 2025" in capsys.readouterr().err
+
+
+def test_index_year_is_consistent_with_run_year_same_type_same_floor():
+    """`index --year` and `run --year` share one type function: both accept any year >= 2025 (not just 2025/2026),
+    and both refuse the same way below it. Fails when `index --year` keeps its own unchecked str type instead of
+    year_type (2024 would be accepted, or 2030 would stay a plain string instead of becoming the int 2030)."""
+    assert af.build_parser().parse_args(["index", "--year", "2030"]).year == 2030
+    with pytest.raises(SystemExit) as e:
+        af.build_parser().parse_args(["index", "--year", "2024"])
+    assert e.value.code == 2

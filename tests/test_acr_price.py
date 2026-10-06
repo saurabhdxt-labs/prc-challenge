@@ -14,7 +14,7 @@ import pytest
 from prc.pipeline.fm1 import features as F
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-_spec = importlib.util.spec_from_file_location("acr_price", ROOT / "scripts" / "analysis" / "acr_price.py")
+_spec = importlib.util.spec_from_file_location("acr_price", ROOT / "research" / "analysis" / "acr_price.py")
 A = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(A)
 COLS = ["joined", "dt_takeoff", "first_move_rel_mvt", "ground_seen_mvt_m10", "moving_mvt_m10", "coverage",

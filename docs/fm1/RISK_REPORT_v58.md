@@ -1,9 +1,9 @@
 # Risk report — board file v58 (2026-10-05)
 
 Structure: claim, evidence, threats to validity, residual uncertainty, reproduction. v58 is a board file, not a model:
-it is an average of files we had already uploaded. The documented model is FM1 (forecaster v50, best single model
-v57; RISK_REPORT_v55.md and RISK_REPORT_v57.md). Registrations and reports cited by name are the project's
-development record.
+it is an average of files we had already uploaded. The documented model is FM1 (forecaster v50, best single board
+file v57, final model open-data v57; RISK_REPORT_v55.md and RISK_REPORT_v57.md). Registrations and reports kept in
+the project's development record are described here by what they established, not by path.
 
 ## 1. Claim
 

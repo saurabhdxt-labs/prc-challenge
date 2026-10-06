@@ -8,6 +8,9 @@ anything that could make that false is refused by name."""
 from __future__ import annotations
 
 import dataclasses
+import pathlib
+import re
+import shutil
 
 import pandas as pd
 import pytest
@@ -22,7 +25,10 @@ QUIET = lambda *_a, **_k: None          # noqa: E731
 #: the registered allow-list, as knob-path prefixes (a `.`-terminated prefix covers a whole group)
 FREE_PREFIXES = ("run.purpose", "run.artifacts_dir", "calibration.mtx.", "modules.", "matched.blend.catboost_weight",
                  "adsb.stack.", "adsb.support_gate.", "adsb.min_coverage",
-                 "adsb.sources.adsb_fi", "adsb.table_dir")       # AFI 2026-10-03: data-guarded (adsb/train.parquet hash)
+                 "adsb.sources.adsb_fi", "adsb.table_dir",       # AFI 2026-10-03: data-guarded (adsb/train.parquet hash)
+                 "data.scored_file", "data.template_file")      # FP-W1 item 8, 2026-10-06: neither is read by engine.fit
+                                                                 # (only by engine.predict / build_submission); see
+                                                                 # test_fit_never_reads_the_scored_or_template_file below
 
 
 def _is_free(path: str) -> bool:
@@ -44,6 +50,89 @@ def test_the_reuse_allow_list_is_exactly_the_registered_groups():
                        "run.seeds", "run.threads", "airports.codes", "lanes.matched",
                        "unmatched.learner"):
         assert must_block in K.KNOBS and must_block not in K.REUSE_FREE_KNOBS, must_block
+
+
+def test_reuse_compares_weather_inputs_only_for_the_configured_training_months():
+    """Finding 2 (FP-W3 item 2, HIGH): fit_inputs hashes EVERY file under data.weather_dir (engine.py ~102-103), so
+    a new period's weather file sitting in the directory (added after the donor was fitted) must not force a
+    refit -- stand_ab.load_weather's as-of join never reaches a month outside data.train_months for an earlier
+    training row's anchor. _learner_input_diff compares weather/<station>_<YYYY>-<MM>.csv keys only for the
+    configured training months; raw/, orl_routes and adsb/train.parquet keys are always compared, regardless of
+    month. Mutation: drop the month filter (compare every weather/ key) -> the first assertion goes red; make the
+    function never compare weather/ at all -> the second assertion goes red."""
+    from prc.pipeline.fm1 import engine as G
+    donor_inputs = {"raw/a.parquet": "h1", "weather/EDDF_2025-01.csv": "wA", "weather/EDDF_2025-02.csv": "wB",
+                    "orl_routes": "o1", "adsb/train.parquet": "t1"}
+    # a weather file of a month the fit does not train on (2025-03) exists only on the live side: ignored
+    live_new_month = {**donor_inputs, "weather/EDDF_2025-03.csv": "wC"}
+    assert G._learner_input_diff(live_new_month, donor_inputs, train_year_months={"2025-01", "2025-02"}) == []
+    # a changed TRAINING month's weather file is still refused
+    live_changed_training = {**donor_inputs, "weather/EDDF_2025-01.csv": "wA_changed"}
+    assert G._learner_input_diff(live_changed_training, donor_inputs, train_year_months={"2025-01", "2025-02"}) == \
+        ["weather/EDDF_2025-01.csv"]
+    # the other learner inputs are always compared, regardless of data.train_months
+    live_raw_changed = {**donor_inputs, "raw/a.parquet": "h1_changed"}
+    assert G._learner_input_diff(live_raw_changed, donor_inputs, train_year_months={"2025-01", "2025-02"}) == ["raw/a.parquet"]
+    # identical inputs on both sides: nothing differs
+    assert G._learner_input_diff(donor_inputs, donor_inputs, train_year_months={"2025-01", "2025-02"}) == []
+
+
+def test_regression_a_new_period_weather_file_does_not_block_reuse_after_a_full_training_year():
+    """Regression (coordinator review 2026-10-06 of FP-W3 item 2): the first fix compared a weather file when its
+    MONTH NUMBER was in data.train_months; the final configs train on months 1-12 of 2025, so an October 2026 file
+    (month 10) was still compared and `fit --reuse-from` still refused a new period. The key is the training files'
+    YEAR-month. Mutation: compare by month number only -> red."""
+    from prc.pipeline.fm1 import engine as G
+    full_year = {f"2025-{m:02d}" for m in range(1, 13)}
+    donor_inputs = {"raw/a.parquet": "h1", **{f"weather/EDDF_2025-{m:02d}.csv": f"w{m}" for m in range(1, 13)}}
+    live = {**donor_inputs, "weather/EDDF_2026-10.csv": "w_new"}
+    assert G._learner_input_diff(live, donor_inputs, train_year_months=full_year) == []
+    changed = {**donor_inputs, "weather/EDDF_2025-10.csv": "w10_changed"}
+    assert G._learner_input_diff(changed, donor_inputs, train_year_months=full_year) == ["weather/EDDF_2025-10.csv"]
+
+
+def test_train_year_months_come_from_the_training_file_names():
+    """The year-months a fit trains on are read from its training files' names (engine.TRAIN_FILE_RE, the same
+    pattern files_by_month enforces); a name outside that pattern is refused by name. Mutation: return month
+    numbers only, or drop the guard -> red."""
+    from prc.pipeline.fm1 import engine as G
+    files = {1: pathlib.Path("raw/training_2025-01-01_2025-02-01.parquet"),
+             12: pathlib.Path("raw/training_2025-12-01_2026-01-01.parquet")}
+    assert G.train_year_months(files) == {"2025-01", "2025-12"}
+    with pytest.raises(E.SchemaError, match=re.escape("odd.parquet")):
+        G.train_year_months({1: pathlib.Path("raw/odd.parquet")})
+
+
+def test_reuse_input_diff_refuses_an_unparseable_weather_key():
+    """A weather/ input key that does not match weather/<station>_<YYYY>-<MM>.csv is refused by name rather than
+    silently treated as always-compared or never-compared -- fit_inputs (engine.py _dir_hashes) only ever writes
+    keys in that shape, so a differently-shaped key means the naming convention changed underneath this function.
+    Mutation: drop the regex-match guard -> no SchemaError raised -> red."""
+    from prc.pipeline.fm1 import engine as G
+    with pytest.raises(E.SchemaError, match=re.escape("weather/bad_name.csv")):
+        G._learner_input_diff({"weather/bad_name.csv": "x"}, {}, train_year_months={"2025-01"})
+
+
+def test_eobt_clip_and_ldi_apply_read_the_scored_file_directly(monkeypatch):
+    """FP-W1 item 8 addendum: positive control for test_fit_never_reads_the_scored_or_template_file below. Both
+    eobt_clip.apply and ldi.apply call pd.read_parquet(cfg.path('data.scored_file'), ...) unconditionally, before
+    touching any other argument -- so a trap on that exact path is not inert. (unmatched.check_e2_context, the
+    third known reader, only compares the resolved path / existence; it never calls read_parquet, so it is not
+    part of this control -- and it is reachable only from unmatched.serve, itself only from engine.predict.)
+    Mutation: remove either read_parquet call -> the matching pytest.raises block finds nothing to catch -> red."""
+    from prc.pipeline.fm1 import eobt_clip as EC
+    from prc.pipeline.fm1 import ldi as LDI
+    cfg = K.parse_config({})
+    scored_path = cfg.path("data.scored_file").resolve()
+
+    def trap(path, *a, **k):
+        assert pathlib.Path(path).resolve() == scored_path
+        raise AssertionError(f"read {path}")
+    monkeypatch.setattr(pd, "read_parquet", trap)
+    with pytest.raises(AssertionError, match=re.escape(str(scored_path))):
+        EC.apply(cfg, rows=None)
+    with pytest.raises(AssertionError, match=re.escape(str(scored_path))):
+        LDI.apply(cfg, matched=None, rows=None, ledger=None, stage=None)
 
 
 def test_reuse_blockers_names_every_differing_knob_outside_the_allow_list():
@@ -193,6 +282,42 @@ def test_reuse_refuses_different_input_data_encodings_or_design(cfg, donor):
 
 
 @pytest.mark.slow
+def test_fit_never_reads_the_scored_or_template_file(cfg, donor, tmp_path):
+    """FP-W1 item 8 addendum; hardened for FP-W3 item 3 (review finding 4): the original trap caught only
+    pd.read_parquet, but scripts/build_submission.py:75 reads with pq.read_table and other readers could use
+    pq.ParquetFile or plain open() -- none of those would have tripped a pd.read_parquet-only trap. Point
+    data.scored_file / data.template_file at paths that do not exist (both are reuse-free: FP-W1 item 8 /
+    knobs._REUSE_FREE_PREFIXES, exactly as test_a_different_scored_or_template_file_is_reuse_free below relies on),
+    so ANY reader of either path -- pandas, pyarrow, or a bare open() -- raises if engine.fit ever touches it; a
+    from-scratch fit and a derived (reuse_from=donor) fit must both complete. The positive control above
+    (test_eobt_clip_and_ldi_apply_read_the_scored_file_directly) proves the known scored-file readers are not
+    inert, so a regression there would still be caught even though this test no longer traps read_parquet
+    directly. Mutation: make engine.fit call EC.apply / LDI.apply / read data.template_file -> FileNotFoundError
+    here -> red."""
+    v = _variant(cfg, data__scored_file=str(tmp_path / "does_not_exist_scored.parquet"),
+                data__template_file=str(tmp_path / "does_not_exist_template.parquet"))
+    api.fit(v, save=False, log=QUIET)
+    api.fit(v, save=False, log=QUIET, reuse_from=donor)
+
+
+@pytest.mark.slow
+def test_a_different_scored_or_template_file_is_reuse_free(cfg, donor, tmp_path):
+    """FP-W1 item 8 addendum: data.scored_file / data.template_file were not in the reuse allow-list, so pointing a
+    variant at a new period's scored or template file forced a full refit although engine.fit never reads either
+    (see test_fit_never_reads_the_scored_or_template_file above). Fails when either knob is removed from
+    knobs._REUSE_FREE_PREFIXES (reuse_blockers would name it and the derived fit below would raise ReuseError
+    instead of completing with the donor's learners)."""
+    alt_scored, alt_template = tmp_path / "scored_alt.parquet", tmp_path / "template_alt.parquet"
+    shutil.copy(cfg.path("data.scored_file"), alt_scored)       # same content, a different path (BC-44: plain copy)
+    shutil.copy(cfg.path("data.template_file"), alt_template)
+    v = _variant(cfg, data__scored_file=str(alt_scored), data__template_file=str(alt_template))
+    assert K.reuse_blockers(v, cfg) == []
+    derived = api.fit(v, save=False, log=QUIET, reuse_from=donor)
+    assert derived.base is donor.base and derived.catboost is donor.catboost
+    assert derived.fit_report["reused_learners_from"] == donor.key
+
+
+@pytest.mark.slow
 def test_reuse_refuses_a_variant_that_needs_a_learner_the_donor_lacks(cfg):
     """A donor fitted without CatBoost (no blend, LightGBM stack base) cannot serve a variant that blends."""
     lean = api.fit(_variant(cfg, matched__blend__catboost_weight=0.0, adsb__stack__f_model="lightgbm"), save=False, log=QUIET)
@@ -211,3 +336,19 @@ def test_reuse_refuses_validation_splits_and_tiers(cfg, donor):
         G.fit(v, save=False, log=QUIET, reuse_from=donor, split={"train_months": [1], "es_months": [1]})
     with pytest.raises(E.ReuseError, match="split / tier"):
         G.fit(v, save=False, log=QUIET, reuse_from=donor, tier_overrides={"learning_rate": 0.05})
+
+
+def test_a_non_csv_file_in_the_weather_directory_never_blocks_reuse():
+    """Review 2 finding 7: fit_inputs hashes every file under data.weather_dir, but the weather loader reads only *.csv;
+    a `.DS_Store` or an interrupted fetch's `.part` raised SchemaError in the donor comparison although no learner can
+    read it. Keys the loader never reads are skipped; a .csv whose name breaks the naming convention is still refused
+    (the loader WOULD read it). Mutations: refuse every unparseable weather/ key again, or stop skipping sub-folder
+    files -> red."""
+    from prc.pipeline.fm1 import engine as G
+    ym = {"2025-01"}
+    donor = {"weather/EDDF_2025-01.csv": "w1"}
+    live = {**donor, "weather/.DS_Store": "x", "weather/EDDF_2025-02.csv.part": "y",
+            "weather/old/EDDF_2025-01.csv": "w_old"}            # a sub-folder: the top-level glob never reads it
+    assert G._learner_input_diff(live, donor, train_year_months=ym) == []
+    with pytest.raises(E.SchemaError, match=re.escape("weather/odd.csv")):
+        G._learner_input_diff({**donor, "weather/odd.csv": "z"}, donor, train_year_months=ym)

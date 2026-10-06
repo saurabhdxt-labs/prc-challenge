@@ -87,3 +87,12 @@ def test_render_refuses_a_broken_schema():
     bad = K.Knob("a.b", "bool", True, effect="short", evidence="plans/PREREG_fm1_2026_09_28.md")
     with pytest.raises(E.ConfigError, match="effect"):
         R.render_reference((bad,))
+
+
+def test_header_says_the_evidence_column_names_the_unshipped_development_record():
+    """Final-product audit 2026-10-06: the evidence column cites files under plans/ and reports/, which are not part of
+    the repository; without a sentence saying so a reader takes them for missing files. Mutation: drop the sentence
+    from render_reference -> red."""
+    text = R.render_reference()
+    header = " ".join(text.split("## ", 1)[0].split())          # the header is line-wrapped markdown
+    assert "evidence" in header and "development record" in header and "not part of this repository" in header

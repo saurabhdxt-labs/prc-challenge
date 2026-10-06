@@ -26,12 +26,19 @@ def test_config_reference_check_passes():
 
 
 def test_dry_run_of_the_default_config():
-    """Amendment A3: with Rome, ARC and the storm anchor ported, the documented forecaster plans every stage."""
+    """Amendment A3: with Rome, ARC and the storm anchor ported, the documented forecaster plans every stage.
+    The plan does not depend on the data being present; the exit code does (1 = a required input is missing,
+    api.dry_run_refused), so this test asserts the plan, and that the exit code agrees with the report — on the
+    development machine (data present: 0) and in a fresh clone (no data: 1). Regression 2026-10-06: it asserted exit 0
+    and so passed only where the data exists (BC-45: a test that depends on the machine's state); the clone-tier check
+    caught it. Mutation: assert returncode == 0 again -> red in a clone; drop the CLI's refusal exit -> red here
+    whenever the report is refused."""
+    from prc import api
     r = _prc("validate", "--config", FM1, "--protocol", "dry-run")
-    assert r.returncode == 0, r.stderr
     rep = json.loads(r.stdout)
     assert rep["not_ported"] == [] and rep["stages"][-6:] == ["unmatched_body", "rome", "arc", "rome_e2", "rome_e2w",
                                                                "finalise"]
+    assert r.returncode == (1 if api.dry_run_refused(rep) else 0), r.stderr
 
 
 @pytest.mark.devtree
@@ -80,6 +87,27 @@ def test_save_models_flag_defaults_off_and_reaches_the_api(monkeypatch):
     assert rc == 0 and captured["save_models"] is True
     rc = cli.main(["validate", "--config", str(FM1), "--protocol", "S"])
     assert rc == 0 and captured["save_models"] is False
+
+
+def test_dry_run_exit_code_follows_the_report_not_a_hard_coded_zero(monkeypatch):
+    """The help text says 1 = refused, but a dry-run report that names a refusal (training_months the REFUSED
+    string, or plan_refused present) used to still exit 0 because the validate branch always `return 0`-ed. No
+    real config or fit needed: api.validate is faked to return a canned report. Mutation: drop the
+    api.dry_run_refused(rep) check from main() -> rc stays 0 for the refused report -> red."""
+    from prc import __main__ as cli
+    from prc import api as api_mod
+
+    monkeypatch.setattr(api_mod, "validate",
+                        lambda *a, **k: {"training_months": "REFUSED: no training file for 2025-01",
+                                          "stages": ["a"], "paths": {}})
+    rc = cli.main(["validate", "--config", str(FM1), "--protocol", "dry-run"])
+    assert rc == 1
+
+    monkeypatch.setattr(api_mod, "validate",
+                        lambda *a, **k: {"training_months": {1: "training_2025-01-01_x.parquet"},
+                                          "stages": ["a", "b"], "paths": {}})
+    rc = cli.main(["validate", "--config", str(FM1), "--protocol", "dry-run"])
+    assert rc == 0
 
 
 def test_reuse_from_flag_defaults_to_none_and_reaches_the_api(monkeypatch):

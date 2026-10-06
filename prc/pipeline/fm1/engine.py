@@ -135,8 +135,50 @@ def _orl(cfg):
 
 #: fit_inputs keys the matched learners were fitted on (the free stages' inputs — stack models, MTX csv, E2 rules — change
 #: with the reuse allow-list's knobs and are not compared)
-#: what a fit reads to train the matched learners; adsb/serve.parquet is not one (fit reads only train.parquet, AFI)
-_LEARNER_INPUTS = ("raw/", "weather/", "orl_routes", "adsb/train.parquet")
+#: what a fit reads to train the matched learners, always; adsb/serve.parquet is not one (fit reads only train.parquet,
+#: AFI). weather/ is handled separately by _learner_input_diff (only the training files' year-months are read).
+_LEARNER_INPUTS = ("raw/", "orl_routes", "adsb/train.parquet")
+#: a weather fit_inputs key, as _dir_hashes writes it: "weather/<station>_<YYYY>-<MM>.csv"
+_WEATHER_INPUT_RE = re.compile(r"^weather/[^/]+_(\d{4}-\d{2})\.csv$")
+
+
+def train_year_months(files: dict) -> set:
+    """{"YYYY-MM"} of the training files a fit reads ({month: path}, as training_files / fit build it), from their
+    names (TRAIN_FILE_RE, the pattern files_by_month enforces). A name outside the pattern is refused by name."""
+    out = set()
+    for p in files.values():
+        m = TRAIN_FILE_RE.match(pathlib.Path(p).name)
+        if not m:
+            raise E.SchemaError(f"training file {pathlib.Path(p).name} does not follow training_YYYY-MM-01_<next>.parquet")
+        out.add(f"{m.group(1)}-{m.group(2)}")
+    return out
+
+
+def _learner_input_diff(inputs: dict, donor_inputs: dict, train_year_months) -> list:
+    """Sorted keys of `inputs` / `donor_inputs` that differ AND that this fit's matched learners actually read:
+    every raw/, orl_routes and adsb/train.parquet key, always; a weather/<station>_<YYYY>-<MM>.csv key only when
+    its YEAR-month is one of `train_year_months` (train_year_months(files)). stand_ab.load_weather loads the whole
+    weather directory, but the as-of join in build_weather never reaches a year-month outside the training files'
+    for a training row's own anchor, so another period's weather file in the directory (fit_inputs hashes every
+    file under data.weather_dir) is never read by this fit and must not force a refit (review finding 2; keyed by
+    year-month, not month number: the final configs train on all twelve months of 2025, coordinator review)."""
+    year_months = set(train_year_months)
+    out = []
+    for k in sorted(set(inputs) | set(donor_inputs)):
+        if k.startswith("weather/"):
+            rel = k[len("weather/"):]
+            if "/" in rel or not rel.endswith(".csv"):  # the loader reads only top-level *.csv (prc/weather.py)
+                continue
+            m = _WEATHER_INPUT_RE.match(k)
+            if not m:
+                raise E.SchemaError(f"weather input key {k!r} does not match weather/<station>_<YYYY>-<MM>.csv")
+            if m.group(1) not in year_months:
+                continue
+        elif not k.startswith(_LEARNER_INPUTS):
+            continue
+        if inputs.get(k) != donor_inputs.get(k):
+            out.append(k)
+    return out
 
 
 def _reuse_learners(donor: A.ModelArtifact, cols, enc_m, n_rows: int, n_es: int, need_cat: bool) -> tuple:
@@ -192,8 +234,7 @@ def fit(config, *, save: bool = True, allow_heavy: bool = False, tier_overrides:
     if cfg["features.adsb"]:
         F.check_table_sources(cfg.path("adsb.table_dir"), cfg["adsb.sources.adsb_fi"])
     if donor is not None:
-        diff = sorted(k for k in set(inputs) | set(donor.inputs)
-                      if k.startswith(_LEARNER_INPUTS) and inputs.get(k) != donor.inputs.get(k))
+        diff = _learner_input_diff(inputs, donor.inputs, train_year_months(files))
         if diff:
             raise E.ReuseError(f"input data differ from the donor {donor.key}'s: {diff[:5]}"
                                + (f" (+{len(diff) - 5} more)" if len(diff) > 5 else ""))

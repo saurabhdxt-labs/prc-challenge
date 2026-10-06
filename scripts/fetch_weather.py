@@ -40,12 +40,11 @@ import pandas as pd
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from prc import weather as WX  # noqa: E402
+from prc.months import DEFAULT_MONTHS, parse_months  # noqa: E402
 WEATHER = ROOT / "data" / "weather"
 BASE = "https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py"
 #: the ten scored airports; the archive keys on the ICAO identifier, as the movement table does
 APTS = ["EDDF", "EDDM", "EGLL", "EHAM", "LEBL", "LEMD", "LFPG", "LIRF", "LSZH", "LTFM"]
-#: the twelve training months plus the two scored months of 2026
-MONTHS = [(2025, m) for m in range(1, 13)] + [(2026, 1), (2026, 7)]
 #: what the block reads: the raw fields only - every derived flag is computed in stand_ab, so a
 #: change to the derivation never requires a re-fetch
 FIELDS = "tmpf,dwpf,sknt,gust,vsby,p01i,wxcodes,metar"
@@ -111,15 +110,33 @@ def name(station: str, year: int, month: int) -> str:
     return f"{station}_{year}-{month:02d}.csv"
 
 
+def month_list(spec: str) -> list[tuple[int, int]]:
+    """`spec` (prc.months.parse_months syntax) as (year, month) int tuples, in calendar order."""
+    return [(int(ym[:4]), int(ym[5:7])) for ym in parse_months(spec)]
+
+
+def build_jobs(months_spec: str, smoke: bool) -> list[tuple[str, int, int]]:
+    """The (station, year, month) fetch jobs: one (EHAM, 2025, 1) under --smoke (months_spec is then ignored - a
+    smoke run is a fixed one-airport-one-month check, not a sample of the requested months), else every scored
+    airport crossed with every month of `months_spec`, airport-major (matches the job list before --months
+    existed, when it was built from the module constant MONTHS)."""
+    if smoke:
+        return [("EHAM", 2025, 1)]
+    return [(s, y, m) for s in APTS for (y, m) in month_list(months_spec)]
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--smoke", action="store_true", help="one airport, one month, into data/weather_smoke/")
     ap.add_argument("--out-dir", default=None, help="override the destination (tests)")
     ap.add_argument("--refetch", action="store_true", help="fetch months already on disk again (default: skip)")
+    ap.add_argument("--months", default=DEFAULT_MONTHS,
+                     help="months to fetch for every airport (prc.months.parse_months syntax); default is every "
+                          "month the caches use plus both scored months of 2026; ignored under --smoke")
     a = ap.parse_args(argv)
     out = pathlib.Path(a.out_dir) if a.out_dir else (ROOT / "data" / "weather_smoke" if a.smoke else WEATHER)
     out.mkdir(parents=True, exist_ok=True)
-    jobs = [("EHAM", 2025, 1)] if a.smoke else [(s, y, m) for s in APTS for (y, m) in MONTHS]
+    jobs = build_jobs(a.months, a.smoke)
     got = skipped = 0
     t0 = time.time()
     for station, year, month in jobs:

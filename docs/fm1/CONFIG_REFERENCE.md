@@ -9,6 +9,10 @@ scored-period build: `--set run.purpose=scored_period`.
 
 Status: `implemented` = runs in FM1; `provisional` = runs, but its reproduction of the shipped component is not verified yet; `not_ported` = declared; `fit`/`predict` refuse while it is switched on (ComponentNotPortedError); `schema_only` = validated and recorded, not read by any stage yet.
 
+The evidence column names where each value was established: a line of code in this repository, or a file of
+the development record (registrations, reports and run logs under `plans/`, `reports/`, `logs/`), which is not
+part of this repository.
+
 ## `run`
 
 | knob | type | default | range | status | effect | evidence |

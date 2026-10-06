@@ -1,8 +1,8 @@
-# FM1 — method report (2026-09-28; §5 filled 2026-09-30; §6, §8 and the EOBT clip 2026-10-02; corrections 2026-10-04)
+# FM1 — method report (2026-09-28; §5 filled 2026-09-30; §6, §8 and the EOBT clip 2026-10-02; corrections 2026-10-04; open-data v57 as the final model 2026-10-06)
 
-Every number below comes from a registered study (its registration is named where it is used); none is a result
-from an unregistered look. Registrations (`plans/…`), reports (`reports/…`) and run logs are the project's development
-record, cited by name; the model needs none of them to run or to be rebuilt.
+Every number below comes from a registered study. Registrations, reports and run logs are the project's development
+record: not part of the repository, described here by what they established rather than by path, and the model
+needs none of them to run or to be rebuilt.
 
 ## 1. Problem and row classes
 
@@ -90,14 +90,15 @@ The shipped v36 unmatched chain, ported through the shipped modules' public func
 | `rome_e2` | LIRF rows still at their Rome value, 3,600 ≤ sp < 24,000 | the frozen stand-inbound logit replaces p; a UTC day whose move energy per moved row exceeds the p99 threshold reverts | v31 |
 | `rome_e2w` | the rows E2 moved | E2's form with beta_W, refitted at FIT time by stake-weighted Brier on the training months' LIRF band rows (p_R and the non-fill term nested leave-one-month-out); its own day check | v33 |
 | `storm` | rows the body still decides | rint(v + max(A − 300, 0)), A = the airport-day anomaly of the scored rows' matched MVT − AOBT_3 | v16 (inside v24–v26) |
-| `uad` (optional, `modules.uad.enabled`; on in `configs/fm1_v57.yaml`) | rows the body or the storm anchor decided whose aircraft's ADS-B ground track is seen leaving the row's own stand | rint(max(v + w·(u′ − v), 1)); u′ = p·(MVT − SCHED) + (1 − p)·(est + c), est = MVT − the time the track left the stand, c = the airport's offset, p = the lane's fill probability; w = 0.739, or 0.8 where A > 300 s; half of w when est is between 60 and 90 min | new in FM1 (no shipped file yet) |
+| `uad` (optional, `modules.uad.enabled`; on in the final model, `configs/fm1_v57_open.yaml`, and in board file v57, `configs/fm1_v57.yaml`) | rows the body or the storm anchor decided whose aircraft's ADS-B ground track is seen leaving the row's own stand | rint(max(v + w·(u′ − v), 1)); u′ = p·(MVT − SCHED) + (1 − p)·(est + c), est = MVT − the time the track left the stand, c = the airport's offset, p = the lane's fill probability; w = 0.739, or 0.8 where A > 300 s; half of w when est is between 60 and 90 min | new in FM1 (no shipped file yet) |
 
 ARN (v21) is dropped; its 8 scored rows keep their Rome / E2 values (measured: no other row moves). The shipped S1 cells and
 R2 classifier fit and predict in one call, so the artefact stores the lane's training frames (`unmatched_lane/`) and predict
 re-runs every fit, seeded (bit-reproducible, tested). Set-level rules (witness, anomaly, ARC's ARR join, E2's day checks and
 its stand-inbound context read from `data.raw_dir`) mean the whole scored file must be served together.
 
-**The stand-exit estimate (`uad`; `prc/pipeline/fm1/uad.py`, `plans/PREREG_uad_unmatched_adsb_offblock_2026_10_04.md`).**
+**The stand-exit estimate (`uad`; `prc/pipeline/fm1/uad.py`; the registration of the stand-exit stage, kept in the
+development record).**
 A departure without a flight-plan record has no `AOBT_3`, and the lane above predicts it from the schedule and the day's
 congestion. Where the aircraft's own ADS-B track is on the ground at its stand, the track gives the time it left.
 `scripts/analysis/uad_build.py` builds that table without reading a label: stand positions are the median parked position
@@ -109,13 +110,15 @@ used up to 90 min. The offsets c (40–254 s by airport) and the weights w come 
 once: on the 317 January + July 2025 rows with an estimate, against leave-one-month-out predictions, RMSE fell from
 432.4 to 274.4 s; body gain +53.3 bmse [21.8, 85.3], positive in both months, without the ten largest rows, and with
 EHAM removed. In the scored months of 2026 the table gives an estimate to 503 of the 5,290 unmatched departures (230 of
-them EHAM in January); the stage has not been scored on the board. Limits: LIMITATIONS 22.
+them EHAM in January); its score as part of a whole file is in §7 (arm UAD) and §8 (board file v57). It is also on
+in the final model (open-data v57, `configs/fm1_v57_open.yaml`), which has not itself been scored on the board.
+Limits: LIMITATIONS 22.
 
-## 5. Selection study (2026-09-30; `plans/PREREG_swap_selection_2026_09_30.md`, `plans/PREREG_weather_S_check_2026_09_30.md`)
+## 5. Selection study (2026-09-30; two studies registered before either was run, kept in the development record)
 
 **Why the strict swap is the primary selector.** Our 2025 Jan / Jul holdout skill matches or beats teams that score 11–14 RMSE
-better than us on the 2026 board, so the gap is in 2025 → 2026 transfer, not in-season fit (`reports/MSE_LEDGER.md`,
-2026-09-30 08:20). Two changes priced on 2025 this campaign did far worse on the board than priced (HPX-S −703 vs +120;
+better than us on the 2026 board, so the gap is in 2025 → 2026 transfer, not in-season fit (the project's ledger,
+kept in the development record, 2026-09-30 08:20). Two changes priced on 2025 this campaign did far worse on the board than priced (HPX-S −703 vs +120;
 MOVE −1,121 vs −398). The swap protocol (`prc/pipeline/fm1/protocols.py`: X1to7 = fit January only, test July; X7to1 = fit
 July only, test January; early stopping on days ≥ 24 of the training month) trains and tests on different seasons, so a
 component that only fits its training season loses there.
@@ -198,7 +201,7 @@ a differently made F than it was trained on (LIMITATIONS 16).
 The swap-study arms (§5) are the ablations of the final configuration. Below are the other levers tried in the last three
 weeks, each registered before it was measured, with its verdict as recorded. Units as recorded: **s** = paired RMSE gain on
 a 2025 holdout; **bmse** = SSE / 344,841 on 2025 holdout rows; **board MSE** = change on the 2026 public board. Positive =
-the lever helped. Sources: `reports/MSE_LEDGER.md` and each registration's hash log (`reports/<arm>_prereg_hashes.log`).
+the lever helped. Sources: the project's ledger and each registration's hash log, kept in the development record.
 
 | date | arm | what was tried | headline | verdict |
 |---|---|---|---|---|
@@ -228,7 +231,7 @@ the lever helped. Sources: `reports/MSE_LEDGER.md` and each registration's hash 
 | 10-02 | ACR | training with ADS-B randomly hidden (coverage-regime repair) | the 2026 coverage loss costs 862.7 bmse [671.7, 1124.8]; the repair recovers 25.7 [−120.5, 163.9] | FALSE: information, not calibration |
 | 10-03 | AFI (v55) | adsb.fi July-2026 capture merged into the serve table (no refit) | +609.6 board MSE vs v51 (registered +150 … +600) | TRUE: in the scored-period build |
 | 10-03 | AFB (v56) | adsb.fi only where adsb.lol had no track | −205.8 vs v55 | FALSE |
-| 10-05 | UAD | the aircraft's own ADS-B stand-exit time for departures without a flight-plan record (stage `uad`) | 317 January + July 2025 rows: RMSE 432.4 → 274.4 s; body +53.3 bmse [21.8, 85.3] | TRUE on 2025; optional stage, on in board file v57 (+1,291.9 MSE against v55, §8) |
+| 10-05 | UAD | the aircraft's own ADS-B stand-exit time for departures without a flight-plan record (stage `uad`) | 317 January + July 2025 rows: RMSE 432.4 → 274.4 s; body +53.3 bmse [21.8, 85.3] | TRUE on 2025; optional stage, on in board file v57 (+1,291.9 MSE against v55, §8) and in the final model (open-data v57, not yet scored) |
 | 10-05 | TC | the unmatched body without its tail-cell rule (a cell mean of 3,000 s or more no longer overrides the learned body; `modules.tail_cells.enabled` false) | registered test, the 3 July 2025 rows the rule decides out of month: +79.7 bmse (values 3,090–5,696 s against labels 1,130–1,268 s; the body gives 1,051–1,275 s). Seen before the registration: 25 rows in the ten design months, +492 bmse, 8 of 8 months | TRUE, thin (28 rows in 2025, all LTFM, none on a storm day); knob off in the candidate `configs/fm1_v57_tc.yaml`; never uploaded as a 10-row change |
 
 Reading: almost every lever that looked good on a 2025 holdout either failed its own registered gate or lost on the 2026
@@ -253,15 +256,22 @@ for unseen data (the final-model audit of 2026-09-28 put about 28 % of the cumul
 | v46 | LightGBM + CatBoost stack base at the R12 cells (with MTX) | **250.7314** | +38.5 vs v43 — best file until v55 |
 | v48 | Rome delayed-departure rule (HPX-S) | 252.1294 | −703 (worse); not kept |
 | v49 | movement-only ADS-B base (MOVE) | 253.0326 | −1,121 vs v43 (worse); not kept |
-| **v50** | **FM1, the final model (forecaster, full fit)** | 251.4767 | −374 vs v46 (registered band met: +0.745 RMSE) |
-| v51 | v50 + MTX (scored-period build) | **251.1335** | +172.5 vs v50 — best FM1 file |
+| **v50** | **FM1's forecaster (full fit)** | 251.4767 | −374 vs v46 (registered band met: +0.745 RMSE) |
+| v51 | v50 + MTX (scored-period build) | **251.1335** | +172.5 vs v50 — best FM1 file on open data until v57 |
 | v52 | v50 + coverage-ratio gate (stack off at EDDF) | 251.4978 | −10.6 vs v50; not kept |
 | v53 | v50 without the CatBoost half-blend | 251.8068 | −166.1 vs v50; not kept |
 | v54 | v51 + the EOBT clip at LFPG July | 251.5593 | −214.0 vs v51; not kept |
 | v55 | v51 + adsb.fi July-2026 serve table (adsb.lol ∪ adsb.fi, LTFM excluded) | **249.9168** | +609.6 vs v51; +407.8 vs v46 — best file until v57 |
 | v56 | as v55, adsb.fi only where adsb.lol had no track | 250.3282 | −205.8 vs v55; not kept |
-| v57 | v55 + the ADS-B stand-exit stage `uad` for departures without a flight-plan record | **247.3187** | +1,291.9 vs v55 — best single model; best file until v58 |
+| v57 | v55 + the ADS-B stand-exit stage `uad` for departures without a flight-plan record | **247.3187** | +1,291.9 vs v55 — best single board file; best file until v58 |
 | **v58** | **average of whole board files (v33, v36, v41, v43, v55) + v57's stand-exit change; unmatched rows = v57** | **246.2224** | **+541.1 vs v57 — best file; not an FM1 output** |
+| v59 | **the final model**: open-data v57 (v57 without the adsb.fi capture: v51 + the stand-exit stage) | **248.5486** | −609.9 vs v57 (the open-data price; predicted 248.5481 before upload) |
+
+**The final model is open-data v57** (`configs/fm1_v57_open.yaml`): v57 served on the open ADS-B table
+(`data/r12/tables_51348d3e1cb3`, `adsb.sources.adsb_fi: false`) instead of the adsb.fi-merged one that board files
+v55 and v57 use. Its board score is 248.5486 (board file v59, 2026-10-06): 609.9 MSE behind v57, the measured
+price of using open data only (the same gap as v51 to v55, 609.6 MSE). Board files v55, v57 and v58 used
+the owner's adsb.fi capture (v55, v57) or are an average of board files (v58); the final model does not use adsb.fi.
 
 Rows read from the project's board records (v50–v53 from the scoring service's result files, 2026-10-02); v42's MTX gain
 (+124) and the individual Rome steps v7 / v10 are quoted in the ledger and not repeated here. v51–v53 are board-selected
@@ -287,5 +297,6 @@ the departures without a flight-plan record keep v57's values; and v57's stand-e
 written down before the upload was 246.2105 (the average itself: 246.2197 exactly; the file differs from it on the
 unmatched rows); the board gave 246.2224, 5.9 MSE away. The members' own scores include an earlier few-row rule on
 seven Rome rows, which the file does not carry. The file means nothing on other data. The documented model remains
-FM1: the forecaster v50 and the best single model v57. The members v33–v43 are files of the chain that preceded FM1
-and are not rebuilt by the shipped code (REPRODUCE, RISK_REPORT_v58).
+FM1: the forecaster v50, the best single board file v57, and the final model, open-data v57 (`configs/fm1_v57_open.yaml`,
+not yet scored). The members v33–v43 are files of the chain that preceded FM1 and are not rebuilt by the shipped code
+(REPRODUCE, RISK_REPORT_v58).

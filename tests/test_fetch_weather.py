@@ -126,6 +126,44 @@ def test_fetch_retries_transient_failures_then_gives_up(monkeypatch):
     assert isinstance(e.value.__cause__, OSError)
 
 
+def test_month_list_parses_the_default_months_into_year_month_tuples():
+    """Fails when month_list does not exist, or does not call prc.months.parse_months (would raise or return the
+    wrong type/order)."""
+    assert fw.month_list(fw.DEFAULT_MONTHS) == [(2025, m) for m in range(1, 13)] + [(2026, 1), (2026, 7)]
+
+
+def test_month_list_parses_a_custom_spec():
+    """Fails when month_list hard-codes the default instead of parsing its `spec` argument."""
+    assert fw.month_list("2026-10") == [(2026, 10)]
+
+
+def test_build_jobs_default_reproduces_the_old_hard_coded_month_list_exactly():
+    """The invariant: default --months must reproduce today's hard-coded job list exactly (10 airports x 14
+    months = 140 jobs, in airport-major order). Fails when build_jobs's default branch uses a different months
+    source than prc.months.DEFAULT_MONTHS, or iterates airports/months in the wrong nesting (order would differ
+    even if the set were the same)."""
+    old_months = [(2025, m) for m in range(1, 13)] + [(2026, 1), (2026, 7)]
+    want = [(s, y, m) for s in fw.APTS for (y, m) in old_months]
+    got = fw.build_jobs(fw.DEFAULT_MONTHS, smoke=False)
+    assert len(got) == 140 == len(want)
+    assert got == want
+
+
+def test_build_jobs_months_argument_restricts_the_non_smoke_job_list():
+    """Fails when build_jobs ignores `months_spec` for the non-smoke branch (job count would stay 140 instead of
+    10, one per airport, for a single-month spec)."""
+    got = fw.build_jobs("2026-10", smoke=False)
+    assert got == [(s, 2026, 10) for s in fw.APTS]
+    assert len(got) == len(fw.APTS)
+
+
+def test_build_jobs_smoke_ignores_months_argument():
+    """Fails when the --smoke branch is changed to also depend on months_spec (a wrong --months would then change
+    the smoke job instead of being ignored)."""
+    assert fw.build_jobs("2026-10", smoke=True) == [("EHAM", 2025, 1)]
+    assert fw.build_jobs(fw.DEFAULT_MONTHS, smoke=True) == [("EHAM", 2025, 1)]
+
+
 def test_an_interrupted_write_never_leaves_a_file_under_the_real_name(tmp_path, monkeypatch):
     """The atomicity claim, forced: the write dies halfway. Only the .part file may exist, so a later
     build cannot read a truncated month as complete. Rehearsed 2026-09-11: RED when the .part

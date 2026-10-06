@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "research"))     # gate_info.py moved here (FP-W4)
 import gate_info as G  # noqa: E402
 
 

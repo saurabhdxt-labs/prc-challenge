@@ -11,7 +11,7 @@ import pathlib
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-_spec = importlib.util.spec_from_file_location("clp_checks", ROOT / "scripts" / "analysis" / "clp_checks.py")
+_spec = importlib.util.spec_from_file_location("clp_checks", ROOT / "research" / "analysis" / "clp_checks.py")
 X = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(X)
 

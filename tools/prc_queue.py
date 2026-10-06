@@ -227,6 +227,14 @@ def guard_cmd(pid: int, step_log) -> list:
     return V.memguard_cmd(pid, step_log)
 
 
+def r12_launch_cmd(step: Step) -> list:
+    """The command that launches one r12 step through scripts/analysis/r12_launch.py: always --machine-guards (the
+    owner's own machine has AC power to check and a reserved Phantom window to respect; --machine-guards defaults
+    off in r12_launch.py only for environments, like Linux or a test sandbox, that cannot check `pmset` at all)."""
+    return [PY, "-B", str(ROOT / "scripts/analysis/r12_launch.py"), "--step", step.r12_step, "--detach",
+            "--machine-guards", "--", *step.argv]
+
+
 def phantom_state(last_line, age_s, fresh_s: float = FRESH_S, since_heavy_s=None) -> str:
     """idle / busy / lock / stale, from the batch runner's last stdout line and the log's age. With `since_heavy_s`
     (seconds since our last heavy step ended), a line no newer than that step is not evidence about what came due while
@@ -474,8 +482,7 @@ def _execute(d: pathlib.Path, step: Step) -> int:  # pragma: no cover - launches
                 fh.flush()
                 return supervise_guarded(p, *guard_hooks(p.pid, out, fh))
             return p.wait()
-        r = subprocess.run([PY, "-B", str(ROOT / "scripts/analysis/r12_launch.py"), "--step", step.r12_step,
-                            "--detach", "--", *step.argv], cwd=ROOT, capture_output=True, text=True)
+        r = subprocess.run(r12_launch_cmd(step), cwd=ROOT, capture_output=True, text=True)
         fh.write(r.stdout + r.stderr)
         fh.flush()
         if r.returncode != 0:

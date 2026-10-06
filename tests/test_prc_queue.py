@@ -444,6 +444,18 @@ def test_guard_command_is_the_launchers_pause_on_phantom_mem_guard_beside_the_st
     assert cmd[cmd.index("--log") + 1] == str(tmp_path / "move_dryrun_memguard.log")
 
 
+def test_r12_launch_command_always_passes_machine_guards():
+    """The owner's machine has AC power and must respect Phantom's track_record window, so every r12 step the
+    queue launches must carry --machine-guards (r12_launch.py defaults it off, for environments that cannot check
+    either). Fails when --machine-guards is dropped from the built command (the owner's runs would silently stop
+    being refused on battery / inside the window)."""
+    step = Q.Step(id="f", kind="r12", argv=("features", "--store", "data/r12/features_x", "--final"),
+                 check=None, r12_step="features")
+    cmd = Q.r12_launch_cmd(step)
+    assert cmd == [Q.PY, "-B", str(ROOT / "scripts/analysis/r12_launch.py"), "--step", "features", "--detach",
+                   "--machine-guards", "--", "features", "--store", "data/r12/features_x", "--final"]
+
+
 # ------------------------------------------------------------------ lock race (BC-35, 2026-09-30 00:26)
 
 LOCK_RACE_LOG = """[2026-09-30 00:25:22] preflight: vm.swapusage: total = 11264.00M  used = 9640.06M; OK

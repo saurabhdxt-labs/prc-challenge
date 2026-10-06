@@ -23,7 +23,7 @@ import pandas as pd
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-_spec = importlib.util.spec_from_file_location("cor_corrector", ROOT / "scripts" / "analysis" / "cor_corrector.py")
+_spec = importlib.util.spec_from_file_location("cor_corrector", ROOT / "research" / "analysis" / "cor_corrector.py")
 C = importlib.util.module_from_spec(_spec)
 sys.modules["cor_corrector"] = C
 _spec.loader.exec_module(C)

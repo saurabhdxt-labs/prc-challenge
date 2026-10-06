@@ -8,7 +8,7 @@ re-checked, the table says so.
 |---|---|---|---|---|
 | PRC Data Challenge 2026 movement files (training months, ranking/submitting) | yes — all rows | `scripts/fetch_data.py` (the organiser's bucket; each object checked against its ETag (the MD5 of a single-part upload) or, for a multipart upload, its size; recorded in `data/raw/FETCH_MANIFEST.json`) | the organiser's challenge terms; not redistributed | `.gitignore` header |
 | adsb.lol globe_history | yes — the ADS-B tables (stamp 51348d3e1cb3; the stored stack's training holdout used the older 801f9bcac9a5 tables) and the stand-exit table of the optional `uad` stage | `scripts/adsb_fetch.py` | **ODbL 1.0**; attribution "ADSB.lol contributors" | `scripts/adsb_fetch.py:6,52` |
-| adsb.fi opendata (the owner's 60 s poll archive) | v55 only: July-2026 serve table (`adsb.sources.adsb_fi`; off in the forecaster v50) | the owner's poll archive, extracted by a local step that is not shipped (the capture cannot be redistributed) | **non-commercial** terms; not redistributed; July 2026 capture only, cannot be re-fetched — see the eligibility note below | this table |
+| adsb.fi opendata (the owner's 60 s poll archive) | board files v55 and v57 only: July-2026 serve table (`adsb.sources.adsb_fi`; off in the forecaster v50 and in the final model, `configs/fm1_v57_open.yaml`) | the owner's poll archive, extracted by a local step that is not shipped (the capture cannot be redistributed) | **non-commercial** terms; not redistributed; July 2026 capture only, cannot be re-fetched; attribution "Data: adsb.fi (https://adsb.fi)" — see the eligibility note below | this table |
 | OpenStreetMap (Overpass) | yes — the ORL route table | `scripts/analysis/orl_build.py fetch/build` | **ODbL 1.0**; "(c) OpenStreetMap contributors" | `scripts/analysis/orl_build.py:14,164` |
 | X-Plane Scenery Gateway apt.dat | no (tried as a stand fallback, not used) | not shipped | **GPL v2 or later** | — |
 | EUROCONTROL ansperformance monthly taxi-out CSV (`taxi_out_additional_time_<year>.csv`) | only the scored-period build (MTX; off in the forecaster) | `data/mtx/raw/MANIFEST.json` (sha256) | EUROCONTROL performance open data (published monthly aggregates; use as a model input confirmed by the organiser, below); the page's reuse terms are not quoted here | the organiser statement of 2026-09-27 (below) |
@@ -16,11 +16,21 @@ re-checked, the table says so.
 | Open-Meteo | no (tried beside METAR, not used) | not shipped | not an FM1 input | — |
 
 Derived inputs (ADS-B tables, the ORL route table, the MTX CSVs) are rebuilt from the sources above by code in the
-repository; the stored ADS-B stack models are an input the current code cannot regenerate byte for byte. REPRODUCE.md
-lists each one with the command and the version the final model uses.
+repository. The stored ADS-B stack models (`data/r12/r13_stack_full/models_lgbcat/`) are the one input the current
+code cannot regenerate byte for byte; they are shipped in the repository, so a clone has them already, and
+regenerating them from scratch needs the development record and is not a documented public path. REPRODUCE.md lists
+each derived input with the command and the version the final model uses.
 
 Refused sources (never read by any FM1 path): EUROCONTROL 2026 taxi-out aggregates as a label source outside the MTX
 calibration; paid data; OpenSky beyond the competition files.
+
+## Files shipped in the repository that are derived from data
+
+`data/r12/r13_stack_full/models_lgbcat/` holds the fitted ADS-B stack models (LightGBM text models, small torch
+networks with their normalisation statistics, and `MANIFEST.json`). They contain fitted parameters, not records. They
+were fitted on features computed from adsb.lol data and on the challenge's training months, so under the ODbL they are
+a Produced Work of the adsb.lol database: **Contains information from ADSB.lol contributors, made available under the
+Open Database License (ODbL) 1.0.** No challenge record and no adsb.lol record is shipped.
 
 ## Organiser statements this project relies on
 
@@ -40,7 +50,14 @@ in this repository):
 ## Eligibility note on adsb.fi
 
 The challenge's eligibility page asks for external data that is openly accessible and usable, and for reproducible
-results. The adsb.fi capture behind v55 was polled from adsb.fi's open API under its non-commercial terms, is never
-redistributed and cannot be re-fetched, so only the machine that holds it can rebuild v55. Whether that qualifies is the
-organiser's decision; v51 (public board 251.1335) is the same model without it, on the challenge files and public open data only.
+results. adsb.fi's terms (https://github.com/adsbfi/opendata, read 2026-10-06): "adsb.fi open data is for personal,
+non-commercial use only. You may not license, sell, rent, or lease any part of the data or the service." and "You
+must cite adsb.fi and include a link to our home page." — attribution line used wherever this project cites adsb.fi:
+"Data: adsb.fi (https://adsb.fi)".
+
+The adsb.fi capture behind board files v55 and v57 was polled from adsb.fi's open API under those terms, is never
+redistributed and cannot be re-fetched, so only the machine that holds it can rebuild v55 and v57. Whether a
+non-commercial live capture meets the eligibility page's bar is the organiser's decision. The final model (open-data
+v57, `configs/fm1_v57_open.yaml`) does not use adsb.fi at all; v51 (public board 251.1335) is the same model as v55
+without it, on the challenge files and public open data only.
 
