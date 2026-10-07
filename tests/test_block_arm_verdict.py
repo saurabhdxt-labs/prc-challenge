@@ -1,4 +1,4 @@
-"""tools/block_arm_verdict.py: registered clause sets applied to a fold record.
+"""research/tools/block_arm_verdict.py: registered clause sets applied to a fold record.
 
 Covers the arm FW clause set (plans/PREREG_fw_combined_2026_09_10.md H-FW1) and, because the tool
 had no tests before it, the arm F set it copies: a record passing all four clauses reads
@@ -12,7 +12,7 @@ import sys
 
 import pytest
 
-TOOL = pathlib.Path(__file__).resolve().parents[1] / "tools" / "block_arm_verdict.py"
+TOOL = pathlib.Path(__file__).resolve().parents[1] / "research" / "tools" / "block_arm_verdict.py"
 
 
 def _record(tmp_path, amendment, gain=1.7, ci=(1.4, 2.0), o10=(12.0, 10.8, 13.5), sd=0.145):

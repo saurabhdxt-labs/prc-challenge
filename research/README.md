@@ -6,4 +6,5 @@ calibration sweeps, and the rest). None of it is used by the final model (`prc/`
 each file's own docstring says what it did and, where applicable, what it found. Kept here, open, under the same
 GPLv3 as the rest of the repository (`LICENSE`), because every produced file stays in the repo. The sub-structure
 mirrors `scripts/`: top-level harnesses live in `research/`, and the checks/experiments that used to live in
-`scripts/analysis/` live in `research/analysis/`.
+`scripts/analysis/` live in `research/analysis/`; development-time tools that read the development record (arm pairing and verdicts,
+the top-path audit, a historical upload verifier, the arms queue driver) live in `research/tools/`.

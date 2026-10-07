@@ -1,4 +1,4 @@
-"""tools/pair_arms.py: pair the `treatment` columns of TWO fold records on identical rows.
+"""research/tools/pair_arms.py: pair the `treatment` columns of TWO fold records on identical rows.
 
 The decisional instrument of plans/PREREG_fw_combined_2026_09_10.md H-FW2 (arm FW against arm F).
 Every guard here exists because a BC-2 instance (reports/bug_classes.md) got past inspection and
@@ -15,7 +15,7 @@ import pandas as pd
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "tools"))
+sys.path.insert(0, str(ROOT / "research" / "tools"))
 import pair_arms as pa  # noqa: E402
 
 APTS = ("AAAA", "BBBB", "CCCC")

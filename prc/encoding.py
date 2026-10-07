@@ -42,7 +42,7 @@ the stage-appropriate set into the matrix before each fit; at 12 months that is 
 
 Whole-month exclusion is deliberate. Random row folds would leak through same-day,
 same-stand structure, which is exactly the dependence the date-block bootstrap in
-`tools/top_path_audit.py` was built to respect.
+`research/tools/top_path_audit.py` was built to respect.
 """
 from __future__ import annotations
 

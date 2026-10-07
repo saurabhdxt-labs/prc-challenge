@@ -1,6 +1,6 @@
 """Read-only diagnostics for plans/TOP_PATH_2026_09_10.md; never fit or submit.
 
-Run: OMP_NUM_THREADS=1 python3.11 -B tools/top_path_audit.py
+Run: OMP_NUM_THREADS=1 python3.11 -B research/tools/top_path_audit.py
 Writes only reports/top_path_audit.json. Existing predictions/caches stay unchanged.
 Ceilings below use visible 2025 labels and are NOT estimates of achievable gains.
 """
@@ -14,7 +14,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]          # research/tools/ -> the repository root
 WM = 339551 / 344841
 WU = 5290 / 344841
 RAW_COLS = ["MVT_ID_mvt", "FLIGHT_ID_mvt", "PHASE_mvt", "ADEP_mvt",

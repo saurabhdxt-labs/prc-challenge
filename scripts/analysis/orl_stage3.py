@@ -12,7 +12,7 @@ registration's "Cost and guards" and the quality-gate skill; detached, nothing u
     /opt/homebrew/bin/python3.11 -B scripts/analysis/orl_stage3.py --smoke
     /opt/homebrew/bin/python3.11 -c "import subprocess,sys,datetime; t=datetime.datetime.utcnow().strftime('%Y%m%dT%H%M%SZ'); subprocess.Popen([sys.executable,'-B','scripts/analysis/orl_stage3.py','--refit'], stdout=open(f'logs/orl_stage3_run_{t}.log','w'), stderr=subprocess.STDOUT, start_new_session=True); print(f'logs/orl_stage3_run_{t}.log')"
     # after it exits 0:
-    /opt/homebrew/bin/python3.11 -B tools/verify_upload_v29.py            # dry run (the default): every gate, NO upload
+    /opt/homebrew/bin/python3.11 -B research/tools/verify_upload_v29.py   # dry run (the default): every gate, NO upload
 
 What the stages are, and where each piece is reused from (by import, tested where it lives):
 (a) serve design — the 99-column matrix (orl_stage2.stage2_feats: the production 93 + the six ORL columns) built by
@@ -405,7 +405,7 @@ def build_candidate(cfg: dict) -> dict:
             "shift": {"S": proj["S"], "mean_s": float(move.mean()), "max_abs_s": float(np.abs(move).max())},
             "projection": proj, "tripwires": trip, "rules": rules, "by_airport": per_airport_mean_move(ap, move),
             "history": HISTORY, "refit": refit,
-            "upload": "NOT AUTHORISED - the owner decides per file; verify with tools/verify_upload_v29.py (dry run)"}
+            "upload": "NOT AUTHORISED - the owner decides per file; verify with research/tools/verify_upload_v29.py (dry run)"}
     pathlib.Path(cfg["meta"]).write_text(json.dumps(meta, indent=1, default=float))
     return meta
 
@@ -564,7 +564,7 @@ def run_smoke(out=SMOKE_DIR) -> dict:
     res = production_refit(d, is_rank, feats, p, 60, 20, SEEDS, enc_keys=None)
     cfg = synthetic_world(run_dir, rank_ids=rank_ids, orl_taxi=res["taxi_int"])
     meta = build_candidate(cfg)
-    V = _load("verify_upload_v29", "tools/verify_upload_v29.py")
+    V = _load("verify_upload_v29", "research/tools/verify_upload_v29.py")
     ver = V.verify(V.config_from(cfg), upload=False)
     print(json.dumps({"smoke": "SMOKE - code path only, NOT a result", "dir": str(run_dir), "n_R": meta["counts"]["n_R"],
                       "verifier": ver["status"], "best_iter": res["info"]["best_iter"]}), flush=True)

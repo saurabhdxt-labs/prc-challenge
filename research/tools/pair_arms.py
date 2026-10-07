@@ -32,7 +32,7 @@ import sys
 import numpy as np
 import pandas as pd
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
+ROOT = pathlib.Path(__file__).resolve().parents[2]          # research/tools/ -> the repository root
 sys.path.insert(0, str(ROOT / "scripts"))
 import lgbm_fold as lf  # noqa: E402
 

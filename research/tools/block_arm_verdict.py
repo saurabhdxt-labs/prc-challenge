@@ -7,7 +7,7 @@ Arm F  (22.3): interval excludes zero, gain >= 1.0 s, gain > 2 x seed sd, AND th
 Arm W  (24.4): the same four clauses as arm F, plus January and July reported separately.
 Arm FW (plans/PREREG_fw_combined_2026_09_10.md H-FW1): arm F's four clauses, against the queue
                baseline - reported on F's footing and NOT decisional; H-FW2 (FW against F) is
-               tools/pair_arms.py.
+               research/tools/pair_arms.py.
 The script states each clause and its measured value; it never invents a threshold.
 """
 import json, sys

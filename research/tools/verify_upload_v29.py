@@ -2,9 +2,9 @@
 plans/PREREG_orl_osm_route_length_2026_09_23.md). Dry run by default; only `--upload` uploads, and only after the
 owner's explicit per-file "go" AND a Stage-3 RESULT appended + hashed in the registration.
 
-    /opt/homebrew/bin/python3.11 -B tools/verify_upload_v29.py              # every gate, NO upload (default)
-    /opt/homebrew/bin/python3.11 -B tools/verify_upload_v29.py --no-upload  # the same, explicit
-    /opt/homebrew/bin/python3.11 -B tools/verify_upload_v29.py --upload     # gates, then upload (owner's go only)
+    /opt/homebrew/bin/python3.11 -B research/tools/verify_upload_v29.py     # every gate, NO upload (default)
+    /opt/homebrew/bin/python3.11 -B research/tools/verify_upload_v29.py --no-upload  # the same, explicit
+    /opt/homebrew/bin/python3.11 -B research/tools/verify_upload_v29.py --upload     # gates, then upload (owner's go only)
 
 Independence: this file does NOT import scripts/analysis/orl_stage3.py, fwp_build, cbv_ship_build or afj_ship_build.
 It re-derives the splice set R from the raw artifacts with its own code — the v13 provenance stage scope
@@ -27,7 +27,7 @@ import hashlib, json, pathlib, sys
 import numpy as np
 import pandas as pd
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
+ROOT = pathlib.Path(__file__).resolve().parents[2]          # research/tools/ -> the repository root
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 import build_submission as bs  # noqa: E402  (check_submission and the key rule only)
