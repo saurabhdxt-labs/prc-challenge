@@ -12,14 +12,15 @@ data/r12/r13_stack_full/*
 *.csv
 *.zip
 
-# Outputs. `reports/` is deliberately NOT ignored: prize eligibility requires
-# "sufficient documentation to understand and reproduce the results", and a repo
-# whose every result artifact is ignored has nothing to reproduce against.
-# Large or regenerable artifacts are excluded individually instead.
+# Outputs: submission files are regenerable (docs/fm1/REPRODUCE.md).
 submissions/
-reports/**/*.parquet
 *.joblib
 *.pkl
+
+# The development record (registrations, ledgers, analysis reports) is not part of the repository: it is not needed
+# to run, test or rebuild FM1, and docs/fm1/ describes what it established (README.md, "Repository layout").
+plans/
+reports/
 
 # Run logs and fitted model artefacts: regenerable (docs/fm1/REPRODUCE.md), never part of the record.
 logs/
