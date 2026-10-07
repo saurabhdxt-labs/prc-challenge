@@ -14,7 +14,7 @@ Mutation rehearsal (write time, recorded here; re-run in logs/orl_scratch_tools/
 """
 from __future__ import annotations
 
-import hashlib, importlib.util, json, math, pathlib, sys
+import hashlib, importlib.util, json, pathlib, sys
 import numpy as np, pandas as pd, pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]

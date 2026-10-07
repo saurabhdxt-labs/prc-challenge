@@ -11,7 +11,6 @@ STAGE 2 (new): serve-time detectors that prev_arr_gap cannot express -
   restricted to stands whose ARR/DEP alternation is historically clean.
 """
 import gc, glob, pathlib
-import pathlib
 import numpy as np, pandas as pd, pyarrow.parquet as pq
 
 RAW = str(pathlib.Path(__file__).resolve().parents[2] / "data" / "raw") + "/"
@@ -67,7 +66,7 @@ for p in sorted(glob.glob(RAW + "training_2025-*.parquet")):
     dep["n_2h_mvt"]   = cnt(mvt - 7200, mvt)    # arrivals in the 2 h before take-off
     out.append(dep[["apt","STAND_mvt","delta","n_blk_aobt","n_blk_mvt",
                     "n_sch_aobt","n_aobt_mvt","n_2h_mvt"]])
-    del t, arr, dep, idx; gc.collect()
+    del t, arr, dep; idx = None; gc.collect()     # the closure above never runs after this
 
 d = pd.concat(out, ignore_index=True); del out; gc.collect()
 d['tl'] = d.delta < -600

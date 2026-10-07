@@ -851,3 +851,76 @@ def test_build_inputs_omits_the_uad_keys_when_the_stage_is_off(tmp_path):
     bi = G.build_inputs(cfg, art)
     assert "uad/table" not in bi["inputs"] and "uad/constants" not in bi["inputs"]
     assert "uad/table_report" not in bi["inputs"]
+
+
+# ================================================================================================= check_table_sources
+# Closing audit 2026-10-07 (reviewer M1): the open-data rule was enforced on the R12 ADS-B tables (features.check_table_sources)
+# but never on the stand-exit stage's table, whose build report also declares its sources — a UAD table rebuilt with
+# adsb.fi points was accepted silently by the open-data final model. Seen red before uad.check_table_sources existed.
+
+def _table_with_report(tmp_path, sources):
+    table_path = tmp_path / "table.parquet"
+    table_path.write_bytes(b"")
+    rep = _passing_report()
+    if sources is not None:
+        rep["sources"] = sources
+    _write_table_report(table_path, rep)
+    return table_path
+
+
+@pytest.mark.parametrize("sources", [{"/in/y2026": ["adsb.lol", "adsb.fi"], "/in/y2025": ["adsb.lol"]}, ["adsb.fi"]])
+def test_check_table_sources_refuses_adsb_fi_points_when_the_knob_is_off(tmp_path, sources):
+    """Fails when the table's declared sources are not read, or when the builder's {input_dir: [names]} shape is not
+    flattened (the adsb.fi name sits inside a value, not at the top level)."""
+    with pytest.raises(E.ConfigValueError, match=r"adsb\.fi"):
+        U.check_table_sources(_table_with_report(tmp_path, sources), adsb_fi=False)
+
+
+def test_check_table_sources_accepts_adsb_fi_points_when_the_knob_is_on(tmp_path):
+    """Fails when the knob is ignored (adsb.fi refused even though the build declared it)."""
+    got = U.check_table_sources(_table_with_report(tmp_path, {"/in/y2026": ["adsb.fi", "adsb.lol"]}), adsb_fi=True)
+    assert got == ["adsb.fi", "adsb.lol"]
+
+
+@pytest.mark.parametrize("adsb_fi", [False, True])
+def test_check_table_sources_accepts_an_adsb_lol_table_under_either_setting(tmp_path, adsb_fi):
+    """One way only: board file v57 (adsb_fi on) served the adsb.lol-only stand-exit table. Fails when the check is
+    made two-way like the R12 tables' one."""
+    assert U.check_table_sources(_table_with_report(tmp_path, {"/in/y2026": ["adsb.lol"]}), adsb_fi=adsb_fi) == ["adsb.lol"]
+
+
+def test_check_table_sources_treats_a_report_without_sources_as_adsb_lol(tmp_path):
+    """A report written before the builder recorded sources: every input was adsb.lol then. Fails when the missing key
+    is refused or read as adsb.fi."""
+    assert U.check_table_sources(_table_with_report(tmp_path, None), adsb_fi=False) == ["adsb.lol"]
+
+
+class _Cfg:
+    def __init__(self, values):
+        self._v = values
+
+    def path(self, key):
+        return pathlib.Path(self._v[key])
+
+    def __getitem__(self, key):
+        return self._v[key]
+
+
+def test_apply_refuses_an_adsb_fi_table_under_an_open_data_config_before_reading_the_table(tmp_path):
+    """The engine's entry point refuses the table on its sources before load_table opens it (the parquet here is empty
+    bytes: reaching load_table would raise a different error). Fails when apply does not pass the knob to the check."""
+    table_path = _table_with_report(tmp_path, {"/in/y2026": ["adsb.lol", "adsb.fi"]})
+    cfg = _Cfg({"modules.uad.table": table_path, "modules.uad.constants": tmp_path / "absent.json",
+                "adsb.sources.adsb_fi": False})
+    with pytest.raises(E.ConfigValueError, match=r"adsb\.fi"):
+        U.apply(cfg, None, None, None, None)
+
+
+@pytest.mark.parametrize("key, bad", [("offsets.pooled", True), ("offsets.pooled", "8.0"), ("weights.w0", False),
+                                      ("weights.w1", "0.5")])
+def test_load_constants_refuses_a_bool_or_a_numeric_string(tmp_path, key, bad):
+    """Closing audit 2026-10-07: `_finite` accepted anything float() accepts, so `true` and "8.0" passed as constants
+    while the table report's bars (`_strict_number`) refused them. Fails when the constants keep the lax check."""
+    p = _write_constants(tmp_path / "c.json", {key: bad})
+    with pytest.raises(E.SchemaError, match="finite"):
+        U.load_constants(p)

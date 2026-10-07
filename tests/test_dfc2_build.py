@@ -521,7 +521,6 @@ def test_fold_a_frame_refuses_a_fold_whose_counts_differ_from_lgbm_ab(monkeypatc
 
 
 # ---- BC-34 (2026-09-29): real-data tests run in a child pytest (tests/isolation.py) -----------------------------
-import importlib.util
 import os as _os
 
 

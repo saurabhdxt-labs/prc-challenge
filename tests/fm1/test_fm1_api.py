@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import dataclasses
 import json
-import pathlib
 import shutil
 
 import numpy as np

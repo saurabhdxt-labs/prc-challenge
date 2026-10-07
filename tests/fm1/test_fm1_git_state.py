@@ -52,3 +52,10 @@ def test_fm1_code_that_differs_from_the_commit_is_dirty(repo, rel):
     Mutation: drop the scripts/ check -> red; untracked files under prc/ ignored -> red."""
     (repo / rel).write_text("x = 2\n")
     assert A.git_state(repo)["dirty_fm1"] is True
+
+
+def test_a_root_that_is_not_a_git_checkout_records_no_sha_and_no_dirty_verdict(tmp_path):
+    """Closing audit 2026-10-07: outside a checkout every git command exits non-zero with empty stdout, which was
+    recorded as sha "" and dirty_fm1 False — a clean-looking provenance for code nobody can trace. Fails when a failed
+    git command's empty output is read as an answer."""
+    assert A.git_state(tmp_path) == {"sha": None, "dirty_fm1": None}

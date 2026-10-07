@@ -57,11 +57,15 @@ def git_state(root=K.ROOT) -> dict:
     (FM1 loads only tracked scripts, BC-38). Configs are not code: the config's values are stored in config.json."""
     def run(*a):
         try:
-            return subprocess.run(["git", *a], cwd=root, capture_output=True, text=True, timeout=30).stdout.strip()
+            r = subprocess.run(["git", *a], cwd=root, capture_output=True, text=True, timeout=30)
         except (OSError, subprocess.SubprocessError):          # pragma: no cover - git missing is recorded, not fatal
             return None
+        return r.stdout.strip() if r.returncode == 0 else None   # a failed command (no checkout) is no answer
+    sha = run("rev-parse", "HEAD")
+    if not sha:
+        return {"sha": None, "dirty_fm1": None}
     dirty = run("status", "--porcelain", "--", "prc") or run("status", "--porcelain", "--untracked-files=no", "--", "scripts")
-    return {"sha": run("rev-parse", "HEAD"), "dirty_fm1": bool(dirty)}
+    return {"sha": sha, "dirty_fm1": bool(dirty)}
 
 
 def library_versions() -> dict:

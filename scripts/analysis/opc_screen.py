@@ -4,7 +4,6 @@ import argparse
 import hashlib
 import json
 import resource
-import sys
 import time
 
 import numpy as np

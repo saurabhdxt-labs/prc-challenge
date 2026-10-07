@@ -6,7 +6,6 @@ interpolates in time. The real task trains on all of 2025 and extrapolates forwa
 No model is fitted here - these are the raw conditional statistics.
 """
 import gc, glob, pathlib
-import pathlib
 import numpy as np, pandas as pd, pyarrow.parquet as pq
 
 RAW = str(pathlib.Path(__file__).resolve().parents[2] / "data" / "raw") + "/"
@@ -65,7 +64,7 @@ for ap in sorted(d.ADEP_mvt.unique()):
     print(f"  {ap}  n={len(a):8,d}  sd(delta)={a.delta.std():7.1f}  "
           f"sd(y)={a.y.std():8.1f}  ratio={a.delta.std()/a.y.std():5.3f}")
 print(f"\n  POOLED constant-per-airport delta RMSE = {np.sqrt(tot_sse/tot_n):.2f}")
-print(f"  best model (fold A, matched)           = 230.41")
+print("  best model (fold A, matched)           = 230.41")
 print(f"  -> variance explained by 70 features   = "
       f"{100*(1 - 230.41**2/(tot_sse/tot_n)):.1f}%")
 

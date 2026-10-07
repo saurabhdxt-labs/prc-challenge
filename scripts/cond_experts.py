@@ -325,7 +325,7 @@ def run(base: dict, feats_num, params, nest, patience, seeds, calibrate: bool,
             mse_gain=float(w * (se["baseline"][m].sum() - se["cond"][m].sum()) / m.size))
     log(f"[cond] holdout matched RMSE {out['cond']['holdout_rmse']:.4f} against baseline "
         f"{out['baseline']['holdout_rmse']:.4f}")
-    del X
+    X = None                      # released; the closures above ran before this and never run again
     gc.collect()
     return out
 

@@ -18,7 +18,6 @@ RED on the 2.0.0 cache after the 2.0.1 bump, before the rebuild.
 """
 from __future__ import annotations
 
-import glob
 import importlib.util
 import pathlib
 

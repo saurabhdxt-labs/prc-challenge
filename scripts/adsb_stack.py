@@ -162,7 +162,6 @@ def _fit_nn(X, r, fit, es, te, seed, save_path=None) -> np.ndarray:
     """BC-5: train in scripts/adsb_nn_worker.py (a subprocess that never imports lightgbm); returns the predicted
     residual (seconds) on rows `te`. A worker guard trip is re-raised here as FloatingPointError."""
     import shutil
-    import subprocess
     import tempfile
     A, stats = _nn_matrix(X[fit])
     B, _ = _nn_matrix(X[es], stats)

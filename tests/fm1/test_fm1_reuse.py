@@ -210,7 +210,7 @@ def test_a_derived_fit_never_trains_a_matched_learner(cfg, donor, scored, monkey
     v = _variant(cfg, **VARIANTS["blend_weight"])
     derived = api.fit(v, save=False, log=QUIET, reuse_from=donor)
     assert derived.base is donor.base and derived.catboost is donor.catboost
-    assert len(api.predict(derived, scored, log=QUIET)) > 0
+    assert len(api.predict(derived, scored, log=QUIET)) == int((scored.PHASE_mvt == "DEP").sum())   # one row per departure
 
 
 @pytest.mark.slow

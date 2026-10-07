@@ -319,7 +319,6 @@ def test_serve_refuses_scored_rows_without_a_matched_departure(wcfg, wscored):
     """BC-31 sibling (b): the MJS body's witness is the scored file's own airport-hour matched departures; a scored input
     with none is refused loudly by the shipped unm_congestion_ship.attach_serve_witness (protecting invariant: its
     `len(wit) == 0` refusal), never served with a silently empty witness."""
-    from prc.pipeline.fm1 import engine as G
     art = api.fit(wcfg, save=False, log=QUIET)
     only = wscored[~((wscored.PHASE_mvt == "DEP") & wscored.AOBT_3_flt.notna())].reset_index(drop=True)
     cfg = art.config.replace(**{"lanes.matched": False})

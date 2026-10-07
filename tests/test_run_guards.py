@@ -6,9 +6,7 @@ fourth runner imports it. Mutation rehearsal recorded in the MXL registration RE
 """
 from __future__ import annotations
 
-import fcntl
 import hashlib
-import os
 from pathlib import Path
 import subprocess
 import sys

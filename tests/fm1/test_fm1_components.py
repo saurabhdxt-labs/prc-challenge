@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from prc.pipeline import adsb_stage as AST
 from prc.pipeline.fm1 import components as C
 from prc.pipeline.fm1 import errors as E
 from prc.pipeline.fm1 import shipped

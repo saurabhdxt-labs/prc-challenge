@@ -10,7 +10,6 @@ byte-identical, runs guards S1/S3–S6 and transfer checks T1–T3, and writes d
 from __future__ import annotations
 
 import datetime as dt
-import hashlib
 import json
 import subprocess
 import sys

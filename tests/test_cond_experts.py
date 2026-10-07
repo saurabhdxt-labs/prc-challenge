@@ -227,7 +227,7 @@ def test_classifier_swaps_to_stage_two_before_its_refit():
     tr, te = idx < 3200, idx >= 3200
     # record the ORDER, not just the fact: a swap that fires after the refit is the bug.
     events = []
-    orig = CE.lgb_train_probe = None
+    CE.lgb_train_probe = None
     import lightgbm as lgb
     real_train = lgb.train
 

@@ -136,8 +136,9 @@ class S3:
                 return out
             nxt = find(root, "NextContinuationToken")
             token = nxt.text if nxt is not None else None
-            if token is None:
-                return out
+            if not token:
+                raise RuntimeError(f"{bucket}: the listing says IsTruncated=true but carries no NextContinuationToken "
+                                   f"after {len(out)} objects; refusing to return a partial listing")
 
     def download(self, bucket: str, key: str, dest: Path) -> Path:
         """Stream one object to disk. Writes to a .part file and renames on

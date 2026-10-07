@@ -251,7 +251,7 @@ def test_info_shift_metrics_detail_and_hot_table_are_consistent(world, built):
 def test_the_witness_on_the_replaced_rows_is_the_serve_files_not_2025s(world, built):
     """Rehearsed 2026-09-10 RED: hprox_med overwritten with a constant 700 s after attaching (the detail no longer equals
     the serve witness lookup)."""
-    w, (out, info, _) = world, built
+    w, (_, info, _) = world, built
     d = info["detail"]
     non = rs.non_lirf_mask(w["scored"])
     serve_w = w["scored_w"]

@@ -988,7 +988,6 @@ def run_score(args, paths, log) -> int:
     for rec in reported.values():
         rec["decisional"] = False
     mon = sf.monster_mask(non.y.to_numpy())
-    g = gains(non)
     lirf_g = gains(lirf) if len(lirf) else np.zeros(0)
     record = {"mode": "unm_physics_score", "prereg": PREREG, "parent_prereg": PARENT_PREREG, "tag": TAG, "smoke": bool(args.smoke),
               **_git(), "started_utc": started.isoformat(),

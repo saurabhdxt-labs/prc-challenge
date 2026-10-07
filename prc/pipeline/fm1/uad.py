@@ -49,18 +49,12 @@ TABLE_BARS = (("callsign_matched_type_equal_share", ">=", 0.97), ("stand_unmatch
               ("stand_check_wrong_share", "<=", 0.005))
 
 
-def _finite(x) -> bool:
-    try:
-        return math.isfinite(float(x))
-    except (TypeError, ValueError):
-        return False
-
-
 def load_constants(path) -> dict:
     """{"by_airport": {ap: offset}, "pooled": float, "w0": float, "w1": float, "registration": str} from the
     registered constants file (scripts/analysis/uad_price.py constants; configs/uad_constants_2025.json). Refuses a
     file missing offsets / offsets.by_airport / offsets.pooled / weights / weights.w0 / weights.w1 / registration,
-    carrying a non-finite number in any of them, or a weight outside [0, 1]."""
+    carrying anything but a finite int or float in any of them (a bool or a numeric string is refused, as the
+    table report's bars are), or a weight outside [0, 1]."""
     path = pathlib.Path(path)
     raw = json.loads(path.read_text())
     try:
@@ -77,14 +71,14 @@ def load_constants(path) -> dict:
         raise E.SchemaError(f"{path}: offsets.by_airport must be a mapping of airport -> offset")
     by_airport = {}
     for ap, v in by_airport_raw.items():
-        if not _finite(v):
+        if not _strict_number(v):
             raise E.SchemaError(f"{path}: offsets.by_airport.{ap} is not a finite number ({v!r})")
         by_airport[str(ap)] = float(v)
-    if not _finite(pooled_raw):
+    if not _strict_number(pooled_raw):
         raise E.SchemaError(f"{path}: offsets.pooled is not a finite number ({pooled_raw!r})")
     out = {"by_airport": by_airport, "pooled": float(pooled_raw)}
     for name, v in (("w0", w0_raw), ("w1", w1_raw)):
-        if not _finite(v):
+        if not _strict_number(v):
             raise E.SchemaError(f"{path}: weights.{name} is not a finite number ({v!r})")
         v = float(v)
         if not (0.0 <= v <= 1.0):
@@ -144,6 +138,22 @@ def check_table_report(table_path) -> str:
         if outputs["table.parquet"] != table_sha256:
             raise E.SchemaError(f"{report_path}: the table is not the one this report describes")
     return hashlib.sha256(raw).hexdigest()
+
+
+def check_table_sources(table_path, adsb_fi: bool) -> list:
+    """The ADS-B sources the stand-exit table's build report declares (report.json `sources`: {input_dir: [names]} as
+    scripts/analysis/uad_build.py writes it, or a flat list of names), checked against adsb.sources.adsb_fi one way:
+    adsb.fi points (non-commercial, not redistributable) are refused unless the knob says the build may use them. A
+    report without the key was written before the builder recorded sources, when every input was adsb.lol. One way
+    only, unlike features.check_table_sources for the R12 tables: the knob describes those tables, and the stand-exit
+    table may hold adsb.lol points alone under either setting (board file v57 did). Returns the sorted names."""
+    report_path = pathlib.Path(table_path).resolve().parent / "report.json"
+    declared = json.loads(report_path.read_text()).get("sources", ["adsb.lol"])
+    names = sorted({str(n) for group in (declared.values() if isinstance(declared, dict) else [declared]) for n in group})
+    if "adsb.fi" in names and not adsb_fi:
+        raise E.ConfigValueError(f"the stand-exit table {table_path} was built from adsb.fi points (non-commercial, "
+                                 f"not redistributable; {report_path}); to use them set adsb.sources.adsb_fi=true")
+    return names
 
 
 def load_table(path) -> pd.DataFrame:
@@ -262,9 +272,11 @@ def apply(cfg, rows: pd.DataFrame, comp: pd.DataFrame, ledger, stage) -> tuple:
     """The engine's entry point: the table and constants named by modules.uad.table / modules.uad.constants, read
     fresh on every call (never at import). check_table_report runs before load_table, so a table whose build report
     does not pass is refused before its parquet is even opened; the report's own sha256 is carried into the returned
-    report as "table_report_sha256"."""
+    report as "table_report_sha256". check_table_sources then refuses adsb.fi points under adsb.sources.adsb_fi=false,
+    the same rule the R12 tables are held to."""
     table_path = cfg.path("modules.uad.table")
     table_report_sha256 = check_table_report(table_path)
+    check_table_sources(table_path, cfg["adsb.sources.adsb_fi"])
     table = load_table(table_path)
     const = load_constants(cfg.path("modules.uad.constants"))
     comp_out, rep = serve(rows, comp, ledger, stage, table, const)

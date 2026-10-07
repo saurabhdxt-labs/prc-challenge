@@ -131,5 +131,5 @@ def gain_board(y, control, treatment, n: float = BOARD_N) -> float:
 
 def stage1_passes(gain: float, ci) -> bool:
     """The registered gate: mean gain > 0 AND the pooled CI excludes zero. No size bar (registered)."""
-    lo, hi = float(ci[0]), float(ci[1])
+    lo = float(ci[0])
     return bool(gain > 0.0 and lo > 0.0)

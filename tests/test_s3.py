@@ -223,3 +223,19 @@ def test_upload_propagates_a_rejection_instead_of_swallowing_it(tmp_path):
     with pytest.raises(urllib.error.HTTPError) as e:
         client.upload("bucket", "merry-quicksand_v2.parquet", src)
     assert e.value.code == 403
+
+
+_TRUNCATED_WITHOUT_TOKEN = (b'<?xml version="1.0" encoding="UTF-8"?>'
+                            b'<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
+                            b'<IsTruncated>true</IsTruncated>'
+                            b'<Contents><Key>a.parquet</Key><Size>1</Size><LastModified>2026-01-01T00:00:00.000Z</LastModified>'
+                            b'<ETag>"e"</ETag></Contents></ListBucketResult>')
+
+
+def test_a_truncated_listing_without_a_continuation_token_is_refused_not_returned_short():
+    """Closing audit 2026-10-07: a page that says IsTruncated=true but carries no NextContinuationToken was returned as
+    the whole listing, so fetch_data would have believed a bucket held fewer objects than it does. Fails when the
+    partial list is returned instead of refused."""
+    client = s3.S3(s3.Credentials("AK", "SK"), opener=lambda req: _FakeResponse(_TRUNCATED_WITHOUT_TOKEN))
+    with pytest.raises(RuntimeError, match="IsTruncated"):
+        client.list_objects("bucket")

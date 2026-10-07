@@ -2,4 +2,4 @@
 -r requirements.txt
 pytest==9.0.2
 coverage==7.16.2
-hypothesis==6.168.3
+pyflakes==4.0.2

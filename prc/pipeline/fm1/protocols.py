@@ -126,7 +126,7 @@ def run(cfg, protocol: str, out_dir=None, allow_heavy: bool = False, log=G._log,
     default (False) writes exactly what it always did."""
     if cfg.mtx_enabled:
         raise E.ConfigValueError("validate runs the forecaster: calibration.mtx.enabled must resolve off (MTX has its own "
-                                 "validation, reports/mtx_validation_2026_09_28.json)")
+                                 "validation; docs/fm1/METHOD.md)")
     if save_models and out_dir is None:
         raise E.ConfigValueError("save_models=True needs out_dir: fold artefacts are written under "
                                  "<out_dir>/models/<fold name>/")

@@ -265,7 +265,7 @@ def build_features(t: pd.DataFrame, serve: bool = False) -> pd.DataFrame:
                 o.loc[d.index[j], "sched_prev60"] = _win_count(m_sorted, s_sorted, -3600, 0)
                 o.loc[d.index[j], "sched_next60"] = _win_count(m_sorted, s_sorted, 0, 3600)
                 o.loc[d.index[j], "sched_day"] = len(j)
-                px = pd.Series(proxy_j := (mvt[j] - aobt[j]))
+                px = pd.Series(mvt[j] - aobt[j])
                 o.loc[d.index[j], "dep_dur"] = px.rolling(30, min_periods=3).median().to_numpy()
                 if keya is not None:
                     am = a_apt == k
@@ -467,7 +467,7 @@ def cmd_fit(smoke: bool):
             gc.collect()
         per_seed = [np.sqrt(((yv[te_m] - np.maximum(proxy[te_m] - p_, 1.0)) ** 2).mean())
                     for p_ in preds]
-        print(f"    per-seed RMSE: " + " ".join(f"{v:.2f}" for v in per_seed)
+        print("    per-seed RMSE: " + " ".join(f"{v:.2f}" for v in per_seed)
               + f"   sd {np.std(per_seed):.3f}")
         raw = proxy[te_m] - np.mean(preds, axis=0)
         # runtime guards. The floor at 1 s is required (taxi-out is strictly positive) but
@@ -483,7 +483,7 @@ def cmd_fit(smoke: bool):
         out[name] = pred
         print(f"  {name:9s} {len(feats):3d} feats  RMSE = "
               f"{np.sqrt(((yv[te_m] - pred) ** 2).mean()):8.2f}")
-        del X, m
+        del X
         gc.collect()
 
     yt = yv[te_m]
@@ -500,7 +500,7 @@ def cmd_fit(smoke: bool):
         bs[i] = np.sqrt((e0[j] ** 2).mean()) - np.sqrt((e1[j] ** 2).mean())
     lo, hi = np.percentile(bs, [2.5, 97.5])
     print("\n" + "=" * 92)
-    print(f"PAIRED A/B - fold A (Jan+Jul 2025 held out), matched rows")
+    print("PAIRED A/B - fold A (Jan+Jul 2025 held out), matched rows")
     print("=" * 92)
     print(f"  baseline           {r0:8.2f}      (E1 reference 235.95)")
     print(f"  + stand block      {r1:8.2f}")

@@ -6,9 +6,11 @@ from __future__ import annotations
 
 import gzip
 import importlib.util
+import io
 import json
 import pathlib
 import sys
+import tarfile
 
 import pandas as pd
 import pytest
@@ -223,8 +225,8 @@ def test_exit_code_is_nonzero_when_any_day_failed_or_the_run_stopped():
 class FakeIO:
     """Stands in for download + extract; records calls and can fail on chosen days."""
 
-    def __init__(self, tmp: pathlib.Path, fail=(), rows=5):
-        self.tmp, self.fail, self.rows, self.calls = tmp, set(fail), rows, []
+    def __init__(self, tmp: pathlib.Path, fail=(), rows=5, corrupt=0):
+        self.tmp, self.fail, self.rows, self.calls, self.corrupt = tmp, set(fail), rows, [], corrupt
 
     def fetch(self, day):
         self.calls.append(day)
@@ -232,9 +234,11 @@ class FakeIO:
         p.write_bytes(b"x" * 10)
         return [p]
 
-    def extract(self, paths, day):
+    def extract(self, paths, day, unparseable=None):
         if day in self.fail:
             raise RuntimeError(f"boom {day}")
+        if unparseable is not None:
+            unparseable.extend([1] * self.corrupt)
         return pd.DataFrame([["a", None, None, "C", "EHAM", 1.0, 0.0, 0.0, 1, 0, float("nan"), 0.0, 0.0, "adsb_icao"]]
                             * self.rows, columns=af.COLUMNS)
 
@@ -486,3 +490,36 @@ def test_index_year_is_consistent_with_run_year_same_type_same_floor():
     with pytest.raises(SystemExit) as e:
         af.build_parser().parse_args(["index", "--year", "2024"])
     assert e.value.code == 2
+
+
+# ---------------------------------------------------------------- unparseable members are counted (closing audit 2026-10-07)
+
+def test_an_unparseable_member_is_counted_not_dropped_silently():
+    """Reviewer M3: a member whose gzip or JSON is corrupt returned [] and nothing counted it, so a truncated day lost
+    points silently on the documented rebuild path. Fails when the counter is not offered or not incremented."""
+    bad = []
+    assert af.parse_member_v2(b"\x1f\x8b" + b"not gzip at all", bad) == []
+    assert af.parse_member_v2(b"{not json", bad) == []
+    assert af.parse_member_v2(_trace([_pt(0, EHAM, "ground")]), bad) != []
+    assert len(bad) == 2
+
+
+def test_extract_day_counts_the_unparseable_members_of_an_archive(tmp_path):
+    """One good trace member and one corrupt one in a tar: the good one's rows come back and the corrupt one is counted.
+    Fails when extract_day drops the count on the floor between parse_member_v2 and the day record."""
+    tar_path = tmp_path / "day.tar"
+    with tarfile.open(tar_path, "w") as tf:
+        for name, payload in (("x/trace_full_a.json", _trace([_pt(0, EHAM, "ground"), _pt(10, EHAM, "ground")])),
+                              ("x/trace_full_b.json", b"{corrupt")):
+            info = tarfile.TarInfo(name)
+            info.size = len(payload)
+            tf.addfile(info, io.BytesIO(payload))
+    bad = []
+    df = af.extract_day([tar_path], "2026-01-01", unparseable=bad)
+    assert len(df) == 2 and len(bad) == 1
+
+
+def test_the_day_record_carries_the_count_of_unparseable_members(tmp_path):
+    """Fails when run_days does not hand extract a counter, or drops its length from the day record."""
+    man, _ = _run(tmp_path, FakeIO(tmp_path, corrupt=3), ["2025-01-01"])
+    assert man["days"][0]["status"] == "ok" and man["days"][0]["unparseable_members"] == 3

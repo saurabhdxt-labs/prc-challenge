@@ -45,7 +45,6 @@ import datetime as dt
 import glob
 import json
 import pathlib
-import subprocess
 import sys
 import time
 

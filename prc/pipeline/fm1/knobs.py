@@ -157,8 +157,9 @@ SCHEMA: tuple = (
     _K("adsb.sources.adsb_fi", "bool", False,
        "Declares that the ADS-B tables hold adsb.fi points (the owner's July-2026 opendata.adsb.fi capture, merged with "
        "adsb.lol by rule AUN.1; non-commercial terms, never redistributed, cannot be re-fetched by others). Checked against "
-       "the tables' report both ways at fit and predict. Off in the documented forecaster; a scored-period build may turn "
-       "it on with tables built from the union (docs/fm1/REPRODUCE.md).", "plans/PREREG_afi_adsbfi_into_fm1_2026_10_03.md"),
+       "the tables' report both ways at fit and predict; the stand-exit stage's table (modules.uad.table) may not hold "
+       "adsb.fi points while this is false. Off in the documented forecaster; a scored-period build may turn it on with "
+       "tables built from the union (docs/fm1/REPRODUCE.md).", "plans/PREREG_afi_adsbfi_into_fm1_2026_10_03.md"),
     _K("adsb.table_dir", "path", "data/r12/tables_801f9bcac9a5",
        "Directory with the ADS-B tables train.parquet (2025) and serve.parquet (scored rows), keyed by MVT_ID_mvt.",
        "data/r12/tables_801f9bcac9a5/report.json"),

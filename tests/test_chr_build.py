@@ -5,7 +5,7 @@ a silent regression in any one of them reproduces exactly the flaw that made FWD
 """
 from __future__ import annotations
 import importlib.util, pathlib, sys
-import numpy as np, pandas as pd, pytest
+import numpy as np, pytest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 def _load(n, r):
     s = importlib.util.spec_from_file_location(n, ROOT / r); m = importlib.util.module_from_spec(s)

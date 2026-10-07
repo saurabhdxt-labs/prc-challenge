@@ -248,7 +248,7 @@ def test_stand_fixes_take_the_nearest_on_ground_sample_within_tolerance(world):
     """Mutation-rehearsal 2026-09-10 (backup, break, run, restore byte-identical via diff -q, GREEN again): the fix
     tolerance check inverted -> RED; the on-ground filter removed from stand_fixes -> RED.
     """
-    fl, tr, truth = world["flights"], world["tracks"], world["truth"]
+    fl, tr = world["flights"], world["tracks"]
     tof = st.join_matched(fl, tr)
     fx = st.stand_fixes(fl, tr, tof)
     live = fl[fl.matched.to_numpy() & (tof >= 0)]
@@ -472,7 +472,7 @@ def test_learn_and_label_runways_from_matched_events(world):
     heading term removed from label_runway -> RED; the along-track bound removed (the draft's infinite line) ->
     RED.
     """
-    fl, tr, truth = world["flights"], world["tracks"], world["truth"]
+    fl, tr = world["flights"], world["tracks"]
     tof = st.join_matched(fl, tr)
     ev = st.takeoff_events(tr).set_index("track_id")
     m = fl.matched.to_numpy() & (tof >= 0)

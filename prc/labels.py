@@ -21,7 +21,6 @@ Two policy choices are deliberate and worth stating plainly:
 """
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 
 #: Above this many seconds a taxi-out is flagged, never dropped. 180 minutes.

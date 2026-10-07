@@ -37,10 +37,13 @@ __all__ = ["fit", "predict", "validate", "build_submission", "compare", "blend_o
 
 
 def load_config(path, overrides=()) -> FM1Config:
+    """The resolved config of a YAML file with `--set`-style overrides applied (knobs.load_config: an unknown key, a
+    wrong type or an out-of-range value fails loud with its dotted path)."""
     return _K.load_config(path, overrides=overrides)
 
 
 def load_artifact(directory) -> ModelArtifact:
+    """The saved artefact under `directory` (artifact.load: the manifest's hashes are verified before any file is read)."""
     return _A.load(directory)
 
 
@@ -78,15 +81,22 @@ def _artifact(config_or_artifact, overrides=()) -> ModelArtifact:
 
 
 def predict(config_or_artifact, rows: pd.DataFrame, overrides=(), log=_G._log) -> pd.DataFrame:
+    """Predictions for `rows` (raw movement rows, departures and arrivals) from an artefact, or the one saved artefact of
+    a config: one output row per departure row, with the taxi-out value, the stage that decided it (`decided_by`) and
+    every component's own value; arrival rows are read for features only (engine.predict)."""
     return _G.predict(_artifact(config_or_artifact, overrides), rows, log=log)
 
 
 def build_submission(config_or_artifact, out_dir, version: int | None = None, overrides=(), log=_G._log) -> dict:
+    """Writes the submission file for the config's scored rows under `out_dir`, with its provenance and metadata, from the
+    artefact (or the one saved artefact of the config); returns the build report (engine.build_submission)."""
     return _G.build_submission(_artifact(config_or_artifact, overrides), out_dir, version=version, log=log)
 
 
 def validate(config, protocol: str, out_dir=None, allow_heavy: bool = False, overrides=(), log=_G._log,
              save_models: bool = False) -> dict:
+    """Runs one validation protocol on the config — `dry-run` (the plan and the inputs, no fit) or a fold protocol of
+    protocols.py — and returns its report; `allow_heavy` gates the protocols that fit."""
     cfg = _G.as_config(config, overrides)
     if protocol == "dry-run":
         return dry_run(cfg)

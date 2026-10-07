@@ -210,7 +210,7 @@ def run(base: dict, params: dict, nest: int, patience: int, seed: int) -> dict:
     EA.write_enc(X, feats, s1)
     P, out["gate"] = fit_gate(X, lab, fit, es, tr, te, params, nest, patience,
                               swap_to_refit=lambda: EA.write_enc(X, feats, s2))
-    del X
+    X = None                      # released; the closures above ran before this and never run again
     gc.collect()
     MU = np.column_stack([mus[n] for n in REGIMES])
     reg = assemble_mixture(P, MU)

@@ -15,11 +15,9 @@ from __future__ import annotations
 
 import argparse
 import gzip
-import io
 import json
 import pathlib
 import subprocess
-import sys
 import tarfile
 
 import numpy as np

@@ -176,7 +176,6 @@ def test_production_refit_on_a_synthetic_frame_returns_the_seed_mean_and_int_tax
 
 def test_production_refit_learns_from_training_rows_only():
     d, is_rank, ids, feats = T.synthetic_frame(n_train=1_500, n_rank=200, seed=4)
-    rng = np.random.default_rng(0)
     truth_delta = d.proxy.to_numpy(float) - 600 - 50 * d.f2.to_numpy()
     res = T.production_refit(d, is_rank, feats, _small_params(), 60, 10, (0,))
     err = np.sqrt(np.mean((res["delta_mean"] - truth_delta[is_rank]) ** 2))

@@ -1789,7 +1789,7 @@ def run_v4(args, cfg, paths, started) -> int:
     _log_tables(arms, rmses, pairs, present, ap_code[te], ARM_DEFINITIONS, sd,
                 f"FOLD A, matched rows ({te.sum():,}), holdout months {HOLDOUT}   "
                 + (L.SMOKE_BANNER if smoke else "n_ref {:,} (best_iter {:,})".format(n_ref, info["best_iter"])))
-    log(f"floor-bind rate per arm: " + ", ".join(f"{k} {100 * v:.3f}%" for k, v in bind.items()))
+    log("floor-bind rate per arm: " + ", ".join(f"{k} {100 * v:.3f}%" for k, v in bind.items()))
     if repro and repro.get("status") == "FAIL":
         log(f"CAVEAT: A0 missed lgbm_ab by {repro['diff_s']:+.4f} s; every number above inherits that")
 
@@ -2279,7 +2279,7 @@ def run_fillhead(args, cfg, paths, started) -> int:
 
     fold = load_fold(CACHE, cfg.months, FEATS_HEAD, derive=L.add_nmdelay, check_counts=not cfg.smoke,
                      label=f"holdout (months {HOLDOUT})")
-    X, y, dlt, proxy, sp = fold["X"], fold["y"], fold["dlt"], fold["proxy"], fold["sp"]
+    X, y, proxy, sp = fold["X"], fold["y"], fold["proxy"], fold["sp"]
     te, tr, fit, es = fold["te"], fold["tr"], fold["fit"], fold["es"]
     ap_code, airports = fold["ap_code"], fold["airports"]
     y_te, proxy_te, sp_te, ap_te = y[te], proxy[te], sp[te], ap_code[te]
@@ -2505,7 +2505,7 @@ def run_block(args, cfg, paths, started, block) -> int:
                      **caches,
                      check_counts=not cfg.smoke, label=f"holdout (months {HOLDOUT})")
     X, y, dlt, proxy = fold["X"], fold["y"], fold["dlt"], fold["proxy"]
-    te, tr = fold["te"], fold["tr"]
+    te = fold["te"]
     ap_code, airports = fold["ap_code"], fold["airports"]
     y_te, proxy_te, dlt_te, ap_te = y[te], proxy[te], dlt[te], ap_code[te]
     assert fold["feats"][:nb] == base_feats and fold["feats"][nb:] == block.feats
@@ -2639,7 +2639,7 @@ def run_ytarget(args, cfg, paths, started) -> int:
     fold = load_fold(CACHE, cfg.months, feats, qcache=QCACHE if queue else None, check_counts=not cfg.smoke,
                      label=f"holdout (months {HOLDOUT})")
     X, y, dlt, proxy = fold["X"], fold["y"], fold["dlt"], fold["proxy"]
-    te, tr = fold["te"], fold["tr"]
+    te = fold["te"]
     ap_code, airports = fold["ap_code"], fold["airports"]
     y_te, proxy_te, dlt_te, ap_te = y[te], proxy[te], dlt[te], ap_code[te]
     assert fold["feats"] == feats

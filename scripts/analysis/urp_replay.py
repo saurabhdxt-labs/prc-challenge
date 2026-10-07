@@ -391,7 +391,7 @@ def load_deps() -> SimpleNamespace:
     import mxi_build as XI
     import mxj_build as XJ
     import rome_arn as R
-    import rome_bandfloor  # noqa: F401  (the shipped floor; e1_floor is its rounded form, checked by the parity run)
+    importlib.import_module("rome_bandfloor")   # the shipped floor must import; e1_floor is its rounded form (parity run)
     import rome_dateslip as ds
     import rome_fill as rf
     import rome_local_day as RLD

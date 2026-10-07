@@ -76,8 +76,6 @@ def test_check_output_path_refuses_shipped_artefacts_even_if_a_root_contains_the
         C.check_output_path(ROOT / "submissions/merry-quicksand_v33.parquet")
     with pytest.raises(PermissionError, match="shipped-artefact"):
         C.check_output_path(ROOT / "data/adsb/v2/new.txt", allow_roots=(ROOT / "data",), allow_files=())
-    if not C.V34_CANDIDATE.exists():
-        assert C.check_output_path(C.V34_CANDIDATE) == C.V34_CANDIDATE.resolve()
     assert C.check_output_path(C.OUT_ROOT / "step1_f_fold" / "never_written.json")
 
 

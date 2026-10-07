@@ -6,7 +6,6 @@ exactly like a model difference and would be believed. This repository has alrea
 that shape of error twice in one night (a floored arm compared against an unfloored one; a
 delta-scale record read as taxi times). So every test here targets a mismatch that must raise.
 """
-import json
 import pathlib
 import sys
 

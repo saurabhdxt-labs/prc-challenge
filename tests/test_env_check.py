@@ -198,11 +198,14 @@ def test_the_cli_runs_as_a_script(tmp_path):
 # --------------------------------------------------------------------------- the repository's own files
 
 def test_the_repository_requirement_files_parse_and_pin_what_the_code_imports():
+    """The dev pins are the test tooling: pytest, coverage and pyflakes (the lint tripwire runs it as `python -m pyflakes`;
+    closing audit 2026-10-07, which also dropped the never-imported hypothesis pin). A pin added or removed changes this
+    list on purpose."""
     runtime = E.parse_requirements(ROOT / "requirements.txt")
     dev = E.parse_requirements(ROOT / "requirements-dev.txt")
     catboost = E.parse_requirements(ROOT / "requirements-catboost.txt")
     assert set(runtime) == {"lightgbm", "numpy", "pandas", "pyarrow", "pyyaml", "scikit-learn", "scipy", "torch"}
-    assert set(dev) == set(runtime) | {"pytest", "coverage", "hypothesis"}
+    assert set(dev) == set(runtime) | {"pytest", "coverage", "pyflakes"}
     assert {"catboost", "numpy"} <= set(catboost)
     assert (ROOT / ".python-version").read_text().strip().count(".") == 2
 

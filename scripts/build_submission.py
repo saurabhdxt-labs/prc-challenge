@@ -19,7 +19,6 @@ from __future__ import annotations
 import argparse
 import gc
 import glob
-import os
 import pathlib
 import sys
 

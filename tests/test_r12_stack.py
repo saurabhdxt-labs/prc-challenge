@@ -211,7 +211,7 @@ def test_stack_arm_end_to_end(tmp_path):
     calls = {}
     serve = pd.DataFrame({"ap": ["LFPG", "EGLL"], "coverage": [3, 3]})
     out = tmp_path / "logs" / "r12_scratch" / "stack"
-    rep = S.stack_arm("r12", _pred(), _train_table(), serve, out, _deps(tmp_path, calls), COUNTS, smoke=True,
+    S.stack_arm("r12", _pred(), _train_table(), serve, out, _deps(tmp_path, calls), COUNTS, smoke=True,
                       root=tmp_path, n_boot=50, log=lambda m: None)
     for f in ("record_r12.parquet", "table_r12.parquet", "report_r12.json", "oof_r12.parquet"):
         assert (out / f).exists()

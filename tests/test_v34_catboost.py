@@ -13,7 +13,6 @@ import sys
 
 import numpy as np
 import pandas as pd
-import pyarrow.parquet as pq
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]

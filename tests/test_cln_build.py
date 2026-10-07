@@ -69,7 +69,6 @@ def _ts(base, offsets_s):
 def synthetic_raw_frame(n_per_ap=6, seed=0):
     """A small, hand-built raw-shaped frame: 2 airports x DEP/ARR, enough rows to exercise the
     count features' window edges and self-exclusion, plus the 12 raw columns time-diffs read."""
-    rng = np.random.default_rng(seed)
     base = pd.Timestamp("2025-03-01T00:00:00", tz="UTC")
     rows = []
     mvt_id = 0
@@ -227,7 +226,6 @@ def test_lightgbm_recognises_category_dtype_natively():
     ds = lgb.Dataset(X, y)
     b = lgb.train({"objective": "regression", "verbosity": -1, "num_leaves": 7}, ds, num_boost_round=5)
     info = b.dump_model()
-    cat_names = set(info.get("pandas_categorical_names", info.get("feature_names", [])))
     # LightGBM records which features it treated as categorical either via feature_infos
     # (non-numeric "categories" entries) or via pandas_categorical
     feature_infos = info.get("feature_infos", {})

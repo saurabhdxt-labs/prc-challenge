@@ -5,7 +5,7 @@ Reads only the needed columns; peak RSS target < 1.5 GB.
 """
 import gc
 import pathlib
-import numpy as np, pandas as pd, pyarrow.parquet as pq
+import pandas as pd, pyarrow.parquet as pq
 
 RAW = str(pathlib.Path(__file__).resolve().parents[2] / "data" / "raw") + "/"
 C = ["PHASE_mvt","MVT_ID_mvt","ADEP_mvt","ADES_mvt","STAND_mvt","RUNWAY_mvt",

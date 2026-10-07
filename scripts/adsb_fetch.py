@@ -28,6 +28,7 @@ import subprocess
 import sys
 import tarfile
 import time
+import zlib
 
 import numpy as np
 import pandas as pd
@@ -56,16 +57,22 @@ def _num(x):
     return float(x) if isinstance(x, (int, float)) and not isinstance(x, bool) else np.nan
 
 
-def parse_member_v2(raw: bytes) -> list:
-    """One trace_full_*.json -> rows (COLUMNS order) for points inside any airport box."""
+def parse_member_v2(raw: bytes, unparseable=None) -> list:
+    """One trace_full_*.json -> rows (COLUMNS order) for points inside any airport box. A member whose gzip or JSON is
+    corrupt yields no rows and, when `unparseable` (a list) is given, is counted there so the day record can report it
+    (adsb_extract.parse_member does the same)."""
     if raw[:2] == b"\x1f\x8b":
         try:
             raw = gzip.decompress(raw)
-        except Exception:
+        except (OSError, EOFError, zlib.error):
+            if unparseable is not None:
+                unparseable.append(1)
             return []
     try:
         d = json.loads(raw)
-    except Exception:
+    except (ValueError, UnicodeDecodeError):
+        if unparseable is not None:
+            unparseable.append(1)
         return []
     if not isinstance(d, dict):
         return []
@@ -213,7 +220,8 @@ def download_day(day: str, index: dict | None = None, raw_dir: pathlib.Path = RA
     return paths
 
 
-def extract_day(paths, day: str) -> pd.DataFrame:
+def extract_day(paths, day: str, unparseable=None) -> pd.DataFrame:
+    """Rows of every trace member in the day's archives; corrupt members are counted in `unparseable` (a list)."""
     cat = subprocess.Popen(["cat", *map(str, paths)], stdout=subprocess.PIPE)
     rows, n = [], 0
     try:
@@ -223,7 +231,7 @@ def extract_day(paths, day: str) -> pd.DataFrame:
                     continue
                 f = tf.extractfile(m)
                 if f is not None:
-                    rows.extend(parse_member_v2(f.read()))
+                    rows.extend(parse_member_v2(f.read(), unparseable))
                     n += 1
     finally:
         cat.stdout.close()
@@ -279,13 +287,14 @@ def run_days(days, out_dir: pathlib.Path = OUTDIR, fetch=download_day, extract=e
             paths = fetch(day)
             rec["bytes"] = int(sum(p.stat().st_size for p in paths))
             rec["tag"] = pathlib.Path(paths[0]).name.split(".tar")[0] if paths else None
-            df = extract(paths, day)
+            unparseable = []
+            df = extract(paths, day, unparseable=unparseable)
             if len(df) == 0:
                 raise RuntimeError("zero in-box rows")
             tmp = out_dir / f".adsb_{day}.parquet.tmp"
             df.to_parquet(tmp, index=False)
             tmp.rename(dest)
-            rec.update(status="ok", rows=int(len(df)),
+            rec.update(status="ok", rows=int(len(df)), unparseable_members=len(unparseable),
                        per_airport={k: int(v) for k, v in df.airport.value_counts().items()},
                        on_ground_share=float(df.on_ground.mean()), with_callsign=float(df.callsign.notna().mean()))
             fails = 0

@@ -38,7 +38,6 @@ import gc
 import glob
 import importlib.util
 import json
-import os
 import pathlib
 import resource
 import subprocess
@@ -642,12 +641,12 @@ def summarise(preds: pd.DataFrame, n_boot: int, log, title: str, row_bootstrap: 
         log(f"  {key:16s} airports improving ex-monster: {rec['airports_improving_exmonster']} of {rec['n_airports']}")
     log(f"  routed {routing['n_nf_fit']:,} rows -> nf_fit ({100 * routing['share_nf_fit']:.1f}%), {routing['n_nf_cells']:,} -> nf_cells "
         f"(of which {routing['n_nf_cells_monsters']} monsters); T_tail {bs.T_TAIL_S:.0f} s")
-    log(f"  --- per airport: ex-monster RMSE [pooled], S0 vs S1 ---")
+    log("  --- per airport: ex-monster RMSE [pooled], S0 vs S1 ---")
     for a in airports:
         r0, r1 = table["S0"]["per_airport"][a], table["S1"]["per_airport"][a]
         log(f"  {a:6s} n {r0['n']:5,} mon {r0['n_monsters']:3d}  S0 {r0['exmonster']:8.1f} [{r0['pooled']:8.1f}]  "
             f"S1 {r1['exmonster']:8.1f} [{r1['pooled']:8.1f}]  gain {r0['exmonster'] - r1['exmonster']:+7.1f}")
-    log(f"  --- per month: ex-monster RMSE [pooled], S0 vs S1 ---")
+    log("  --- per month: ex-monster RMSE [pooled], S0 vs S1 ---")
     for mo, r in per_month.items():
         log(f"  {mo:2d}     n {r['n']:5,} mon {r['n_monsters']:3d}  S0 {r['S0']['exmonster']:8.1f} [{r['S0']['pooled']:8.1f}]  "
             f"S1 {r['S1']['exmonster']:8.1f} [{r['S1']['pooled']:8.1f}]")

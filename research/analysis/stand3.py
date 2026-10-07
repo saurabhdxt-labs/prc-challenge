@@ -6,7 +6,6 @@
      correction) against a per-airport constant, on the witnessed rows.
 """
 import gc, glob, pathlib
-import pathlib
 import numpy as np, pandas as pd, pyarrow.parquet as pq
 
 RAW = str(pathlib.Path(__file__).resolve().parents[2] / "data" / "raw") + "/"

@@ -99,7 +99,7 @@ def plan(cfg) -> tuple:
     todo = cfg.not_ported()
     if todo:
         raise E.ComponentNotPortedError(f"enabled component(s) not ported to FM1: {', '.join(todo)} (switch them off, e.g. "
-                                        "--set modules.rome.enabled=false, or port them; plans/PREREG_fm1_2026_09_28.md §2)")
+                                        "--set modules.rome.enabled=false, or port them)")
     on = {"input_contract": True, "features": True, "finalise": True, "eobt_clip": cfg["modules.eobt_clip.enabled"],
           "base_model": cfg["lanes.matched"],
           "adsb_gate": cfg["lanes.matched"] and cfg["adsb.stack.enabled"],

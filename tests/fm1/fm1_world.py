@@ -31,7 +31,7 @@ PROTOCOL = {"months": [1, 2, 3, 6, 7, 9, 10], "days": [14, 25], "aps": list(APS)
 
 
 def _month_file(m: int) -> pathlib.Path:
-    nxt = f"2026-01-01" if m == 12 else f"2025-{m + 1:02d}-01"
+    nxt = "2026-01-01" if m == 12 else f"2025-{m + 1:02d}-01"
     return RAW / f"training_2025-{m:02d}-01_{nxt}.parquet"
 
 

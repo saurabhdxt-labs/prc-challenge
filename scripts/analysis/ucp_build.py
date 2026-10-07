@@ -1,7 +1,6 @@
 """One registered uncapped production-body comparison; no submission path."""
 from __future__ import annotations
 
-import datetime as dt
 import hashlib
 import json
 from pathlib import Path

@@ -6,7 +6,7 @@ sign there after a 2-hour fit is the BC-24 shape (MXI's `_stats` crashed post-co
 """
 from __future__ import annotations
 
-import importlib.util, json, os, pathlib, sys
+import importlib.util, json, pathlib, sys
 import numpy as np, pandas as pd, pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]

@@ -10,7 +10,7 @@ Nothing here uploads or writes under submissions/; a WORKING verdict authorises 
 """
 from __future__ import annotations
 
-import argparse, gc, hashlib, importlib.util, json, pathlib, resource, sys, time
+import argparse, gc, hashlib, importlib.util, json, pathlib, sys, time
 import numpy as np
 import pandas as pd
 

@@ -8,7 +8,6 @@ whether it is worth MSE:
      using serve-time columns only?  The constraint is only safe where this is precise.
 """
 import gc, glob, pathlib
-import pathlib
 import numpy as np, pandas as pd, pyarrow.parquet as pq
 
 RAW = str(pathlib.Path(__file__).resolve().parents[2] / "data" / "raw") + "/"

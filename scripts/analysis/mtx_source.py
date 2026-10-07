@@ -15,7 +15,6 @@ Sources (raw copies + sha256 in data/mtx/raw/MANIFEST.json):
 from __future__ import annotations
 
 import json
-import re
 
 import numpy as np
 import pandas as pd

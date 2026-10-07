@@ -7,7 +7,6 @@ columns, so sd(difference)/sqrt(2) is a lower bound on achievable RMSE.
 Coarsening the key upward traces the bias/variance of the bound.
 """
 import gc, glob, pathlib
-import pathlib
 import numpy as np, pandas as pd, pyarrow.parquet as pq
 
 RAW = str(pathlib.Path(__file__).resolve().parents[2] / "data" / "raw") + "/"
