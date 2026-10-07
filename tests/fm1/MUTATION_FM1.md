@@ -241,7 +241,7 @@ bytecode prefix per mutant, sources restored and sha-verified; each failure read
 | M-CLP23 | `knobs.py` | `modules.` dropped from the reuse allow-list | `test_the_clip_knobs_are_reuse_free…` | KILLED |
 | M-CLP24 | `eobt_clip.py` | fires at 0.05 | `test_on_the_real_files_the_detector_fires_at_lfpg_july_2026_only` (slow, real files) | KILLED |
 
-`scripts/analysis/clp_checks.py` (CLP acceptance 1-3): 11 tests in `tests/test_clp_checks.py`, seen red first (no
+`research/analysis/clp_checks.py` (CLP acceptance 1-3): 11 tests in `tests/test_clp_checks.py`, seen red first (no
 module); **6 / 6 killed**: M-CLC1 every cell counted as changed · M-CLC2 cells outside the allow-list ignored · M-CLC3 an
 empty change passes · M-CLC4 no clipped-row range · M-CLC5 no population check · M-CLC6 a missing clip report defaults
 to a passing one.
@@ -263,7 +263,7 @@ dropped from `eligible` · M-CLP26 `cell_table` returns None on no eligible row.
 M-ACR1 FL also blanks the airport counts · M-ACR2 coverage 0 instead of 1 · M-ACR3 NB keeps moving_mvt_m10 · M-ACR4 no
 mask-length check · M-ACR5 FL over all rows, not only joined · M-ACR6 NB per row, not per (airport, day) · M-ACR7 unseeded ·
 M-ACR8 no features.adsb cross-check · M-ACR9 fit skips the dropout (slow world test).
-`scripts/analysis/acr_price.py` (tests written after the code — stated; they caught a tuple / dict defect in `stats`):
+`research/analysis/acr_price.py` (tests written after the code — stated; they caught a tuple / dict defect in `stats`):
 **7 / 8 killed**, M-ACP2 (Frankfurt's share drawn from all rows instead of joined rows) equivalent on the real tables —
 unjoined rows already hold the unheard state, so re-applying it changes nothing.
 

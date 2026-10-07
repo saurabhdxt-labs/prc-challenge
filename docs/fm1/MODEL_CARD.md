@@ -10,8 +10,8 @@ capture) is board file v50 (`configs/fm1_v50.yaml`, public board 251.4767). Boar
 249.9168) and v57 (`configs/fm1_v57.yaml`, 247.3187, the best single board file) add the owner's adsb.fi capture of
 July 2026 to the ADS-B serve table; the final model does not use it. The best board file is v58 (246.2224): an
 average of board files with weights fitted on their board scores, which is not an FM1 output and carries adsb.fi
-through its v55 and v57 members (METHOD §8). Claims and their evidence: CLAIMS.md; risks: RISK_REPORT_v55.md,
-RISK_REPORT_v57.md and RISK_REPORT_v58.md.
+through its v55 and v57 members (METHOD §8). Claims and their evidence: CLAIMS.md; risks: RISK_REPORT_v59.md (the final
+model), RISK_REPORT_v55.md, RISK_REPORT_v57.md and RISK_REPORT_v58.md.
 
 ## Intended use
 
@@ -42,26 +42,26 @@ from 2025's without a drift check (LIMITATIONS.md 9, 14).
 
 ## Components in the final configuration
 
-| component | in v50 | in v55 | rows deciding v55 (`decided_by`, with and without `+mtx`) |
-|---|---|---|---|
-| matched base model (LightGBM, `delta` target; queue, order, weather, ORL, ADS-B blocks) | yes | yes | base of every matched row |
-| ADS-B support gate + stacked residual (LightGBM + MLP; stored lgbcat stack) | yes | yes | 145,538 |
-| CatBoost half-blend on matched rows the stack does not serve | yes | yes | 192,128 |
-| unmatched body (S1 cells + congestion body) | yes | yes | 4,326 |
-| Rome (LIRF) module: R2 + date-slip, E1, local-day rule, E2, E2W | yes | yes | 341 |
-| ARC arrival-row clock recovery (LIRF) | yes | yes | 42 |
-| storm anchor | yes | yes | 581 |
-| LDI LTFM de-icing shift | yes | yes | 1,885 |
-| ADS-B stand-exit estimate for departures without a flight-plan record (`uad`) | no | no | — (optional; on in the final model, `configs/fm1_v57_open.yaml`, and in board file v57, `configs/fm1_v57.yaml`, where it decides 501 rows: 377 the unmatched body decides in v55 and 124 the storm anchor) |
-| tail-cell rule of the unmatched body (`modules.tail_cells.enabled`) | on | on | — (the shipped rule; off in the candidate `configs/fm1_v57_tc.yaml`, where 10 rows change) |
-| MTX monthly calibration (last) | no (forecaster) | yes | moved 236,515 rows |
-| adsb.fi July-2026 serve rows | no | yes (serve table only; the learners are v50's) | — |
-| EOBT clip (LFPG July) | off | off | — (lost on the board, v54) |
-| coverage-ratio support gate | off | off | — (no better on the board, v52) |
-| XGBoost | cut | cut | refused by name |
+| component | in v50 | in v55 | in the final model (open-data v57, board file v59) | rows deciding v55 (`decided_by`, with and without `+mtx`) | rows deciding v59 |
+|---|---|---|---|---|---|
+| matched base model (LightGBM, `delta` target; queue, order, weather, ORL, ADS-B blocks) | yes | yes | yes | base of every matched row | base of every matched row |
+| ADS-B support gate + stacked residual (LightGBM + MLP; stored lgbcat stack) | yes | yes | yes | 145,538 | 140,997 (37,885 + 103,112) |
+| CatBoost half-blend on matched rows the stack does not serve | yes | yes | yes | 192,128 | 196,669 (80,465 + 116,204) |
+| unmatched body (S1 cells + congestion body) | yes | yes | yes | 4,326 | 3,949 (1,842 + 2,107) |
+| Rome (LIRF) module: R2 + date-slip, E1, local-day rule, E2, E2W | yes | yes | yes | 341 | 341 (61 + 2 + 278) |
+| ARC arrival-row clock recovery (LIRF) | yes | yes | yes | 42 | 42 |
+| storm anchor | yes | yes | yes | 581 | 457 (415 + 42) |
+| LDI LTFM de-icing shift | yes | yes | yes | 1,885 | 1,885 |
+| ADS-B stand-exit estimate for departures without a flight-plan record (`uad`) | no | no | **yes** (`configs/fm1_v57_open.yaml`; also in board file v57, `configs/fm1_v57.yaml`) | — | 501 (268 + 233) |
+| tail-cell rule of the unmatched body (`modules.tail_cells.enabled`) | on | on | on | — (the shipped rule; off in the candidate `configs/fm1_v57_tc.yaml`, where 10 rows change) | — |
+| MTX monthly calibration (last) | no (forecaster) | yes | yes | moved 236,515 rows | moved 222,081 rows |
+| adsb.fi July-2026 serve rows | no | yes (serve table only; the learners are v50's) | **no** (`adsb.sources.adsb_fi` false; the open table `data/r12/tables_51348d3e1cb3`) | — | — |
+| EOBT clip (LFPG July) | off | off | off | — (lost on the board, v54) | — |
+| coverage-ratio support gate | off | off | off | — (no better on the board, v52) | — |
+| XGBoost | cut | cut | cut | refused by name | refused by name |
 
-Row counts from v55's submission metadata (`decided_by`), written at build time; submission files and their
-metadata are not part of the repository.
+Row counts from the submission metadata (`decided_by`) of v55 and of v59, written at build time; submission files
+and their metadata are not part of the repository. The v59 counts sum to 344,841.
 
 ## Metrics
 

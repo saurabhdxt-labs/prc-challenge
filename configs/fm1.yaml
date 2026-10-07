@@ -1,6 +1,7 @@
 # FM1 — every knob at its documented default: the template the final runs override.
 #
-# The final runs are configs/fm1_v50.yaml (the forecaster) and configs/fm1_v55.yaml (the scored-period build). The schema, types, ranges,
+# The forecaster is configs/fm1_v50.yaml; the final model is configs/fm1_v57_open.yaml (board files v55 and v57,
+# configs/fm1_v55.yaml and fm1_v57.yaml, used the owner's adsb.fi capture). The schema, types, ranges,
 # effects and evidence are in prc/pipeline/fm1/knobs.py and the generated docs/fm1/CONFIG_REFERENCE.md. An unknown key,
 # a wrong type or an out-of-range value fails loud with the dotted path; tests/fm1/test_fm1_knobs.py fails if a knob is
 # missing here or differs from its default.
@@ -10,7 +11,7 @@
 #
 # Components marked NOT PORTED make fit/predict refuse (ComponentNotPortedError) while they are switched on (stated rather
 # than hidden). The unmatched lane is the shipped v36 chain: the v26 body, the Rome module, ARC at LIRF; the storm anchor
-# is off by default and on in both final runs.
+# is off by default and on in every final run.
 #
 # Paths are relative to the repo root. No key may name a previous submission (no splice).
 

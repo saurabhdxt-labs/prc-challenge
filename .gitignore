@@ -1,7 +1,8 @@
 # Data NEVER enters the repo. The challenge supplies it; redistribution is not ours to do.
-# One exception: the stored ADS-B stack models (fitted models, no raw data; 7.4 MB) that every final config reads and a
-# clone cannot regenerate (docs/fm1/DATA_SOURCES.md). Git cannot re-include a file under an excluded directory, so the
-# path is opened one level at a time.
+# Two exceptions, both code or fitted parameters, never records: the stored ADS-B stack models (fitted models; 7.4 MB) that
+# every final config reads and a clone cannot regenerate (docs/fm1/DATA_SOURCES.md), and the Rome E2 rules file
+# (data/rome_hunt_2026_09_23/agent_E_rules.py, force-added). Git cannot re-include a file under an excluded directory, so
+# the stack models' path is opened one level at a time.
 data/*
 !data/r12/
 data/r12/*

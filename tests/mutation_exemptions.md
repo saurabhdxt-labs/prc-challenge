@@ -40,7 +40,7 @@ in `tests/test_weather_parser.py::test_three_valued_helpers`.
 
 ---
 
-## UPC.1 — two empty-input guards are EQUIVALENT MUTANTS (2026-09-19)
+## UPC.1 — two empty-input guards are EQUIVALENT MUTANTS (2026-09-19; `scripts/analysis/upc1_build.py` and its test are research files outside the repository)
 
 `scripts/analysis/upc1_build.py`:
 - `recover_from_arrivals` — `if dep.empty or arr.empty: return out`

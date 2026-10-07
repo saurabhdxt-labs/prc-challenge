@@ -50,7 +50,7 @@ In this order (every command's flags are from its own `--help`):
 
 1. **Challenge files.** `python scripts/fetch_data.py [--bucket prc-2026-datasets] [--dst data/raw] [--force]` —
    needs `PRC_ACCESS_KEY` and `PRC_SECRET_KEY` in the environment, or a `KEY=value` file at `~/.prc-challenge.env`
-   (`prc/s3.py:66-84`). Pulls the organiser's movement parquet files into `data/raw/`, verified against the
+   (`prc/s3.py`, `load_credentials`). Pulls the organiser's movement parquet files into `data/raw/`, verified against the
    bucket's ETag (single-part uploads) or size (multipart); recorded in `data/raw/FETCH_MANIFEST.json`. On this
    machine `data/raw/` holds 315 MB (`du -sh`, 2026-10-06); fetch duration is network-bound and not measured here.
 
@@ -82,11 +82,20 @@ In this order (every command's flags are from its own `--help`):
    `scripts/analysis/mtx_source.py` parses the files (`load_monthly_csv`); the 2026 file is a live publication (it
    grows through the year) and is never re-fetched by a run once saved. On this machine `data/mtx/` holds 18 MB.
 
-6. **The uad stand-exit table** (only needed for the `uad` stage, on in the final model and in board file v57):
-   `scripts/analysis/uad_build.py parked --rows ... --adsb-dir ... --out ...` then `scripts/analysis/uad_build.py
-   table --rows ... --adsb-dir ... --parked ... [--alias-from ...] --out ...` — the exact arguments the final
-   configuration uses are in "What a clone of the repository can run" below. On this machine `data/uad/` holds
-   145 MB.
+6. **The uad stand-exit table** (only needed for the `uad` stage, on in the final model and in board file v57): four
+   passes, as they were run for the final configuration (`data/adsb/v2` holds the January and July 2025 day files,
+   `y2025_other` the other 2025 months, `y2026` the 2026 months; the directory names under `data/uad/` are the
+   author's — the stage checks a table's build report, not its path):
+   `python scripts/analysis/uad_build.py parked --rows data/raw/training_2025-*.parquet --adsb-dir data/adsb/v2
+   data/adsb/v2/y2025_other data/adsb/v2/y2026 --out data/uad/2025_parked`, then
+   `python scripts/analysis/uad_build.py table --rows data/raw/training_2025-*.parquet --adsb-dir data/adsb/v2
+   data/adsb/v2/y2025_other data/adsb/v2/y2026 --parked data/uad/2025_parked --out data/uad/2025_table_a3`, then
+   `python scripts/analysis/uad_build.py parked --rows data/raw/ranking.parquet --adsb-dir data/adsb/v2/y2025_other
+   data/adsb/v2/y2026 --out data/uad/2026_parked`, then
+   `python scripts/analysis/uad_build.py table --rows data/raw/ranking.parquet --adsb-dir data/adsb/v2/y2026
+   data/adsb/v2/y2025_other --parked data/uad/2025_parked data/uad/2026_parked --alias-from data/uad/2025_table_a3
+   --out data/uad/2026_table_a3` (the 2026 table the final model reads; its build report records every input's
+   sha256). On this machine `data/uad/` holds 145 MB.
 
 Sizes above are what this machine's `data/` directories hold today (`du -sh`, 2026-10-06), not a specification; a
 fresh fetch may differ, and no step above prints a wall-clock duration this project has recorded, so none is given
@@ -234,8 +243,8 @@ document why a default was chosen and are checked only in the development tree (
 
 The test suite has a **clone tier**: every test not marked `devtree` (tests/conftest.py) runs from a fresh clone —
 `python -m pytest -m "not devtree" tests`, or `python tools/clone_check.py`, which builds a tree of exactly the tracked
-files in a new git repository and runs that tier there (2026-10-06, on the final tree without the development record: 3,536 passed,
-76 skipped, 149 deselected, 8 min 44 s on the author's machine). Tests that read the data, the stored artefacts or the
+files in a new git repository and runs that tier there (2026-10-07, on the final tree without the development record: 3,554 passed,
+76 skipped, 149 deselected, 11 min 35 s on the author's machine). Tests that read the data, the stored artefacts or the
 development record are marked `devtree` (automatically for every test on the real-data-shaped worlds,
 tests/fm1/conftest.py) and run in the full suite on the development machine.
 
@@ -249,9 +258,9 @@ runs the step's runner directly (e.g. `python scripts/analysis/r12_build.py feat
 
 | input (knob) | built by | final configuration |
 |---|---|---|
-| ADS-B tables (`adsb.table_dir`) | `scripts/analysis/r12_build.py features`, then `tables` | `data/r12/tables_51348d3e1cb3` — served by v50, v51 and the final model (open-data v57); the adsb.fi-merged `data/r12/tables_51348d3e1cb3_afi` (below) is served by v55 and board file v57 |
-| holdout fits feeding the stack | `scripts/analysis/r12_validate.py` (LightGBM base on the older `tables_801f9bcac9a5`; CatBoost half via `scripts/analysis/r12_validate.py --arms cat --screen --seeds 0,1,2`, learning rate 0.05), assembled by `r13_cat.py assemble` | `data/r12/r13_arms_full` |
-| ADS-B stack models (`adsb.stack.models_dir`) | `scripts/analysis/r12_stack.py oof --val data/r12/r13_arms_full --tables data/r12/tables_51348d3e1cb3 --arms r12,lgbcat --out data/r12/r13_stack_full` | `data/r12/r13_stack_full/models_lgbcat` (MANIFEST.json: seeds 0–2, 5 folds, gate, git sha) |
+| ADS-B tables (`adsb.table_dir`) | `python scripts/analysis/r12_build.py features --store data/r12/features_51348d3e1cb3 --final` (the default months, all of 2025 plus January and July 2026, and the default three day-file directories; `--final` records missing days once the fetch is complete), then `python scripts/analysis/r12_build.py tables --store data/r12/features_51348d3e1cb3 --out data/r12/tables_51348d3e1cb3` (no `--days`: every day of the universe) | `data/r12/tables_51348d3e1cb3` — served by v50, v51 and the final model (open-data v57); the adsb.fi-merged `data/r12/tables_51348d3e1cb3_afi` (below) is served by v55 and board file v57 |
+| holdout fits feeding the stack | `python scripts/analysis/r12_validate.py --split holdout --arms r12 --tables data/r12/tables_801f9bcac9a5 --out <holdout dir> --seeds 0,1,2 --rss-limit-gib 8` (the LightGBM base on the older `tables_801f9bcac9a5`); the CatBoost half via `python scripts/analysis/r12_validate.py --split holdout --arms cat --screen --seeds 0,1,2 --tables data/r12/tables_801f9bcac9a5 --out <its own dir> --rss-limit-gib 8` (learning rate 0.05); the two assembled into one holdout directory by `python scripts/analysis/r13_cat.py assemble --base-val <the r12 holdout dir> --cat-val <the cat holdout dir> --out data/r12/r13_arms_full --split holdout` (no `--yhead-val`: the lgbcat stack only), which is what the stack command below reads | `data/r12/r13_arms_full` |
+| ADS-B stack models (`adsb.stack.models_dir`) | `python scripts/analysis/r12_stack.py oof --val data/r12/r13_arms_full --tables data/r12/tables_51348d3e1cb3 --arms r12,lgbcat --out data/r12/r13_stack_full --rss-limit-gib 8` | `data/r12/r13_stack_full/models_lgbcat` (MANIFEST.json: seeds 0–2, 5 folds, gate, git sha) |
 | ORL route table (`features.orl_routes_file`) | `scripts/analysis/orl_build.py fetch`, then `build` | `data/osm/orl_routes.parquet` |
 | stand-exit table (`modules.uad.table`; only with the `uad` stage) | `scripts/analysis/uad_build.py parked`, then `table`, on the ADS-B day files (2025 first; the 2026 build takes both years' parked positions and `--alias-from` the 2025 table) | `data/uad/2026_table_a3/table.parquet` |
 | stand-exit constants (`modules.uad.constants`) | `scripts/analysis/uad_price.py constants` on the 2025 stand-exit table and leave-one-month-out predictions of the 2025 months (the command refuses a table that fails its registered checks) | `configs/uad_constants_2025.json` (in the repository) |
