@@ -64,8 +64,10 @@ def git_state(root=K.ROOT) -> dict:
     sha = run("rev-parse", "HEAD")
     if not sha:
         return {"sha": None, "dirty_fm1": None}
-    dirty = run("status", "--porcelain", "--", "prc") or run("status", "--porcelain", "--untracked-files=no", "--", "scripts")
-    return {"sha": sha, "dirty_fm1": bool(dirty)}
+    status = [run("status", "--porcelain", "--", "prc"), run("status", "--porcelain", "--untracked-files=no", "--", "scripts")]
+    if any(s is None for s in status):                                   # a failed status call is no verdict either
+        return {"sha": sha, "dirty_fm1": None}
+    return {"sha": sha, "dirty_fm1": any(bool(s) for s in status)}
 
 
 def library_versions() -> dict:

@@ -149,7 +149,11 @@ def check_table_sources(table_path, adsb_fi: bool) -> list:
     table may hold adsb.lol points alone under either setting (board file v57 did). Returns the sorted names."""
     report_path = pathlib.Path(table_path).resolve().parent / "report.json"
     declared = json.loads(report_path.read_text()).get("sources", ["adsb.lol"])
-    names = sorted({str(n) for group in (declared.values() if isinstance(declared, dict) else [declared]) for n in group})
+    groups = list(declared.values()) if isinstance(declared, dict) else [declared]
+    if any(not isinstance(g, (list, tuple)) for g in groups):          # uad_build writes None for a directory without a manifest
+        raise E.SchemaError(f"{report_path}: sources unknown for an input directory ({declared!r}); rebuild the day"
+                            f" files' manifest or the table")
+    names = sorted({str(n) for g in groups for n in g})
     if "adsb.fi" in names and not adsb_fi:
         raise E.ConfigValueError(f"the stand-exit table {table_path} was built from adsb.fi points (non-commercial, "
                                  f"not redistributable; {report_path}); to use them set adsb.sources.adsb_fi=true")

@@ -59,8 +59,8 @@ def _num(x):
 
 def parse_member_v2(raw: bytes, unparseable=None) -> list:
     """One trace_full_*.json -> rows (COLUMNS order) for points inside any airport box. A member whose gzip or JSON is
-    corrupt yields no rows and, when `unparseable` (a list) is given, is counted there so the day record can report it
-    (adsb_extract.parse_member does the same)."""
+    corrupt, or whose JSON is not a trace object, yields no rows and, when `unparseable` (a list) is given, is counted
+    there so the day record can report it (adsb_extract.parse_member counts unparseable JSON the same way)."""
     if raw[:2] == b"\x1f\x8b":
         try:
             raw = gzip.decompress(raw)
@@ -75,6 +75,8 @@ def parse_member_v2(raw: bytes, unparseable=None) -> list:
             unparseable.append(1)
         return []
     if not isinstance(d, dict):
+        if unparseable is not None:
+            unparseable.append(1)
         return []
     base, tr = d.get("timestamp"), d.get("trace")
     if base is None or not tr:

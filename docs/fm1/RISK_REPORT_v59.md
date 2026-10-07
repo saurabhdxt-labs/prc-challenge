@@ -25,7 +25,7 @@ DATA_SOURCES.md, LIMITATIONS 12).
 | claim part | evidence |
 |---|---|
 | board score | the scoring service's result file for v59: status Succeeded, `used_pairs` 344,841, score 248.5486 |
-| the score was predicted | registered before the upload: 248.5481 (v57 plus the v51 → v55 adsb.fi gap of 609.6 MSE, assumed additive); the board gave 248.5486, +0.25 MSE off — the adsb.fi gap is additive to within the noise of one evaluation |
+| the score was predicted | registered before the upload: 248.5481 (v57 plus the v51 → v55 adsb.fi gap of 609.6 MSE, assumed additive); the board gave 248.5486, +0.25 MSE off: the adsb.fi gap was additive here |
 | the code produced the file | written by `python -m prc build-submission --config configs/fm1_v57_open.yaml` from an artefact derived from the v50 donor (`fit --reuse-from`); rebuilt on 2026-10-06 from a re-derived artefact: byte-identical (CLAIMS 26) |
 | the config is the final one | `tests/fm1/test_fm1_final_configs.py` pins `configs/fm1_v57_open.yaml` to its config hash; it differs from `configs/fm1_v57.yaml` in two knobs (`adsb.sources.adsb_fi`, `adsb.table_dir`) |
 | open data only | `features.check_table_sources` refuses an ADS-B table that declares adsb.fi points while the knob is false, and `uad.check_table_sources` holds the stand-exit table to the same rule (both tested); the tables v59 reads declare adsb.lol only |
@@ -44,10 +44,14 @@ DATA_SOURCES.md, LIMITATIONS 12).
    kept when the board improved. The final model itself was not selected by the board (it is v57 with a source
    removed for licence reasons, and it scores worse).
 4. **The stand-exit stage's thin evidence** (RISK_REPORT_v57 §3.1–3.3) carries over unchanged: its gain is the same
-   1,291.6 MSE here as between v55 and v57, concentrated at EHAM in January 2026.
+   1,291.6 MSE here against 1,291.9 between v55 and v57, concentrated at EHAM in January 2026.
 5. **MTX uses 2026 published aggregates by design** (CLAIMS 10, LIMITATIONS): the calibration reads EUROCONTROL's
    monthly taxi-out figures for the scored months; on a new period it needs that period's publication or is left off.
-6. **Byte-for-byte reproduction holds on the author's machine only.** The stack models are shipped rather than
+6. **The open-data check reads each table's own build report.** The stand-exit table's report declares the sources
+   of its day files; the sources of an `--alias-from` table are not merged into it (every alias table in use declares
+   adsb.lol only), and the stored stack models carry no source declaration (their provenance is the ODbL notice in
+   DATA_SOURCES.md). A reader who rebuilds those inputs from another source must check them by hand.
+7. **Byte-for-byte reproduction holds on the author's machine only.** The stack models are shipped rather than
    rebuilt; the OSM route table, the MTX CSVs and the adsb.lol day files are fetched from live sources (REPRODUCE.md,
    "What a clone can and cannot rebuild").
 

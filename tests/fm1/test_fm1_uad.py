@@ -924,3 +924,10 @@ def test_load_constants_refuses_a_bool_or_a_numeric_string(tmp_path, key, bad):
     p = _write_constants(tmp_path / "c.json", {key: bad})
     with pytest.raises(E.SchemaError, match="finite"):
         U.load_constants(p)
+
+
+def test_check_table_sources_refuses_a_report_whose_sources_are_unknown(tmp_path):
+    """Review 2026-10-07 (m1): uad_build writes `{dir: None}` for a day directory without a MANIFEST.json, and the
+    flattening raised a bare TypeError. Fails when an unknown group is not refused with a named SchemaError."""
+    with pytest.raises(E.SchemaError, match="sources unknown"):
+        U.check_table_sources(_table_with_report(tmp_path, {"/in/y2026": ["adsb.lol"], "/in/y2025": None}), adsb_fi=False)

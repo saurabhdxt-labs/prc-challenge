@@ -500,8 +500,9 @@ def test_an_unparseable_member_is_counted_not_dropped_silently():
     bad = []
     assert af.parse_member_v2(b"\x1f\x8b" + b"not gzip at all", bad) == []
     assert af.parse_member_v2(b"{not json", bad) == []
+    assert af.parse_member_v2(b"[1, 2]", bad) == []                      # valid JSON that is not a trace object
     assert af.parse_member_v2(_trace([_pt(0, EHAM, "ground")]), bad) != []
-    assert len(bad) == 2
+    assert len(bad) == 3
 
 
 def test_extract_day_counts_the_unparseable_members_of_an_archive(tmp_path):

@@ -2,7 +2,7 @@
 # Serial driver for the remaining pre-registered arms. Each arm: --smoke first (real caches,
 # smoke months); only on exit 0 does the full run start. One heavy job at a time, always.
 # Outputs go to reports/ (never /tmp). Progress -> reports/ARMS_QUEUE.log
-cd ~/Projects/prc-challenge || exit 1
+cd "$(dirname "$0")/../.." || exit 1          # research/tools/ -> the repository root
 Q=reports/ARMS_QUEUE.log
 say() { print -r -- "[$(date +%H:%M:%S)] $*" | tee -a $Q; }
 run() {                       # run <name> <console-log> <args...>

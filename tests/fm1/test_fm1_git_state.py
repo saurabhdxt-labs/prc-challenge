@@ -59,3 +59,15 @@ def test_a_root_that_is_not_a_git_checkout_records_no_sha_and_no_dirty_verdict(t
     recorded as sha "" and dirty_fm1 False — a clean-looking provenance for code nobody can trace. Fails when a failed
     git command's empty output is read as an answer."""
     assert A.git_state(tmp_path) == {"sha": None, "dirty_fm1": None}
+
+
+def test_a_failing_status_call_records_no_dirty_verdict_rather_than_clean(tmp_path, monkeypatch):
+    """Review 2026-10-07 (m5): rev-parse succeeding while `git status` fails (a corrupt index) was recorded as
+    dirty_fm1 False — "clean" with no evidence. Fails when a failed status call is read as clean."""
+    class R:
+        def __init__(self, rc, out):
+            self.returncode, self.stdout = rc, out
+    def fake_run(argv, **kw):
+        return R(0, "a" * 40 + "\n") if argv[1] == "rev-parse" else R(128, "")
+    monkeypatch.setattr(A.subprocess, "run", fake_run)
+    assert A.git_state(tmp_path) == {"sha": "a" * 40, "dirty_fm1": None}
