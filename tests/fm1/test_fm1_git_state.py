@@ -2,7 +2,7 @@
 
 End-of-session review 2026-10-03: `dirty_fm1` was `git status --porcelain -- prc configs`, so the development tree's
 untracked old-pipeline configs (configs/pipeline_*.yaml) made it True for every artefact whatever FM1's code state (v55
-and v56 both read True; v56's prc/ was clean at 0709298). The config's values are stored whole in config.json, so only
+and v56 both read True; v56's prc/ was clean at 55849ac). The config's values are stored whole in config.json, so only
 code counts: prc/ (tracked or untracked) and tracked scripts/ (FM1 loads only tracked scripts — BC-38).
 Seen red 2026-10-03 08:25-08:42 EDT (the untracked-config case).
 """

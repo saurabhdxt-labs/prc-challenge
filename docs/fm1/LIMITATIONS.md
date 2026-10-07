@@ -97,10 +97,13 @@
     (`scripts/analysis/urp_replay.py` labels those steps IN-SAMPLE). Validation numbers for those components overstate
     what an unseen month would show (item 3).
 18. **Provenance of the stored artefacts.** v55's artefact was derived (`fit --reuse-from`) at 02:39 EDT on 2026-10-03
-    on 33ee40a plus uncommitted changes that were committed 22 minutes later (0709298); its donor (v50) was fitted at
-    03:16 EDT on 2026-10-02 on b285bda plus uncommitted changes committed later that morning (32aadc1). The artefacts
+    on d7b4f1c plus uncommitted changes that were committed 22 minutes later (55849ac); its donor (v50) was fitted at
+    03:16 EDT on 2026-10-02 on 0a9b5e7 plus uncommitted changes committed later that morning (9ec557f). The artefacts
     record the git sha and a dirty flag, not the uncommitted diff. The stored stack's MANIFEST records sha
-    fdeb704 with "-dirty", a commit that predates its producer scripts. The rebuild check in REPRODUCE.md (the current
+    fdeb704 with "-dirty" (f6785f6 in the current history), a commit that predates its producer scripts. The
+    repository's history was rewritten on 2026-10-06 to remove the development record from it, which changed every
+    commit hash: the hashes stored inside artefacts and manifests (33ee40a, b285bda, fdeb704 above) are the hashes of
+    that time; this item cites the current ones. The rebuild check in REPRODUCE.md (the current
     code reproduces the v55 file from its artefact) is the evidence that the committed code serves what was uploaded.
 19. **A training file with a one-row spill-over month.** FM1 splits each raw file by the UTC month of take-off; six of the
     twelve 2025 files hold one row stamped 23:59:5x of the previous month. The shipped feature builder asserts more than

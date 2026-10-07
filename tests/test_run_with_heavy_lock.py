@@ -148,7 +148,7 @@ def test_other_termination_signals_are_forwarded_too(tmp_path, sig):
 
 
 @pytest.mark.slow
-def test_regression_bc45_the_signal_tests_do_not_depend_on_how_the_suite_was_launched(tmp_path):
+def test_regression_bug_45_the_signal_tests_do_not_depend_on_how_the_suite_was_launched(tmp_path):
     """BC-45 (2026-10-06 18:14 EDT): the two cases above failed in a suite launched with `nohup ... &` — nohup ignores
     SIGHUP, a background job of a non-interactive shell ignores SIGINT, children inherit both, and the wrapper keeps a
     signal ignored at start ignored (by design, the nohup test below). The tests now set the dispositions the wrapper

@@ -182,7 +182,7 @@ def test_fit_hides_adsb_on_training_rows_only_and_reports_it(dropout_fits, monke
 
 @pytest.mark.slow
 def test_regression_bug_42_a_fit_without_the_adsb_block_reads_no_coverage(e2e_world, fm1_world_mod):
-    """BC-42 (2026-10-04, line-by-line audit; origin prc/pipeline/fm1/engine.py:232, introduced by commit 75943ef):
+    """BC-42 (2026-10-04, line-by-line audit; origin prc/pipeline/fm1/engine.py:232, introduced by commit eb71faa):
     the fix above hoisted `coverage_recorded = m.coverage...` out of the ADS-B stack branch, so every fit with a base
     model read the `coverage` column — which exists only when the ADS-B block is attached. A legal configuration
     without ADS-B (features.adsb=false, adsb.stack.enabled=false; the knob cross-checks allow it) then died with an

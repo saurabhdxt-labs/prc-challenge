@@ -54,7 +54,7 @@ the board score by more than the margins between v50, v51 and v55. We cannot say
 | item | value |
 |---|---|
 | commands | REPRODUCE.md, "Reproducing the board file v55" (fit v50, derive v55 with `--reuse-from`, build) |
-| code | this repository at the commit that adds this report; the artefacts record the commit they were built on (v50: b285bda, v55: 33ee40a, each with uncommitted changes since committed; LIMITATIONS 18) |
+| code | this repository at the commit that adds this report; the artefacts record the commit they were built on (v50: 0a9b5e7, v55: d7b4f1c, recorded as b285bda and 33ee40a before the 2026-10-06 history rewrite; each with uncommitted changes since committed; LIMITATIONS 18) |
 | environment | Python 3.11.15; `requirements.txt`, `requirements-dev.txt`, `requirements-catboost.txt`; check with `python tools/env_check.py` |
 | hardware | the development machine: Apple silicon, 18 cores, 24 GiB (full fit ~10 h, ~20 GB); cross-machine bit-identity is not claimed |
 | seeds | `run.seeds: [0, 1, 2]` (configs), LightGBM deterministic with fixed threads (12) |

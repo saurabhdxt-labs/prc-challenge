@@ -97,7 +97,7 @@ def _golden_frame():
     """FROZEN 2026-09-09. (train unmatched, test unmatched, train LIRF matched) split by
     `bs.HOLDOUT_MONTHS`, the fold the default path shipped on. Do NOT edit: a changed frame
     invalidates tests/fixtures/stratum_hybrid_default_golden.npz, which can only be regenerated
-    from the PRISTINE build_submission.py (sha256 cb3a1f7f..., HEAD a570407)."""
+    from the PRISTINE build_submission.py (sha256 cb3a1f7f..., HEAD f8fa304)."""
     rng = np.random.default_rng(20260909)
     unm = bs.derive(_raw_block(rng, 9_000, matched=False))
     mat = bs.derive(_raw_block(rng, 4_000, matched=True))
@@ -129,7 +129,7 @@ def test_default_path_is_byte_identical_to_the_pristine_golden():
     """`fit_unmatched(train, test, train_matched=...)` and `fit_unmatched(train, test)` must
     return, bit for bit, what the PRISTINE module returned on the frozen frame — the hybrid is
     opt-in and the default call is the one that produced v2/v3's 5,290 unmatched rows.
-    The golden was computed from build_submission.py at sha256 cb3a1f7f... (HEAD a570407)
+    The golden was computed from build_submission.py at sha256 cb3a1f7f... (HEAD f8fa304)
     BEFORE the hybrid edit, under sklearn 1.8.0 / pandas 3.0.1 / numpy 2.4.3; a different
     library version that moves the LIRF logistic at the 1e-12 level is a real finding, not a
     reason to loosen this to allclose.
