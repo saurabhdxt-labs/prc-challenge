@@ -244,8 +244,8 @@ document why a default was chosen and are checked only in the development tree (
 
 The test suite has a **clone tier**: every test not marked `devtree` (tests/conftest.py) runs from a fresh clone —
 `python -m pytest -m "not devtree" tests`, or `python tools/clone_check.py`, which builds a tree of exactly the tracked
-files in a new git repository and runs that tier there (2026-10-07, on the final tree without the development record: 3,554 passed,
-76 skipped, 149 deselected, 11 min 35 s on the author's machine). Tests that read the data, the stored artefacts or the
+files in a new git repository and runs that tier there (2026-10-07, on the final tree without the development record: 3,556 passed,
+76 skipped, 149 deselected, 11 min 1 s on the author's machine). Tests that read the data, the stored artefacts or the
 development record are marked `devtree` (automatically for every test on the real-data-shaped worlds,
 tests/fm1/conftest.py) and run in the full suite on the development machine.
 
