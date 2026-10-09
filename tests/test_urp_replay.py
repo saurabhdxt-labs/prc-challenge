@@ -24,7 +24,6 @@ from __future__ import annotations
 import functools
 import os
 import pathlib
-import subprocess
 import sys
 from types import SimpleNamespace
 
@@ -37,6 +36,7 @@ for _p in (ROOT, ROOT / "scripts", ROOT / "scripts" / "analysis"):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 import urp_replay as U  # noqa: E402
+from isolation import run_guarded
 
 CHILD_ENV = "URP_TEST_CHILD"
 HAS_REAL = (ROOT / "data/cache_rome/unm.parquet").exists() and (ROOT / "data/raw/ranking.parquet").exists()
@@ -50,7 +50,7 @@ def isolated(fn):
         if os.environ.get(CHILD_ENV) == "1":
             return fn(*args, **kwargs)
         node = f"{pathlib.Path(__file__).resolve()}::{fn.__name__}"
-        r = subprocess.run([sys.executable, "-B", "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "no:randomly", node],
+        r = run_guarded([sys.executable, "-B", "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "no:randomly", node],
                            env={**os.environ, CHILD_ENV: "1"}, capture_output=True, text=True, timeout=280)
         assert r.returncode == 0, r.stdout[-4000:] + r.stderr[-2000:]
         assert "1 passed" in r.stdout, "the child did not run the test (skipped?): " + r.stdout[-2000:]

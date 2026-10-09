@@ -11,6 +11,7 @@ import sys
 import numpy as np
 import pandas as pd
 import pytest
+from isolation import run_guarded
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -169,7 +170,7 @@ def test_regression_bc5_torch_never_shares_a_process_with_lightgbm():
     in __kmp_fork_barrier, 0% CPU). Fix: the NN trains in scripts/adsb_nn_worker.py, a subprocess that never imports
     lightgbm. This test runs G then N in a fresh interpreter under a timeout and checks torch never entered it.
     Kills: training the NN in-process (hangs -> timeout)."""
-    import subprocess, textwrap
+    import textwrap
     code = textwrap.dedent(f"""
         import importlib.util, sys
         sys.path.insert(0, {str(ROOT / 'tests')!r})
@@ -186,7 +187,7 @@ def test_regression_bc5_torch_never_shares_a_process_with_lightgbm():
         import shutil; shutil.rmtree(md.parent)
         print('TORCH_IN_PARENT', 'torch' in sys.modules, 'LGB_IN_PARENT', 'lightgbm' in sys.modules)
     """)
-    r = subprocess.run([sys.executable, "-B", "-c", code], capture_output=True, text=True, timeout=90,
+    r = run_guarded([sys.executable, "-B", "-c", code], capture_output=True, text=True, timeout=90,
                        cwd=str(ROOT))
     assert r.returncode == 0, r.stderr[-2000:]
     assert "TORCH_IN_PARENT False LGB_IN_PARENT True" in r.stdout

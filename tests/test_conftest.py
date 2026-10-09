@@ -31,6 +31,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from isolation import run_guarded
 
 CONFTEST = Path(__file__).resolve().parent / "conftest.py"
 
@@ -50,7 +51,7 @@ def test_devtree_marker_is_registered(pytestconfig):
 def _inner(tmp_path: Path, body: str, *args: str) -> subprocess.CompletedProcess:
     shutil.copy(CONFTEST, tmp_path / "conftest.py")
     (tmp_path / "test_inner.py").write_text(body)
-    return subprocess.run([sys.executable, "-B", "-m", "pytest", "-p", "no:cacheprovider", "-p", "no:randomly",
+    return run_guarded([sys.executable, "-B", "-m", "pytest", "-p", "no:cacheprovider", "-p", "no:randomly",
                            "-v", *args, str(tmp_path)], cwd=tmp_path, capture_output=True, text=True, timeout=120)
 
 

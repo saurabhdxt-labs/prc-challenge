@@ -68,6 +68,19 @@ FINAL = {
         "run.purpose": "scored_period",
         "modules.uad.enabled": True,
     }),
+    #: the final phase (2026-10-08): v57_open with the final-period paths (three REUSE_FREE knobs); artefact 2950c7552ed7-12679217
+    "final": ("configs/fm1_final.yaml", "2950c7552ed7fcdc82f18e6c4df9a41ecbc45764e77768287b093216a79b8dbc", {
+        "adsb.stack.f_model": "lgbcat",
+        "adsb.stack.models_dir": "data/r12/r13_stack_full/models_lgbcat",
+        "adsb.table_dir": "data/r12/tables_final",
+        "modules.storm.mode": "anchor",
+        "run.threads": 12,
+        "modules.ldi.enabled": True,
+        "run.purpose": "scored_period",
+        "modules.uad.enabled": True,
+        "modules.uad.table": "data/uad/final_table_a3/table.parquet",
+        "data.template_file": "data/raw_final/final_submitting.parquet",
+    }),
     #: a candidate, not behind a board file and without a stored artefact: the hash below is the config's own
     "v57_tc": ("configs/fm1_v57_tc.yaml", "9ba126281d66ccc6677ffe7dcd432d99a21470765e5385034356d20319064415", {
         "adsb.stack.f_model": "lgbcat",

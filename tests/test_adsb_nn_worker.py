@@ -6,10 +6,10 @@ Mutation rehearsal per test in its docstring.
 from __future__ import annotations
 
 import pathlib
-import subprocess
 import sys
 
 import numpy as np
+from isolation import run_guarded
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 WORKER = ROOT / "scripts" / "adsb_nn_worker.py"
@@ -25,7 +25,7 @@ def _inputs(path: pathlib.Path, B: np.ndarray) -> None:
 def _run(tmp_path: pathlib.Path, B: np.ndarray):
     inp, out = tmp_path / "in.npz", tmp_path / "out.npz"
     _inputs(inp, B)
-    r = subprocess.run([sys.executable, "-B", str(WORKER), str(inp), str(out)], capture_output=True, text=True,
+    r = run_guarded([sys.executable, "-B", str(WORKER), str(inp), str(out)], capture_output=True, text=True,
                        timeout=300)
     return r, (dict(np.load(out)) if out.exists() else None)
 

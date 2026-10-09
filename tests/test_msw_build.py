@@ -36,7 +36,6 @@ from __future__ import annotations
 import inspect
 import json
 from pathlib import Path
-import subprocess
 import sys
 
 import numpy as np
@@ -50,6 +49,7 @@ for _p in (ROOT / "scripts", ROOT / "scripts/analysis"):
 
 import mau_build as MB  # noqa: E402  (another lane's validated file; imported, never edited)
 from research.analysis import msw_build as W  # noqa: E402  (moved here, FP-W4)
+from isolation import run_guarded
 
 RAW_FILES = sorted((ROOT / "data/raw").glob("training_2025-*.parquet"))
 MAU_TRAIN = ROOT / "reports/mau_training_rows.parquet"
@@ -494,7 +494,7 @@ def _run_main_into(tmp_path):
     code = ("import sys; from pathlib import Path; sys.path.insert(0, sys.argv[1]); "
             "from research.analysis import msw_build as W; "
             "W.REPORT, W.PREDS = Path(sys.argv[2]), Path(sys.argv[3]); W.main()")
-    proc = subprocess.run([sys.executable, "-B", "-c", code, str(ROOT), str(report), str(preds)],
+    proc = run_guarded([sys.executable, "-B", "-c", code, str(ROOT), str(report), str(preds)],
                           capture_output=True, text=True, timeout=W.ALARM_S + 120)
     return proc, report, preds
 

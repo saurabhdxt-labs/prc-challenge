@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import json
 import pathlib
-import subprocess
 import sys
 
 import pytest
+from isolation import run_guarded
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
@@ -43,7 +43,7 @@ d = np.abs(out.TAXITIME_SEC_mvt.reindex(ids).to_numpy(float) - served.reindex(id
 print(json.dumps({{"n": int(len(ids)), "within_1s": int((d <= 1).sum()), "exact": int((d == 0).sum()), "max": float(d.max()),
                    "lanes": det.lane.value_counts().to_dict(), "decided_by": led.counts()}}))
 """
-    r = subprocess.run([sys.executable, "-B", "-c", code], capture_output=True, text=True, timeout=600)
+    r = run_guarded([sys.executable, "-B", "-c", code], capture_output=True, text=True, timeout=600)
     assert r.returncode == 0, r.stderr[-3000:]
     rep = json.loads(r.stdout.strip().splitlines()[-1])
     assert rep["n"] == 339_551

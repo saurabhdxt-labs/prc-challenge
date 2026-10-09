@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import json
 import pathlib
-import subprocess
 import sys
 
 import numpy as np
@@ -25,6 +24,7 @@ from prc.pipeline.fm1 import knobs as K
 from prc.pipeline.fm1 import ldi as L
 from prc.pipeline.fm1 import shipped
 from prc.pipeline.fm1 import stages as S
+from isolation import run_guarded
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 RESULT = ROOT / "logs/ldi_scratch/result_20260927T1410/result.json"
@@ -365,7 +365,7 @@ print(json.dumps({{
   "final_vs_v41": int((out != v41).sum()), "rep": {{k: rep[k] for k in ("n_rows", "n_target", "severe_days", "population")}},
   "peak_rss_gib": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024 ** 3}}))
 """
-    r = subprocess.run([sys.executable, "-B", "-c", code], capture_output=True, text=True, timeout=900, cwd=str(ROOT))
+    r = run_guarded([sys.executable, "-B", "-c", code], capture_output=True, text=True, timeout=900, cwd=str(ROOT))
     assert r.returncode == 0, r.stdout[-3000:] + r.stderr[-5000:]
     rep = json.loads(r.stdout.strip().splitlines()[-1])
     # LDI's RESULT counts 22,061 January rows: its scratch extract (logs/ltfm_scratch/ltfm_2026_rank.parquet) lacks the

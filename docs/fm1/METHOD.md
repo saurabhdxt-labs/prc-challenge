@@ -22,8 +22,8 @@ Built per calendar-month chunk through the shipped builders' public functions (n
 | block | builder | columns | note |
 |---|---|---|---|
 | base | `stand_ab.build_features` | BASELINE_FEATS minus `aobt_sec`, `mvt_sec`, `sched_sec` | NSC drops the explicit seconds-of-minute columns; the schedule offset `sp` still carries the take-off's seconds (SCHED is minute-precise) |
-| queue | `stand_ab.build_queue` | 12 `q_*` | push-anchored surface congestion; `q_next_arr_onblock_gap` uses the next arrival's on-block time at the same stand, a later event of another flight in the supplied file (other supplied rows may be used: DATA_SOURCES) |
-| order | `stand_ab.build_order` | `o_dev_mvt`, `o_dev_flt`, `o_n_line` | per-airport id line |
+| queue | `stand_ab.build_queue` | 12 `q_*` | push-anchored surface congestion from the OTHER rows of the supplied file (organiser, 2026-09-16: other supplied rows may be used). Seven of the twelve read events after this departure's own push: `q_pushed_after_me` and `q_rwy_tko_in_taxi` (other departures' pushes / take-offs during my taxi), `q_dep_tko_sym15` / `q_rwy_tko_sym10` (take-offs within ±15 / ±10 min of mine), `q_rwy_ambient_proxy` (other departures' MVT − AOBT_3 within ±1 h), `q_arr_taxiin_sym30_tko` (arrivals' taxi-in within ±30 min of my take-off) and `q_next_arr_onblock_gap` (the first arrival's on-block at my stand after my push, within 24 h, minus my take-off — on 8.7 % of March-2025 rows that on-block falls before my take-off and bounds my off-block from above: Spearman 0.45 with the label on those rows). Arrivals' on-block times are supplied on every arrival row of the scored file |
+| order | `stand_ab.build_order` | `o_dev_mvt`, `o_dev_flt`, `o_n_line` | the organiser's record identifiers: a row's MVT_ID / FLIGHT_ID against the centred rolling median (±250 rows, a transductive window of the file) of its take-off-sorted neighbours at the airport. Measured on March 2025: sorted by FLIGHT_ID the rows run in flight-plan filing order (LOBT / IOBT monotone 100 %); sorted by MVT_ID they run in schedule order at six airports (99.6–99.8 %) and in no clock's order at EHAM, LFPG, LSZH, LTFM; neither follows block time (55–64 %). The block therefore encodes how far a flight's filing / schedule position sits from its take-off position — an out-of-sequence signal built from identifiers, not a label order. Registered gain on long taxi bands only (development record) |
 | weather | `stand_ab.build_weather` | 10 `w_*` | METAR as of AOBT_3 |
 | ORL | `orl_build.attach` | 6 `orl_*` | static OSM stand→runway route |
 | ADS-B | the R12 tables, by MVT id | the table's features + `coverage`, `adsb_day_present` | the table defines the block (33 for stamp 801f9bcac9a5) |
@@ -148,7 +148,7 @@ length) were all wrong: they transfer. ADS-B off and Rome off were predicted wor
 **Weather.** METAR weather is the most season-specific input (freezing in January, convective weather in July), and the
 swap makes it extrapolate across seasons, which the final setting does not (it trains on all twelve 2025 months and scores
 the same seasons of 2026). The swap result is therefore checked under protocol S (leave-one-month-out on January and July,
-training on the other ten months), registered before either run: drop weather if the S gain's CI is above 0 or straddles 0;
+training on the other eleven months), registered before either run: drop weather if the S gain's CI is above 0 or straddles 0;
 keep it only if weather clearly helps within season (CI below 0). LDI reads the weather block, so dropping weather also
 turns LDI off (amendment registered before the second run). **Result: keep weather.** Weather off vs on under protocol S:
 −269.0 bmse [−423.9, −120.5] (excluding LIRF −175.2 [−300.5, −53.4]; excluding the 3 largest rows −241.2 [−386.7, −102.4]);
@@ -160,16 +160,22 @@ predicts: the swap's weather gain is an extrapolation artefact, and the final mo
 ## 6. Validation (2025 labels only; filled 2026-10-02)
 
 All numbers are RMSE in seconds on held-out 2025 months, screen tier (learning rate 0.05, one seed), **ADS-B stack off**
+(except the two 2026-10-09 rows, M02 and M06, which ran with the stack on: those folds are outside its training months)
 (it was trained on January + July 2025 and cannot be validated on them) and, in the swap folds, E2W off. They are a floor
 for a reduced configuration, not the final model's score (a reference point, not a bound).
 
 | protocol | fold | held out | n | RMSE | worst airports (RMSE) |
 |---|---|---|---|---|---|
-| S (leave one month out; train on the other ten) | F1 | January | 153,658 | 327.07 | LFPG 799.2, LIRF 364.5, LTFM 220.6 |
+| S (leave one month out; train on the other eleven) | F1 | January | 153,658 | 327.07 | LFPG 799.2, LIRF 364.5, LTFM 220.6 |
 | S | F2 | July | 190,678 | 266.21 | LIRF 614.6, EGLL 278.0, LTFM 274.5 |
 | swap (train one month, test the other) | X7to1 | January | 153,658 | 351.83 | LFPG 823.6, LIRF 411.6 |
 | swap | X1to7 | July | 190,678 | 376.94 | LIRF 972.1, LFPG 414.9, EGLL 329.6 |
+| lomo, final-phase check (2026-10-09; stack ON — its training months are January + July, so February / June are forward for it; MTX off; the 2025 stand-exit table) | M02 | February | 143,693 | 249.36 | LTFM 485.5, LIRF 443.2, LSZH 209.9 |
+| lomo, final-phase check (as above) | M06 | June | 183,080 | 275.26 | LIRF 778.4, LFPG 246.8, EGLL 216.6 |
 
+Reading (final-phase rows): the two months the final phase added were never selected on; February is below both design
+folds (January 327.07, July 266.21) and June lies between them (rows under one hour: 173.7 / 180.8 s), with Rome again
+the largest structural error in summer (LIRF 778 s in June; its unmatched departures have no flight-plan record).
 Reading: the January figures are dominated by LFPG, where two departures with a stale recorded off-block time carry most
 of that airport's squared error (the comparison in §5 is paired, so they cancel there); Rome (LIRF) is the largest
 structural error in both months — its unmatched departures have no flight-plan record and no ADS-B. Best airports sit
@@ -231,8 +237,9 @@ the lever helped. Sources: the project's ledger and each registration's hash log
 | 10-02 | ACR | training with ADS-B randomly hidden (coverage-regime repair) | the 2026 coverage loss costs 862.7 bmse [671.7, 1124.8]; the repair recovers 25.7 [−120.5, 163.9] | FALSE: information, not calibration |
 | 10-03 | AFI (v55) | adsb.fi July-2026 capture merged into the serve table (no refit) | +609.6 board MSE vs v51 (registered +150 … +600) | TRUE: in the scored-period build |
 | 10-03 | AFB (v56) | adsb.fi only where adsb.lol had no track | −205.8 vs v55 | FALSE |
-| 10-05 | UAD | the aircraft's own ADS-B stand-exit time for departures without a flight-plan record (stage `uad`) | 317 January + July 2025 rows: RMSE 432.4 → 274.4 s; body +53.3 bmse [21.8, 85.3] | TRUE on 2025; optional stage, on in board file v57 (+1,291.9 MSE against v55, §8) and in the final model (open-data v57, not yet scored) |
+| 10-05 | UAD | the aircraft's own ADS-B stand-exit time for departures without a flight-plan record (stage `uad`) | 317 January + July 2025 rows: RMSE 432.4 → 274.4 s; body +53.3 bmse [21.8, 85.3] | TRUE on 2025; optional stage, on in board file v57 (+1,291.9 MSE against v55, §8) and in the final model (open-data v57, scored as v59 = 248.5486 on the previous ranking file; the final file is blind) |
 | 10-05 | TC | the unmatched body without its tail-cell rule (a cell mean of 3,000 s or more no longer overrides the learned body; `modules.tail_cells.enabled` false) | registered test, the 3 July 2025 rows the rule decides out of month: +79.7 bmse (values 3,090–5,696 s against labels 1,130–1,268 s; the body gives 1,051–1,275 s). Seen before the registration: 25 rows in the ten design months, +492 bmse, 8 of 8 months | TRUE, thin (28 rows in 2025, all LTFM, none on a storm day); knob off in the candidate `configs/fm1_v57_tc.yaml`; never uploaded as a 10-row change |
+| 10-09 | MFI (final phase) | a label-free lever for Rome: a per-callsign / airline / stand schedule-copy rate from the 2025 training files as a post-hoc, reuse-free stage on the matched LIRF lane (three forms; the one that could ship = a mixture toward MVT − SCHED on the 1,800–3,600 s band) | registered (locked rule: mean body gain ≥ +100 bmse per held-out month, positive in ≥ 7 of 8 design months; permutation null, planted signal recovered 0.84), eight non-gate 2025 months, screen tier: best mean body gain +2.4 bmse/month (null max −51); a cheating in-month fit of the same rule reaches 1–28 bmse/month — the learners already hedge copy-prone rows. Duplicates the 09-26 per-flight-number arm (A −1,459, C −1,417) | **NOT WORKING** — no component changed; the final submission is the final model as built |
 
 Reading: almost every lever that looked good on a 2025 holdout either failed its own registered gate or lost on the 2026
 board (AGF, v22, HPX-S, MOVE). The final model is what survived this, not the best of many tries.
@@ -299,5 +306,6 @@ written down before the upload was 246.2105 (the average itself: 246.2197 exactl
 unmatched rows); the board gave 246.2224, 5.9 MSE away. The members' own scores include an earlier few-row rule on
 seven Rome rows, which the file does not carry. The file means nothing on other data. The documented model remains
 FM1: the forecaster v50, the best single board file v57, and the final model, open-data v57 (`configs/fm1_v57_open.yaml`,
-not yet scored). The members v33–v43 are files of the chain that preceded FM1 and are not rebuilt by the shipped code
+scored as v59 = 248.5486 on the previous ranking file; the final file is blind). The members v33–v43 are files of the
+chain that preceded FM1 and are not rebuilt by the shipped code
 (REPRODUCE, RISK_REPORT_v58).

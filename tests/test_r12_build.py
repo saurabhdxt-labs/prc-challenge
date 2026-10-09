@@ -11,13 +11,13 @@ import importlib.util
 import json
 import os
 import pathlib
-import subprocess
 import sys
 import types
 
 import numpy as np
 import pandas as pd
 import pytest
+from isolation import run_guarded
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CHILD_ENV = "R12_BUILD_CHILD"
@@ -46,7 +46,7 @@ def isolated(fn):
         if os.environ.get(CHILD_ENV) == "1":
             return fn(*args, **kwargs)
         node = f"{pathlib.Path(__file__).resolve()}::{fn.__name__}"
-        r = subprocess.run([sys.executable, "-B", "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "no:randomly",
+        r = run_guarded([sys.executable, "-B", "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "no:randomly",
                             node], env={**os.environ, CHILD_ENV: "1"}, capture_output=True, text=True, timeout=900)
         assert r.returncode == 0, r.stdout[-4000:] + r.stderr[-2000:]
     return wrapper

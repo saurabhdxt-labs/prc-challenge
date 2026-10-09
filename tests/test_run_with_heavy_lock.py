@@ -42,6 +42,7 @@ import time
 from pathlib import Path
 
 import pytest
+from isolation import Deadline, run_guarded, wait_guarded
 
 ROOT = Path(__file__).resolve().parents[1]
 WRAPPER = ROOT / "scripts" / "run_with_heavy_lock.py"
@@ -68,7 +69,7 @@ def _no_process_outlives_its_test():
         p, child = _STARTED.pop()
         if p.poll() is None:
             p.kill()
-            p.wait(timeout=20)
+            wait_guarded(p, timeout=20)
         for kill in (lambda: os.killpg(child, signal.SIGKILL), lambda: os.kill(child, signal.SIGKILL)):
             try:
                 kill()
@@ -99,10 +100,11 @@ def _start(tmp_path: Path, child_code: str, **popen):
     p = subprocess.Popen([sys.executable, "-B", str(WRAPPER), sys.executable, "-c", code],
                          env={**os.environ, "PHANTOM_HEAVY_LOCK_PATH": str(lock)},
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, **popen)
-    deadline = time.time() + 20
+    d = Deadline(20)
     while not pidfile.exists() or not pidfile.read_text():
-        assert time.time() < deadline, "the child never started"
+        assert not d.expired(), "the child never started"
         time.sleep(0.05)
+    d.close()
     _STARTED.append((p, int(pidfile.read_text())))
     return p, lock, int(pidfile.read_text())
 
@@ -124,10 +126,8 @@ def test_regression_bug_43_a_terminated_wrapper_ends_its_command_before_releasin
     p, lock, child = _start(tmp_path, "time.sleep(60)")
     assert not _lock_is_free(lock)                               # held while the command runs
     p.send_signal(signal.SIGTERM)
-    rc = p.wait(timeout=20)
-    deadline = time.time() + 10
-    while _alive(child) and time.time() < deadline:
-        time.sleep(0.05)
+    rc = wait_guarded(p, timeout=20)
+    _wait_gone(child)
     assert not _alive(child), "the command outlived the wrapper (orphaned, unlocked)"
     assert _lock_is_free(lock)
     assert rc != 0
@@ -140,10 +140,8 @@ def test_regression_bug_43_a_terminated_wrapper_ends_its_command_before_releasin
 def test_other_termination_signals_are_forwarded_too(tmp_path, sig):
     p, lock, child = _start(tmp_path, "time.sleep(60)")
     p.send_signal(sig)
-    p.wait(timeout=20)
-    deadline = time.time() + 10
-    while _alive(child) and time.time() < deadline:
-        time.sleep(0.05)
+    wait_guarded(p, timeout=20)
+    _wait_gone(child)
     assert not _alive(child) and _lock_is_free(lock)
 
 
@@ -164,7 +162,7 @@ def test_regression_bug_45_the_signal_tests_do_not_depend_on_how_the_suite_was_l
         for s, h in previous.items():
             signal.signal(s, h)
     p.send_signal(signal.SIGINT)
-    p.wait(timeout=20)
+    wait_guarded(p, timeout=20)
     assert _wait_gone(child) and _lock_is_free(lock)
     assert "forwarded SIGINT to the command" in p.stdout.read()
 
@@ -172,7 +170,7 @@ def test_regression_bug_45_the_signal_tests_do_not_depend_on_how_the_suite_was_l
 @pytest.mark.slow
 def test_the_commands_exit_code_is_returned_and_the_lock_released(tmp_path):
     p, lock, _ = _start(tmp_path, "raise SystemExit(7)")
-    assert p.wait(timeout=20) == 7
+    assert wait_guarded(p, timeout=20) == 7
     assert _lock_is_free(lock)
 
 
@@ -181,7 +179,7 @@ def test_a_held_lock_is_refused_with_exit_75_and_the_command_never_runs(tmp_path
     marker = tmp_path / "ran"
     with open(lock, "a+") as fh:
         fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        r = subprocess.run([sys.executable, "-B", str(WRAPPER), sys.executable, "-c",
+        r = run_guarded([sys.executable, "-B", str(WRAPPER), sys.executable, "-c",
                             f"open({str(marker)!r}, 'w').write('x')"],
                            env={**os.environ, "PHANTOM_HEAVY_LOCK_PATH": str(lock)}, capture_output=True, text=True,
                            timeout=30)
@@ -190,9 +188,10 @@ def test_a_held_lock_is_refused_with_exit_75_and_the_command_never_runs(tmp_path
 
 
 def _wait_gone(pid: int, seconds: float = 10) -> bool:
-    deadline = time.time() + seconds
-    while _alive(pid) and time.time() < deadline:
+    d = Deadline(seconds)
+    while _alive(pid) and not d.expired():
         time.sleep(0.05)
+    d.close()
     return not _alive(pid)
 
 
@@ -201,10 +200,11 @@ GRANDCHILD = ("import subprocess, sys; g = subprocess.Popen([sys.executable, '-c
 
 
 def _wait_file(path: Path) -> int:
-    deadline = time.time() + 20
+    d = Deadline(20)
     while not path.exists() or not path.read_text():
-        assert time.time() < deadline, f"{path.name} never written"
+        assert not d.expired(), f"{path.name} never written"
         time.sleep(0.05)
+    d.close()
     return int(path.read_text())
 
 
@@ -215,7 +215,7 @@ def test_a_terminated_wrapper_ends_the_commands_grandchildren_too(tmp_path):
     p, lock, child = _start(tmp_path, GRANDCHILD.format(secs=60, path=str(gfile)) + "g.wait()")
     grandchild = _wait_file(gfile)
     p.send_signal(signal.SIGTERM)
-    p.wait(timeout=20)
+    wait_guarded(p, timeout=20)
     assert _wait_gone(child) and _wait_gone(grandchild), "a process of the command outlived the wrapper"
     assert _lock_is_free(lock)
 
@@ -228,7 +228,7 @@ def test_the_lock_stays_held_while_a_process_left_in_the_group_runs(tmp_path):
     grandchild = _wait_file(gfile)
     assert _wait_gone(child, 5)                                  # the command itself has exited
     assert _alive(grandchild) and not _lock_is_free(lock)        # ... but its leftover process still holds the lock
-    assert p.wait(timeout=20) == 0
+    assert wait_guarded(p, timeout=20) == 0
     assert not _alive(grandchild) and _lock_is_free(lock)
     assert "waiting for the processes left in its group" in p.stdout.read()
 
@@ -243,7 +243,7 @@ def test_a_paused_command_is_resumed_so_it_can_act_on_the_forwarded_signal(tmp_p
                                       "os._exit(0))); time.sleep(60)" % str(done))
     os.kill(child, signal.SIGSTOP)
     p.send_signal(signal.SIGTERM)
-    assert p.wait(timeout=20) == 0                               # the command stopped gracefully
+    assert wait_guarded(p, timeout=20) == 0                               # the command stopped gracefully
     assert done.exists() and _wait_gone(child) and _lock_is_free(lock)
 
 
@@ -251,13 +251,13 @@ def test_a_paused_command_is_resumed_so_it_can_act_on_the_forwarded_signal(tmp_p
 def test_a_command_killed_by_a_signal_returns_128_plus_the_signal(tmp_path):
     p, lock, child = _start(tmp_path, "time.sleep(60)")
     os.kill(child, signal.SIGKILL)
-    assert p.wait(timeout=20) == 128 + signal.SIGKILL
+    assert wait_guarded(p, timeout=20) == 128 + signal.SIGKILL
     assert _lock_is_free(lock)
 
 
 def test_a_command_that_cannot_start_returns_127_and_releases_the_lock(tmp_path):
     lock = tmp_path / "heavy.lock"
-    r = subprocess.run([sys.executable, "-B", str(WRAPPER), str(tmp_path / "no-such-command")],
+    r = run_guarded([sys.executable, "-B", str(WRAPPER), str(tmp_path / "no-such-command")],
                        env={**os.environ, "PHANTOM_HEAVY_LOCK_PATH": str(lock)}, capture_output=True, text=True,
                        timeout=30)
     assert r.returncode == 127
@@ -266,7 +266,7 @@ def test_a_command_that_cannot_start_returns_127_and_releases_the_lock(tmp_path)
 
 
 def test_no_command_is_a_usage_error(tmp_path):
-    r = subprocess.run([sys.executable, "-B", str(WRAPPER)], env={**os.environ, "PHANTOM_HEAVY_LOCK_PATH":
+    r = run_guarded([sys.executable, "-B", str(WRAPPER)], env={**os.environ, "PHANTOM_HEAVY_LOCK_PATH":
                        str(tmp_path / "heavy.lock")}, capture_output=True, text=True, timeout=30)
     assert r.returncode == 2 and "usage:" in r.stderr
 
@@ -324,7 +324,7 @@ def test_regression_a_closed_stdout_never_drops_the_lock_under_a_running_command
     p, lock, child = _start(tmp_path, "time.sleep(60)")
     p.stdout.close()
     p.send_signal(signal.SIGTERM)
-    assert p.wait(timeout=20) == 128 + signal.SIGTERM
+    assert wait_guarded(p, timeout=20) == 128 + signal.SIGTERM
     assert _wait_gone(child) and _lock_is_free(lock)
 
 
@@ -334,7 +334,7 @@ def test_a_killed_wrapper_leaves_the_lock_with_the_running_command(tmp_path):
     the lock while the command runs; it frees once the command ends."""
     p, lock, child = _start(tmp_path, "time.sleep(60)")
     p.kill()
-    p.wait(timeout=20)
+    wait_guarded(p, timeout=20)
     assert _alive(child) and not _lock_is_free(lock)
     os.kill(child, signal.SIGKILL)
     assert _wait_gone(child) and _lock_is_free(lock)
@@ -349,7 +349,7 @@ def test_a_signal_ignored_at_start_stays_ignored(tmp_path):
     time.sleep(0.5)
     assert p.poll() is None and _alive(child) and not _lock_is_free(lock)
     p.send_signal(signal.SIGTERM)
-    p.wait(timeout=20)
+    wait_guarded(p, timeout=20)
     assert "forwarded SIGHUP" not in p.stdout.read() and _wait_gone(child)
 
 
@@ -361,7 +361,7 @@ def test_each_signal_is_forwarded_exactly_once(tmp_path):
                                       "n[0] + 1)); t = time.time()\nwhile n[0] == 0 and time.time() - t < 20: "
                                       "time.sleep(0.01)\ntime.sleep(0.5); open(%r, 'w').write(str(n[0]))" % str(count))
     p.send_signal(signal.SIGTERM)
-    assert p.wait(timeout=30) == 0
+    assert wait_guarded(p, timeout=30) == 0
     assert count.read_text() == "1"
 
 
@@ -389,7 +389,7 @@ def test_a_process_that_left_the_group_cannot_keep_the_lock(tmp_path):
     printed "heavy lock RELEASED" — Phantom's heavy jobs and the queue would then skip with no visible holder. The
     wrapper now unlocks once the group has ended: the lock is free while the escaped process still runs."""
     lock, gfile = tmp_path / "heavy.lock", tmp_path / "escaped.pid"
-    r = subprocess.run([sys.executable, "-B", str(WRAPPER), "/bin/sh", "-c", f"set -m; sleep 30 >/dev/null 2>&1 & echo $! > {gfile}"],
+    r = run_guarded([sys.executable, "-B", str(WRAPPER), "/bin/sh", "-c", f"set -m; sleep 30 >/dev/null 2>&1 & echo $! > {gfile}"],
                        env={**os.environ, "PHANTOM_HEAVY_LOCK_PATH": str(lock)}, capture_output=True, text=True,
                        timeout=30)                       # the background job writes nowhere, so the pipes close
     escaped = int(gfile.read_text())
@@ -410,5 +410,5 @@ def test_a_worker_stopped_when_its_parent_exits_is_continued_so_the_wait_ends(tm
     p, lock, child = _start(tmp_path, GRANDCHILD.format(secs=2, path=str(gfile)) + "time.sleep(1.0)")
     grandchild = _wait_file(gfile)
     os.kill(grandchild, signal.SIGSTOP)                          # stopped while its parent is still alive
-    assert p.wait(timeout=20) == 0
+    assert wait_guarded(p, timeout=20) == 0
     assert not _alive(grandchild) and _lock_is_free(lock)

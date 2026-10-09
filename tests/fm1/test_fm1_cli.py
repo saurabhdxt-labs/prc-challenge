@@ -4,19 +4,19 @@ from __future__ import annotations
 
 import json
 import pathlib
-import subprocess
 import sys
 
 import pandas as pd
 import pytest
 import yaml
+from isolation import run_guarded
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 FM1 = ROOT / "configs" / "fm1.yaml"
 
 
 def _prc(*args, timeout=600):
-    return subprocess.run([sys.executable, "-B", "-m", "prc", *map(str, args)], capture_output=True, text=True,
+    return run_guarded([sys.executable, "-B", "-m", "prc", *map(str, args)], capture_output=True, text=True,
                           timeout=timeout, cwd=str(ROOT))
 
 

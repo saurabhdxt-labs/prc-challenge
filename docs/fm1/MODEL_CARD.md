@@ -1,4 +1,4 @@
-# FM1 — model card (updated 2026-10-06)
+# FM1 — model card (updated 2026-10-09)
 
 Status: **final.** **The final model is open-data v57** (`configs/fm1_v57_open.yaml`): the forecaster v50 plus
 monthly calibration to EUROCONTROL's published 2026 taxi-out means (MTX) plus the ADS-B stand-exit stage for
@@ -12,8 +12,9 @@ capture) is board file v50 (`configs/fm1_v50.yaml`, public board 251.4767). Boar
 249.9168) and v57 (`configs/fm1_v57.yaml`, 247.3187, the best single board file) add the owner's adsb.fi capture of
 July 2026 to the ADS-B serve table; the final model does not use it. The best board file is v58 (246.2224): an
 average of board files with weights fitted on their board scores, which is not an FM1 output and carries adsb.fi
-through its v55 and v57 members (METHOD §8). Claims and their evidence: CLAIMS.md; risks: RISK_REPORT_v59.md (the final
-model), RISK_REPORT_v55.md, RISK_REPORT_v57.md and RISK_REPORT_v58.md.
+through its v55 and v57 members (METHOD §8). Claims and their evidence: CLAIMS.md; risks: RISK_REPORT_final.md (the
+final model, run on the organiser's final file), RISK_REPORT_v59.md (the board-scored model it is built from),
+RISK_REPORT_v55.md, RISK_REPORT_v57.md and RISK_REPORT_v58.md.
 
 ## Intended use
 

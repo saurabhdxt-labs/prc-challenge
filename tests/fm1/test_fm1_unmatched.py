@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import json
 import pathlib
-import subprocess
 import sys
 
 import numpy as np
@@ -27,6 +26,7 @@ from prc.pipeline.fm1 import knobs as K
 from prc.pipeline.fm1 import shipped
 from prc.pipeline.fm1 import stages as S
 from prc.pipeline.fm1 import unmatched as U
+from isolation import run_guarded
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 QUIET = lambda *_a, **_k: None          # noqa: E731
@@ -382,7 +382,7 @@ import resource
 rep['peak_rss_gib'] = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024 ** 3
 print(json.dumps(rep))
 """
-    r = subprocess.run([sys.executable, "-B", "-c", code], capture_output=True, text=True, timeout=900, cwd=str(ROOT))
+    r = run_guarded([sys.executable, "-B", "-c", code], capture_output=True, text=True, timeout=900, cwd=str(ROOT))
     assert r.returncode == 0, r.stdout[-3000:] + r.stderr[-5000:]
     rep = json.loads(r.stdout.strip().splitlines()[-1])
     assert (rep["n"], rep["n_lirf"], rep["n_other"]) == (5_290, 383, 4_907)

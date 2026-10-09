@@ -19,12 +19,12 @@ import hashlib
 import importlib.util
 import json
 import pathlib
-import subprocess
 import sys
 
 import numpy as np
 import pandas as pd
 import pytest
+from isolation import run_guarded
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -448,7 +448,7 @@ def test_rss_guard_aborts_the_process_with_exit_3(M):
             "import importlib.util as u; s = u.spec_from_file_location('m', %r); m = u.module_from_spec(s); "
             "s.loader.exec_module(m); m.rss_guard(limit_gib=1e-6, interval_s=0.01); time.sleep(5); print('alive')"
             % (str(ROOT), str(ROOT / "scripts"), str(ROOT / "scripts/analysis/csf2_build.py")))
-    p = subprocess.run([PY, "-c", code], capture_output=True, text=True, timeout=60)
+    p = run_guarded([PY, "-c", code], capture_output=True, text=True, timeout=60)
     assert p.returncode == 3 and "alive" not in p.stdout and "RSS" in (p.stdout + p.stderr)
 
 
@@ -460,7 +460,7 @@ def test_heavy_lock_refuses_when_held(M, tmp_path):
                 "s = u.spec_from_file_location('m', %r); m = u.module_from_spec(s); s.loader.exec_module(m); "
                 "m.acquire_heavy_lock(%r)" % (str(ROOT), str(ROOT / "scripts"),
                                               str(ROOT / "scripts/analysis/csf2_build.py"), str(lock)))
-        p = subprocess.run([PY, "-c", code], capture_output=True, text=True, timeout=60)
+        p = run_guarded([PY, "-c", code], capture_output=True, text=True, timeout=60)
         assert p.returncode == 75 and "HELD" in (p.stdout + p.stderr)
     finally:
         M.release_heavy_lock(fh)

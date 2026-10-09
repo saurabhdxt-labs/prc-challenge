@@ -27,7 +27,6 @@ Not separately tested: the probe's `-I` flag (isolates the probe from PYTHONPATH
 from __future__ import annotations
 
 import json
-import subprocess
 import sys
 from pathlib import Path
 
@@ -37,6 +36,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import env_check as E  # noqa: E402
+from isolation import run_guarded
 
 PYTEST_VERSION = pytest.__version__
 PY_VERSION = ".".join(str(x) for x in sys.version_info[:3])
@@ -189,7 +189,7 @@ def test_main_exits_2_when_the_catboost_interpreter_is_missing(tmp_path, capsys)
 
 def test_the_cli_runs_as_a_script(tmp_path):
     root = _repo(tmp_path, runtime=f"pytest=={PYTEST_VERSION}\n")
-    r = subprocess.run([sys.executable, "-B", str(ROOT / "tools" / "env_check.py"), "--root", str(root),
+    r = run_guarded([sys.executable, "-B", str(ROOT / "tools" / "env_check.py"), "--root", str(root),
                         "--catboost-python", sys.executable], capture_output=True, text=True, timeout=60)
     assert r.returncode == 0, r.stdout + r.stderr
     assert "catboost interpreter: ok" in r.stdout
@@ -219,6 +219,6 @@ def test_the_probe_script_imports_only_the_standard_library():
     """The probe runs inside the CatBoost venv, which has no project packages; json + importlib.metadata only."""
     imported = set(__import__("re").findall(r"^\s*(?:import|from)\s+([\w.]+)", E.PROBE, flags=__import__("re").M))
     assert imported <= {"json", "sys", "importlib.metadata"}
-    out = subprocess.run([sys.executable, "-I", "-c", E.PROBE, json.dumps(["pytest"])], capture_output=True,
+    out = run_guarded([sys.executable, "-I", "-c", E.PROBE, json.dumps(["pytest"])], capture_output=True,
                          text=True, timeout=60)
     assert json.loads(out.stdout)["versions"] == {"pytest": PYTEST_VERSION}

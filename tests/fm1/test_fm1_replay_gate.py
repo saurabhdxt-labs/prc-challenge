@@ -8,7 +8,6 @@ from __future__ import annotations
 import importlib.util
 import json
 import pathlib
-import subprocess
 import sys
 
 import numpy as np
@@ -16,6 +15,7 @@ import pandas as pd
 import pytest
 
 from prc.pipeline.fm1 import knobs as K
+from isolation import run_guarded
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 _spec = importlib.util.spec_from_file_location("fm1_replay_gate", ROOT / "tools" / "fm1_replay_gate.py")
@@ -97,7 +97,7 @@ def test_verdict_reports_every_stratum():
 # ---------------------------------------------------------------------------------------------- the real reference + path
 
 def _run_child(code: str, timeout=900):
-    r = subprocess.run([sys.executable, "-B", "-c", code], capture_output=True, text=True, timeout=timeout, cwd=str(ROOT))
+    r = run_guarded([sys.executable, "-B", "-c", code], capture_output=True, text=True, timeout=timeout, cwd=str(ROOT))
     assert r.returncode == 0, r.stdout[-3000:] + r.stderr[-3000:]
     return r.stdout
 
@@ -146,7 +146,7 @@ except AssertionError as e:
 def test_gate_smoke_passes_on_real_rows(tmp_path):
     """The real path end to end on LSZH-January R12 rows (package features -> encodings -> design -> the saved v34
     ORL/FW boosters' seed 0 in children -> the stack stage -> ledger -> finalise vs v36), two runs."""
-    r = subprocess.run([sys.executable, "-B", str(ROOT / "tools" / "fm1_replay_gate.py"), "--out", str(tmp_path / "g"),
+    r = run_guarded([sys.executable, "-B", str(ROOT / "tools" / "fm1_replay_gate.py"), "--out", str(tmp_path / "g"),
                         "--smoke", "--per-stratum", "10"], capture_output=True, text=True, timeout=900)
     assert r.returncode == 0, r.stdout[-3000:] + r.stderr[-3000:]
     rep = json.loads((tmp_path / "g" / "report.json").read_text())
@@ -260,11 +260,11 @@ def test_dropped_rows_are_the_shipped_arn_rows():
 
 
 def test_cli_refuses_one_run_and_a_non_empty_out(tmp_path):
-    r = subprocess.run([sys.executable, "-B", str(ROOT / "tools" / "fm1_replay_gate.py"), "--out", str(tmp_path / "a"),
+    r = run_guarded([sys.executable, "-B", str(ROOT / "tools" / "fm1_replay_gate.py"), "--out", str(tmp_path / "a"),
                         "--runs", "1"], capture_output=True, text=True, timeout=120)
     assert r.returncode == 2 and "--runs must be >= 2" in r.stderr
     (tmp_path / "b").mkdir()
     (tmp_path / "b" / "x").write_text("x")
-    r = subprocess.run([sys.executable, "-B", str(ROOT / "tools" / "fm1_replay_gate.py"), "--out", str(tmp_path / "b")],
+    r = run_guarded([sys.executable, "-B", str(ROOT / "tools" / "fm1_replay_gate.py"), "--out", str(tmp_path / "b")],
                        capture_output=True, text=True, timeout=120)
     assert r.returncode == 2 and "not empty" in r.stderr

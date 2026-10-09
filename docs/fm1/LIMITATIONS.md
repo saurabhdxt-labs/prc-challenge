@@ -1,4 +1,4 @@
-# FM1 — limitations (first written 2026-09-28; updated 2026-10-06: open-data v57 as the final model, adsb.fi scope)
+# FM1 — limitations (first written 2026-09-28; updated 2026-10-09: open-data v57 as the final model, adsb.fi scope)
 
 1. **Validation is a reference point, not a score.** The 2025 validation (METHOD §6) runs at the screen tier with the ADS-B stack
    off; the full-tier configuration has no clean 2025 fold. Its only 2026 measurements are the public board (v50 251.4767,
@@ -76,7 +76,9 @@
     2026: EDDF 0.909 → 0.623, EGLL 0.384 → 0.902, LIRF 0.405 → 0.299; METHOD §6). The stack keeps its stored gate; the
     label-free `coverage_ratio` gate would switch EDDF off, and the board measured that as no better (v52, −10.6 MSE).
     The flips are large by airport-month (LIRF July 93.5 % → 0.2 %, EDDF July 89 % → 59 %; EGLL July 21 % → 98 %, LEMD
-    January 0 % → 97 %). Imposing July 2026's losses on held-out July 2025 costs the model about 860 bmse (LIRF 585, EDDF
+    January 0 % → 97 %). On the final file, LIRF has a usable ADS-B track on 5,290 / 4,577 / 3 / 22 departures in January / February / June / July 2026
+    (`data/uad/final_table_a3/report.json`): an ADS-B lever for Rome reaches no summer row. The stored gate's LIRF entry is an override: the 0.7× coverage rule failed there (0.299 against
+    0.378) and the author kept LIRF on; the stack's `MANIFEST.json` records it. Imposing July 2026's losses on held-out July 2025 costs the model about 860 bmse (LIRF 585, EDDF
     278; the ACR registration in the development record). Training with ADS-B randomly hidden (`adsb.train_dropout.*`, off) recovers almost none of it
     and costs accuracy where ADS-B is present: the loss is information, not calibration, so only another track source can
     restore it.
@@ -155,3 +157,25 @@
     caches; LightGBM's multithreaded fit is not bit-reproducible (early stopping at 24,784 rounds against 25,316), so the
     tests that replay the earlier pipeline on them pin the refit (`tests/pipeline/test_pipeline_real_files.py`). The final
     model never reads them.
+27. **Features from other flights' later events.** Seven queue features (METHOD §2, the queue row) and the base block's
+    `prev_arr_gap` read events of OTHER supplied rows that happen after this departure's own push — other departures'
+    take-offs and pushes, arrivals' taxi-ins and the next arrival's on-block at the same stand. They rest on the organiser's
+    2026-09-16 statement that the other supplied rows may be used (post-operations estimation; the take-off time itself is a
+    supplied input of every scored row), recorded as a paraphrase (DATA_SOURCES). A reader who requires a forecast made at
+    push time would exclude them.
+28. **The order block is built from the organiser's identifiers.** `o_dev_mvt` / `o_dev_flt` measure a row's MVT_ID /
+    FLIGHT_ID against its take-off-sorted neighbours (METHOD §2, the order row). The identifiers encode flight-plan filing
+    and schedule order (measured; never block order), so the block is an out-of-sequence signal — but it is a property of
+    how this dataset was assembled, and it uses rows later in the file than the departure.
+29. **Library versions are recorded at the fit, not checked at load.** `artifact.py` stores the Python / LightGBM / numpy /
+    pandas / pyarrow / scikit-learn versions of the fit (CatBoost's and torch's are not recorded) and verifies file hashes on
+    load, not versions; the unmatched lane's classifier is refit at predict time. A clone with other versions can serve
+    different values without a refusal; `tools/env_check.py` and the pinned requirements are the guard.
+30. **Rome's held-out error is a lottery of label artefacts, and the final phase changed nothing for it.** In the held-out
+    2025 folds of the final design, LIRF is 23.5 % (February) and 64.2 % (June) of the fold's squared error; one June row with a
+    24-hour label (87,168 s, a date-slip the model scores as a schedule copy at 11,694 s) is 41 % of the June fold on its own,
+    and three such rows (131,167 / 87,168 / 88,392 s) dominate both months. Of the 162 June LIRF rows with errors above 1,800 s,
+    122 are schedule copies (BLOCK = SCHED), 2 are date-slips and 38 are ordinary departures the Rome rules called copies.
+    Without the copy rows, February's LIRF error is 266 s. On 2026-10-09 a registered search for a label-free, reuse-free Rome
+    stage (METHOD §7, MFI) found none at the bar; the matched lane's copy oracle (575–1,270 bmse/month) is the handler's hidden
+    bit, and every allowed input that could carry it has failed across months. No component was added or changed for the final.

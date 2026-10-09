@@ -51,6 +51,7 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 import mem_guard as G  # noqa: E402
+from isolation import Deadline, run_guarded, wait_guarded
 
 
 def test_parse_swapusage_reads_free_mb():
@@ -590,13 +591,13 @@ def test_a_terminated_guard_exits_143_and_logs_exit(tmp_path):
     try:
         g = subprocess.Popen([sys.executable, "-B", str(ROOT / "tools" / "mem_guard.py"), "--pid", str(target.pid),
                               "--log", str(log)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        deadline = time.time() + 30
+        d = Deadline(30)
         while "MEMGUARD START" not in (log.read_text() if log.exists() else ""):
-            assert time.time() < deadline and g.poll() is None, "the guard never started"
+            assert not d.expired() and g.poll() is None, "the guard never started"
             time.sleep(0.05)
         time.sleep(0.5)                          # START is logged just before the loop; be inside it
         g.send_signal(signal.SIGTERM)
-        assert g.wait(timeout=30) == 128 + signal.SIGTERM
+        assert wait_guarded(g, timeout=30) == 128 + signal.SIGTERM
         assert "MEMGUARD EXIT code=143 (stopped by a signal)" in log.read_text()
         state = subprocess.run(["ps", "-o", "stat=", "-p", str(target.pid)], capture_output=True, text=True).stdout
         assert state.strip() and not state.strip().startswith("T")
@@ -620,7 +621,7 @@ def test_the_real_hold_ignores_termination_signals():
     code = ("import os, signal, sys; sys.path.insert(0, %r); import mem_guard as G; G.OsOps().hold_signals(); "
             "[os.kill(os.getpid(), s) for s in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)]; print('still here')"
             % str(ROOT / "tools"))
-    r = subprocess.run([sys.executable, "-B", "-c", code], capture_output=True, text=True, timeout=30)
+    r = run_guarded([sys.executable, "-B", "-c", code], capture_output=True, text=True, timeout=30)
     assert r.returncode == 0 and "still here" in r.stdout
 
 

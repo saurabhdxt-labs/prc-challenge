@@ -55,6 +55,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import run_suite as R  # noqa: E402
+from isolation import run_guarded
 
 
 # --------------------------------------------------------------------------- discovery
@@ -265,7 +266,7 @@ def test_the_runner_module_imports_neither_torch_nor_a_tree_library():
 
 
 def test_runner_help_runs_in_a_clean_process():
-    out = subprocess.run([sys.executable, str(ROOT / "tools" / "run_suite.py"), "--help"],
+    out = run_guarded([sys.executable, str(ROOT / "tools" / "run_suite.py"), "--help"],
                          capture_output=True, text=True, timeout=60)
     assert out.returncode == 0, out.stderr
     assert "two isolated passes" in (out.stdout + out.stderr).lower()

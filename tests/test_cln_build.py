@@ -22,7 +22,6 @@ from __future__ import annotations
 import functools
 import os
 import pathlib
-import subprocess
 import sys
 
 import numpy as np
@@ -34,6 +33,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "scripts" / "analysis"))
 import cln_build as C  # noqa: E402
+from isolation import run_guarded
 
 RAW_DIR = ROOT / "data" / "raw"
 HAS_RAW = (RAW_DIR / "training_2025-01-01_2025-02-01.parquet").exists()
@@ -55,7 +55,7 @@ def isolated(fn):
         if os.environ.get(CHILD_ENV) == "1":
             return fn(*args, **kwargs)
         node = f"{pathlib.Path(__file__).resolve()}::{fn.__name__}"
-        r = subprocess.run([sys.executable, "-B", "-m", "pytest", "-q", "-p", "no:cacheprovider", node],
+        r = run_guarded([sys.executable, "-B", "-m", "pytest", "-q", "-p", "no:cacheprovider", node],
                            env={**os.environ, CHILD_ENV: "1"}, capture_output=True, text=True, timeout=900)
         assert r.returncode == 0, r.stdout[-4000:] + r.stderr[-2000:]
     return wrapper

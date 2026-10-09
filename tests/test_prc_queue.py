@@ -34,6 +34,8 @@ import time
 
 import pytest
 
+from isolation import Deadline
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 _spec = importlib.util.spec_from_file_location("prc_queue", ROOT / "tools/prc_queue.py")
 Q = importlib.util.module_from_spec(_spec)
@@ -684,9 +686,9 @@ def test_a_guarded_lock_step_runs_through_the_real_wrapper_and_guard(tmp_path, m
     assert "step ran" in log and "heavy lock RELEASED" in log
     assert f"mem_guard: {sys.executable} -B {ROOT / 'tools/mem_guard.py'} --pid " in log
     guard_log = tmp_path / "tiny_memguard.log"
-    deadline = time.time() + 30                  # the guard notices the step has gone at its next poll (POLL_S = 15 s)
+    d = Deadline(30)                             # the guard notices the step has gone at its next poll (POLL_S = 15 s)
     while "MEMGUARD END" not in (guard_log.read_text() if guard_log.exists() else ""):
-        assert time.time() < deadline, "the guard never ended after its step"
+        assert not d.expired(), "the guard never ended after its step"
         time.sleep(0.1)
     assert "MEMGUARD START pid=" in guard_log.read_text()
 

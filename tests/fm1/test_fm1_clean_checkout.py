@@ -22,6 +22,7 @@ import pandas as pd
 import pytest
 
 from prc.pipeline.fm1 import knobs as K
+from isolation import run_guarded
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 #: what a clone of the repository carries that FM1 reads: the package, the config, the code it loads by path
@@ -59,7 +60,7 @@ def _env(tree: pathlib.Path) -> dict:
 
 
 def _run(tree: pathlib.Path, code: str) -> subprocess.CompletedProcess:
-    return subprocess.run([sys.executable, "-B", "-c", code], cwd=tree, capture_output=True, text=True, timeout=300,
+    return run_guarded([sys.executable, "-B", "-c", code], cwd=tree, capture_output=True, text=True, timeout=300,
                           env=_env(tree))
 
 
@@ -84,7 +85,7 @@ def test_the_cli_starts_from_the_shipped_tree_alone(tmp_path):
     """`python -m prc config-reference --write` runs in the clone and generates the same docs/fm1/CONFIG_REFERENCE.md as
     the development tree. Mutation: as above -> the command fails in the child -> red."""
     tree = _shipped_tree(tmp_path / "clone")
-    r = subprocess.run([sys.executable, "-B", "-m", "prc", "config-reference", "--write"], cwd=tree, capture_output=True,
+    r = run_guarded([sys.executable, "-B", "-m", "prc", "config-reference", "--write"], cwd=tree, capture_output=True,
                        text=True, timeout=300,
                        env=_env(tree))
     assert r.returncode == 0, r.stderr[-2000:]
@@ -134,7 +135,7 @@ def test_fm1_fits_and_predicts_from_the_shipped_tree_like_the_development_tree(e
             "art = api.fit(K.parse_config(raw), save=False, log=q);"
             "api.predict(art, pd.read_parquet(scored), log=q)[['MVT_ID_mvt', 'TAXITIME_SEC_mvt', 'decided_by']]"
             ".to_parquet(out, index=False)")
-    r = subprocess.run([sys.executable, "-B", "-c", code, json.dumps(raw), str(world / "raw" / "scored.parquet"), str(out)],
+    r = run_guarded([sys.executable, "-B", "-c", code, json.dumps(raw), str(world / "raw" / "scored.parquet"), str(out)],
                        cwd=tree, capture_output=True, text=True, timeout=900,
                        env=_env(tree))
     assert r.returncode == 0, r.stderr[-3000:]

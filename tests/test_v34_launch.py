@@ -11,6 +11,7 @@ import pathlib
 import sys
 
 import pytest
+from isolation import wait_guarded
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 _spec = importlib.util.spec_from_file_location("v34_launch", ROOT / "scripts/analysis/v34_launch.py")
@@ -83,7 +84,7 @@ def test_the_guard_is_started_detached_with_its_own_output_kept_in_its_log(tmp_p
                         "import os, sys; sys.stderr.write(f'refused: no target; session leader {os.getsid(0) == os.getpid()}')"
                         "; sys.exit(2)"])
     g, proc = VL.start_memguard(4242, run_log)
-    assert proc.wait(timeout=30) == 2
+    assert wait_guarded(proc, timeout=30) == 2
     assert VL.memguard_log(run_log).read_text() == "refused: no target; session leader True"
 
 

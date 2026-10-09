@@ -5,7 +5,12 @@
 #   modules.uad.table     -> data/uad/final_table_a3/table.parquet   (stand-exit table built for the final file)
 #   data.template_file    -> data/raw_final/final_submitting.parquet
 # data.scored_file stays data/raw/ranking.parquet: that path HOLDS the final file while building (the Rome E2 rule reads
-# that exact name; the previous file is kept in data/raw_v59/). No matched learner is retrained (the unmatched lane and MTX are
+# that exact name; the previous file is kept in data/raw_v59/).
+#   while building, data/raw/ranking.parquet = final_ranking.parquet (sha256 4b0692a792846079516a…) and
+#   data/raw/submitting.parquet = final_submitting.parquet (sha256 b3445d80e29bf599a558…); after the build both paths
+#   were restored to the previous files (data/raw_v59/README_SWAP.md), so running this config today predicts on the
+#   previous rows and is refused only at the template check.
+# No matched learner is retrained (the unmatched lane and MTX are
 # recomputed, as on every derived fit):
 #   python -m prc validate --config configs/fm1_final.yaml --protocol dry-run
 #   python -m prc fit --config configs/fm1_final.yaml --allow-heavy --reuse-from artifacts/fm1/1dc07433357e-ef56e51e

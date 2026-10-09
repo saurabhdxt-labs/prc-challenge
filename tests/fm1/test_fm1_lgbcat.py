@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import json
 import pathlib
-import subprocess
 import sys
 
 import numpy as np
@@ -23,6 +22,7 @@ import pytest
 from prc.pipeline.fm1 import components as C
 from prc.pipeline.fm1 import errors as E
 from prc.pipeline.fm1 import knobs as K
+from isolation import run_guarded
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 ARMS = ROOT / "data/r12/r13_arms_refit/predictions_2026.parquet"
@@ -174,7 +174,7 @@ for ap, mo in (("EDDF", 1), ("LSZH", 7)):
 rep["peak_rss_gib"] = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024 ** 3
 print(json.dumps(rep))
 """
-    r = subprocess.run([sys.executable, "-B", "-c", code], capture_output=True, text=True, timeout=1200, cwd=str(ROOT))
+    r = run_guarded([sys.executable, "-B", "-c", code], capture_output=True, text=True, timeout=1200, cwd=str(ROOT))
     assert r.returncode == 0, r.stdout[-3000:] + r.stderr[-5000:]
     rep = json.loads(r.stdout.strip().splitlines()[-1])
     for cell in ("EDDF-1", "LSZH-7"):

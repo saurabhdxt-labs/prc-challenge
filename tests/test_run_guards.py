@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
-import subprocess
 import sys
 from types import SimpleNamespace
 
@@ -19,6 +18,7 @@ if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 
 import run_guards as G  # noqa: E402
+from isolation import run_guarded
 
 PY = sys.executable
 
@@ -72,7 +72,7 @@ def test_default_breach_exits_the_process_with_70_and_names_the_limit():
     code = ("import sys, time; sys.path.insert(0, %r); import run_guards as G; "
             "G.start_rss_guard(10, interval=0.001, getrss=lambda: 11); time.sleep(5); print('not aborted')"
             % str(ROOT / "scripts"))
-    r = subprocess.run([PY, "-B", "-c", code], capture_output=True, text=True, timeout=30)
+    r = run_guarded([PY, "-B", "-c", code], capture_output=True, text=True, timeout=30)
     assert r.returncode == 70 and "not aborted" not in r.stdout
     assert "ABORT: peak RSS 0.00 GiB is above the 0.00 GiB limit" in r.stderr
 

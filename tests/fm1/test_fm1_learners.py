@@ -6,7 +6,6 @@ stated where it appears.
 from __future__ import annotations
 
 import pathlib
-import subprocess
 import sys
 
 import numpy as np
@@ -14,6 +13,7 @@ import pytest
 
 from prc.pipeline.fm1 import errors as E
 from prc.pipeline.fm1 import learners as L
+from isolation import run_guarded
 
 FEATS = ["a", "b", "c", "d"]
 
@@ -150,7 +150,7 @@ assert np.array_equal(c.predict(X), pa), "reload not bit-exact"
 assert "catboost" not in sys.modules, "catboost was imported in the main process"
 print("OK")
 """
-    r = subprocess.run([sys.executable, "-B", "-c", code], capture_output=True, text=True, timeout=300)
+    r = run_guarded([sys.executable, "-B", "-c", code], capture_output=True, text=True, timeout=300)
     assert r.returncode == 0 and "OK" in r.stdout, r.stdout[-3000:] + r.stderr[-3000:]
 
 

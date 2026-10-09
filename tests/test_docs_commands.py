@@ -19,10 +19,10 @@ from __future__ import annotations
 import pathlib
 import re
 import shlex
-import subprocess
 import sys
 
 import pytest
+from isolation import run_guarded
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 DOCS = ("README.md", "docs/fm1/REPRODUCE.md")
@@ -79,7 +79,7 @@ def help_text(prefix: list[str], sub: str | None):
     key = (tuple(prefix), sub)
     if key not in _HELP:
         argv = prefix + ([sub] if sub else []) + ["--help"]
-        r = subprocess.run(argv, cwd=ROOT, capture_output=True, text=True, timeout=120)
+        r = run_guarded(argv, cwd=ROOT, capture_output=True, text=True, timeout=120)
         _HELP[key] = r.stdout + r.stderr if r.returncode == 0 else None
     return _HELP[key]
 

@@ -15,7 +15,6 @@ from __future__ import annotations
 import json
 import pathlib
 import shutil
-import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -92,7 +91,8 @@ def build(out: pathlib.Path, spec: dict) -> dict:
 
 
 def build_in_child(out: pathlib.Path, spec: dict) -> dict:
-    r = subprocess.run([sys.executable, "-B", str(pathlib.Path(__file__).resolve()), str(out), json.dumps(spec)],
+    from isolation import run_guarded          # here, not at the top: this file also runs as the child itself (__main__)
+    r = run_guarded([sys.executable, "-B", str(pathlib.Path(__file__).resolve()), str(out), json.dumps(spec)],
                        capture_output=True, text=True, timeout=600)
     if r.returncode != 0:
         raise RuntimeError(f"fixture world build failed: {r.stdout[-2000:]} {r.stderr[-3000:]}")

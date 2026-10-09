@@ -26,7 +26,7 @@ DATA_SOURCES.md, LIMITATIONS 12).
 |---|---|
 | board score | the scoring service's result file for v59: status Succeeded, `used_pairs` 344,841, score 248.5486 |
 | the score was predicted | registered before the upload: 248.5481 (v57 plus the v51 → v55 adsb.fi gap of 609.6 MSE, assumed additive); the board gave 248.5486, +0.25 MSE off: the adsb.fi gap was additive here |
-| the code produced the file | written by `python -m prc build-submission --config configs/fm1_v57_open.yaml` from an artefact derived from the v50 donor (`fit --reuse-from`); rebuilt on 2026-10-06 from a re-derived artefact: byte-identical (CLAIMS 26) |
+| the code produced the file | written by `python -m prc build-submission --config configs/fm1_v57_open.yaml --out <dir> --version 59` from an artefact derived from the v50 donor (`fit --reuse-from`); rebuilt on 2026-10-06 from a re-derived artefact: byte-identical (CLAIMS 26) |
 | the config is the final one | `tests/fm1/test_fm1_final_configs.py` pins `configs/fm1_v57_open.yaml` to its config hash; it differs from `configs/fm1_v57.yaml` in two knobs (`adsb.sources.adsb_fi`, `adsb.table_dir`) |
 | open data only | `features.check_table_sources` refuses an ADS-B table that declares adsb.fi points while the knob is false, and `uad.check_table_sources` holds the stand-exit table to the same rule (both tested); the tables v59 reads declare adsb.lol only |
 | the components' part in the file | `decided_by` on the 344,841 rows: ADS-B stack 140,997 (37,885 + 103,112 with MTX); CatBoost half-blend 196,669 (80,465 + 116,204); unmatched body 3,949; Rome 341; ARC 42; storm anchor 457; LDI 1,885; `uad` 501 (268 + 233); MTX moved 222,081 rows |
