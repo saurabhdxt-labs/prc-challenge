@@ -71,6 +71,10 @@ be redistributed); the final model does not use it. The commands, the derived in
 rebuild are in `docs/fm1/REPRODUCE.md`, including how to get the data (`docs/fm1/REPRODUCE.md`, "Getting the data")
 and how to run the final model on a new period (`docs/fm1/REPRODUCE.md`, "Running the final model on a new period").
 
+**Final phase (2026-10-08).** The organiser's single blind submission on `final_ranking.parquet` (January, February, June,
+July 2026) is the final model run on that file by the documented new-period path, nothing else: `docs/fm1/REPRODUCE.md`,
+"Final phase" (every command, hash and check), and `docs/fm1/RISK_REPORT_final.md`.
+
 **The final model is open-data v57** (`configs/fm1_v57_open.yaml`):
 
 ```bash

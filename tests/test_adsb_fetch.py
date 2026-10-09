@@ -438,6 +438,42 @@ def test_regression_bug_manifest_provenance_survives_two_resumes(tmp_path):
         assert rec[day]["previous"]["rows"] == 5
 
 
+def test_regression_bug_49_manifest_keeps_the_records_of_days_outside_the_current_run(tmp_path):
+    """Post-mortem 2026-10-08 13:45 EDT (final phase S1): `run --months 2` then `run --months 6` into the same directory
+    rewrote MANIFEST.json from the second run's day list, dropping every February record; r12_build.manifest_days would
+    then have treated the 28 February day files as unfetched (status 'missing' under --final). The ORIGINAL ok record
+    of a day outside the run's list must travel into the new manifest (as 'skipped' + `previous`, the carried form the
+    readers already accept), from the first save, and only while its file still exists. Kills: rebuilding the manifest
+    from the work list alone; carrying a record whose file is gone. Mutation rehearsal 2026-10-08: carry-over dropped
+    -> red; file-exists guard dropped -> red; carry-over appended after the loop (not in the first save) -> red; the
+    `day not in set(days)` exclusion dropped (a day carried AND run: two records) -> red (reviewer 2026-10-09). A day
+    whose earlier record is 'failed' is not carried: it has no file and is fetched again when listed."""
+    io = FakeIO(tmp_path)
+    out = tmp_path / "out"
+    kw = dict(out_dir=out, fetch=io.fetch, extract=io.extract, log=lambda *a: None, free_gib=lambda: 100.0)
+    af.run_days(["2026-02-01", "2026-02-02"], **kw)                        # run 1: February
+    (out / "adsb_2026-02-02.parquet").unlink()                              # a day file removed by hand afterwards
+    saves = []
+    orig = pathlib.Path.write_text
+
+    def spy(self, text, *a, **k):
+        if self.name == "MANIFEST.json":
+            saves.append(json.loads(text))
+        return orig(self, text, *a, **k)
+    import unittest.mock as um
+    with um.patch.object(pathlib.Path, "write_text", spy):
+        man = af.run_days(["2026-02-01", "2026-06-01"], **kw)               # run 2: a different list that REPEATS a carried day
+    rec = {d["day"]: d for d in man["days"]}
+    assert len(man["days"]) == len(rec) == 2, "one record per day: a carried day must not also appear as a run entry"
+    assert set(rec) == {"2026-02-01", "2026-06-01"}, sorted(rec)
+    assert rec["2026-02-01"]["status"] == "skipped" and rec["2026-02-01"]["previous"]["status"] == "ok"   # listed + carried: ONE record
+    assert rec["2026-02-01"]["previous"]["rows"] == 5
+    assert rec["2026-06-01"]["status"] == "ok"
+    assert "2026-02-02" not in rec                                          # no file -> no record carried
+    first = {d["day"] for d in saves[0]["days"]}
+    assert "2026-02-01" in first, "the carried record must be in the FIRST save (a kill mid-run must not lose it)"
+
+
 def test_a_skipped_day_whose_previous_record_is_not_ok_carries_no_provenance(tmp_path):
     """Only an 'ok' record is provenance. Kills: forwarding a failed or malformed `previous` (e.g. a hand-edited
     manifest) as if the day had been verified."""

@@ -1,0 +1,143 @@
+# FM1 — FINAL PHASE (2026-10-08): THE FINAL MODEL (configs/fm1_v57_open.yaml, unchanged design) run on the organiser's
+# final_ranking.parquet (January, February, June, July 2026; 670,790 departures) by docs/fm1/REPRODUCE.md "Running the
+# final model on a new period". Exactly three knobs differ from fm1_v57_open.yaml, all in knobs.REUSE_FREE_KNOBS:
+#   adsb.table_dir        -> data/r12/tables_final            (the same feature store + the 59 new days, tables rebuilt)
+#   modules.uad.table     -> data/uad/final_table_a3/table.parquet   (stand-exit table built for the final file)
+#   data.template_file    -> data/raw_final/final_submitting.parquet
+# data.scored_file stays data/raw/ranking.parquet: that path HOLDS the final file while building (the Rome E2 rule reads
+# that exact name; the previous file is kept in data/raw_v59/). No matched learner is retrained (the unmatched lane and MTX are
+# recomputed, as on every derived fit):
+#   python -m prc validate --config configs/fm1_final.yaml --protocol dry-run
+#   python -m prc fit --config configs/fm1_final.yaml --allow-heavy --reuse-from artifacts/fm1/1dc07433357e-ef56e51e
+#   python -m prc build-submission --config configs/fm1_final.yaml --out submissions/final --version 1
+#
+
+
+schema_version: 1   # (not a knob) the loader reads schema 1
+run:
+  purpose: scored_period
+  team: merry-quicksand
+  seeds: [0, 1, 2]
+  threads: 12
+  artifacts_dir: artifacts/fm1
+
+data:
+  raw_dir: data/raw
+  training_glob: "training_2025-*.parquet"
+  train_months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+  scored_file: data/raw/ranking.parquet
+  template_file: data/raw_final/final_submitting.parquet
+  weather_dir: data/weather
+  dayoff_tz: UTC
+
+airports:
+  codes: ["EDDF", "EDDM", "EGLL", "EHAM", "LEBL", "LEMD", "LFPG", "LIRF", "LSZH", "LTFM"]
+  tz: {EDDF: Europe/Berlin, EDDM: Europe/Berlin, EGLL: Europe/London, EHAM: Europe/Amsterdam, LEBL: Europe/Madrid, LEMD: Europe/Madrid, LFPG: Europe/Paris, LIRF: Europe/Rome, LSZH: Europe/Zurich, LTFM: Europe/Istanbul}
+
+lanes:
+  matched: true
+  unmatched: true
+
+features:
+  queue: true
+  order: true
+  weather: true
+  orl_route_length: true
+  orl_routes_file: data/osm/orl_routes.parquet
+  adsb: true
+
+adsb:
+  sources:
+    adsb_lol: true
+    adsb_fi: false
+  table_dir: data/r12/tables_final
+  serve_missing_max_share: 0.001
+  min_coverage: 2
+  support_gate:
+    rule: manifest
+    threshold: 0.7
+  train_dropout:
+    flight: 0.0
+    day: 0.0
+  stack:
+    enabled: true
+    train_months: [1, 7]
+    models_dir: data/r12/r13_stack_full/models_lgbcat
+    f_model: lgbcat
+
+matched:
+  learner: lightgbm
+  target: delta
+  es_months: [3, 9]
+  lightgbm:
+    learning_rate: 0.01
+    num_leaves: 255
+    min_data_in_leaf: 40
+    feature_fraction: 0.8
+    bagging_fraction: 0.8
+    bagging_freq: 1
+    max_rounds: 50000
+    patience: 200
+  catboost:
+    learning_rate: 0.02
+    depth: 8
+    l2_leaf_reg: 3.0
+    subsample: 0.8
+    max_rounds: 30000
+    patience: 200
+  blend:
+    catboost_weight: 0.5
+
+unmatched:
+  learner: v26
+  hgb:
+    max_iter: 1000
+    n_iter_no_change: 50
+    max_leaf_nodes: 15
+    min_samples_leaf: 100
+    learning_rate: 0.1
+  encoding_smooth: 50.0
+
+modules:
+  arc:
+    enabled: true
+    airports: ["LIRF"]
+  rome:
+    enabled: true
+    e2: true
+    e2w: true
+    e2_day_p99: 15.941366958491995
+    e2w_day_p99: 9.042848041672684
+  storm:
+    mode: anchor
+    feature: false   # NOT PORTED
+  tail_cells:
+    enabled: true
+  uad:
+    enabled: true
+    table: data/uad/final_table_a3/table.parquet
+    constants: configs/uad_constants_2025.json
+  ldi:
+    enabled: true
+    delta_le30_s: 8.003118629519271
+    delta_30_60_s: 35.44180751815995
+    delta_gt60_s: 122.4855891190231
+  eobt_clip:
+    enabled: false
+    airports: ["LFPG"]
+    min_share: 0.15
+    min_rows: 1000
+
+calibration:
+  mtx:
+    enabled: auto
+    reference_csv: data/mtx/raw/taxi_out_additional_time_2025.csv
+    published_csv: data/mtx/raw/taxi_out_additional_time_2026.csv
+    lambda_rule: james_stein
+    mode: add
+
+validate:
+  screen_learning_rate: 0.05
+  tier: screen
+  n_boot: 2000
+  boot_seed: 20260928

@@ -139,7 +139,7 @@ def test_a_late_knob_off_its_default_hashes_its_generation_and_every_earlier_one
 #: on, written 17:03 EDT when both generations existed) and v57 (the uad stage on, written 2026-10-05 04:56 EDT with
 #: generations 1-3).
 LEGACY_WITH_LATE = ("v54_8e37b9a6bf09.json", "acr_m1_4cd05b46c4d1.json", "v57_e3c1d6b473f4.json",
-                    "v57open_1dc07433357e.json")
+                    "v57open_1dc07433357e.json", "final_2950c7552ed7.json")   # final phase 2026-10-08 (BC-41)
 
 
 @pytest.mark.parametrize("name", ("v50_2d29ad344b45.json", "v51_fa14ea853d20.json") + LEGACY_WITH_LATE)

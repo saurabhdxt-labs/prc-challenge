@@ -4,6 +4,8 @@ Status: **final.** **The final model is open-data v57** (`configs/fm1_v57_open.y
 monthly calibration to EUROCONTROL's published 2026 taxi-out means (MTX) plus the ADS-B stand-exit stage for
 departures without a flight-plan record (`uad`), served on open, re-fetchable inputs only — no adsb.fi anywhere.
 Its board score is 248.5486 (board file v59, uploaded 2026-10-06).
+The final phase's blind submission (2026-10-08, `merry-quicksand_final.parquet`, January + February + June + July 2026)
+is this model run on the organiser's final file by the documented new-period path (RISK_REPORT_final.md).
 
 The forecaster on its own (only the challenge files and public open data: no scored-period aggregate, no private
 capture) is board file v50 (`configs/fm1_v50.yaml`, public board 251.4767). Board files v55 (`configs/fm1_v55.yaml`,

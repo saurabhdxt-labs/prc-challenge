@@ -321,19 +321,19 @@ def test_main_writes_versioned_files_and_a_manifest(tmp_path):
 # ------------------------------------------------------------------ the real archive --------------
 @needs_weather
 def test_the_real_archive_parses_and_matches_an_independent_reading_of_its_codes():
-    """On all 205,417 observations: every token parses; p01i is uninformative in every one of the
-    140 station-months, so precip_mm is NaN everywhere; the flags agree with a plain substring
-    reading of the codes done here, independently of the grammar; the 15 unobservable rows are
+    """On all 233,291 observations (the archive grew by February + June 2026 on 2026-10-08, the final phase): every token
+    parses; p01i is uninformative in every one of the 160 station-months, so precip_mm is NaN everywhere; the flags agree with a plain substring
+    reading of the codes done here, independently of the grammar; the 17 unobservable rows are
     NaN; and freezing precipitation and de-icing conditions concentrate in winter."""
     obs, info = W.load_observations()
-    assert len(obs) == 205_417 and obs.station.nunique() == 10
+    assert len(obs) == 233_291 and obs.station.nunique() == 10
     p = info[info.field == "p01i"]
-    assert len(p) == 140 and not p.informative.any()
+    assert len(p) == 160 and not p.informative.any()
     assert obs.precip_mm.isna().all()
     assert info[info.field.isin(["tmpf", "dwpf", "sknt"])].informative.all()
     codes = obs.wxcodes
     unknown = codes.isna()
-    assert int(unknown.sum()) == 15 and obs.loc[unknown, W.FLAGS].isna().all().all()
+    assert int(unknown.sum()) == 17 and obs.loc[unknown, W.FLAGS].isna().all().all()
     toks = codes.fillna("").str.split()
 
     def any_token(pred):
@@ -349,7 +349,7 @@ def test_the_real_archive_parses_and_matches_an_independent_reading_of_its_codes
         assert np.array_equal(obs[flag].to_numpy()[known] == 1.0,
                               any_token(lambda t, p=ph: "FZ" in t and p in t)[known]), flag
     assert np.array_equal(obs.wx_ts.to_numpy()[known] == 1.0, any_token(lambda t: at_station(t) and "TS" in t)[known])
-    assert int((obs.wx_fzra == 1).sum()) == 34 and int((obs.wx_fzdz == 1).sum()) == 18
+    assert int((obs.wx_fzra == 1).sum()) == 34 and int((obs.wx_fzdz == 1).sum()) == 19   # 18 before Feb/Jun 2026 joined the archive
     m = obs.valid.dt.month
     assert obs.deicing_condition[m == 1].mean() > 0.1 > obs.deicing_condition[m == 7].mean()
 
@@ -396,9 +396,9 @@ def test_visibility_comes_back_as_the_metres_the_metar_reported(tmp_path):
 
 @needs_weather
 def test_on_the_real_archive_every_reported_value_is_exact():
-    """On all 205,417 observations: temperatures and dew points are exact whole degrees, so every
+    """On all 233,291 observations: temperatures and dew points are exact whole degrees, so every
     spread is an exact integer (16,459 of them were a hair off 3 before the fix), and every
-    visibility equals the metres in the METAR body's own visibility group (26,431 pairs) or the
+    visibility equals the metres in the METAR body's own visibility group (26,431 pairs on the 2025 archive) or the
     10 km cap."""
     raw = W.read_archive()
     obs = W.parse_observations(raw)

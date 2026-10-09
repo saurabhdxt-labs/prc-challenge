@@ -266,8 +266,13 @@ def run_days(days, out_dir: pathlib.Path = OUTDIR, fetch=download_day, extract=e
             rec = d if d.get("status") == "ok" else (d.get("previous") if d.get("status") == "skipped" else None)
             if rec and rec.get("status") == "ok":
                 prev[d["day"]] = rec
+    # BC-49 (post-mortem 2026-10-08): a run with a DIFFERENT day list must not drop the records of days fetched by an
+    # earlier run into this directory — they are carried from the first save, in the form the readers already accept
+    # ('skipped' + `previous` = the original ok record), and only while the day's file still exists.
+    carried = [{"day": day, "status": "skipped", "previous": rec} for day, rec in sorted(prev.items())
+               if day not in set(days) and (out_dir / f"adsb_{day}.parquet").exists()]
     man = {"source": SOURCE, "licence": LICENCE, "parser": "adsb_fetch.parse_member_v2", "started": _now(),
-           "days": [], "stopped": None}
+           "days": carried, "stopped": None}
 
     def save():
         mpath.write_text(json.dumps(man, indent=1, default=str))

@@ -266,6 +266,7 @@ for unseen data (the final-model audit of 2026-09-28 put about 28 % of the cumul
 | v57 | v55 + the ADS-B stand-exit stage `uad` for departures without a flight-plan record | **247.3187** | +1,291.9 vs v55 — best single board file; best file until v58 |
 | **v58** | **average of whole board files (v33, v36, v41, v43, v55) + v57's stand-exit change; unmatched rows = v57** | **246.2224** | **+541.1 vs v57 — best file; not an FM1 output** |
 | v59 | **the final model**: open-data v57 (v57 without the adsb.fi capture: v51 + the stand-exit stage) | **248.5486** | −609.9 vs v57 (the open-data price; predicted 248.5481 before upload) |
+| final | **the final phase (2026-10-08)**: the final model run on `final_ranking.parquet` (Jan + Feb + Jun + Jul 2026, 670,790 rows) by the documented new-period path, uploaded once as `merry-quicksand_final.parquet` | blind | no board: scored by the organiser after 2026-10-14T10:00Z; the Jan/Jul rows reproduce v59 up to the ±12 s dither (RISK_REPORT_final.md) |
 
 **The final model is open-data v57** (`configs/fm1_v57_open.yaml`): v57 served on the open ADS-B table
 (`data/r12/tables_51348d3e1cb3`, `adsb.sources.adsb_fi: false`) instead of the adsb.fi-merged one that board files

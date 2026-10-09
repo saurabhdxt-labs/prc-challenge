@@ -244,8 +244,8 @@ document why a default was chosen and are checked only in the development tree (
 
 The test suite has a **clone tier**: every test not marked `devtree` (tests/conftest.py) runs from a fresh clone —
 `python -m pytest -m "not devtree" tests`, or `python tools/clone_check.py`, which builds a tree of exactly the tracked
-files in a new git repository and runs that tier there (2026-10-07, on the final tree without the development record: 3,556 passed,
-76 skipped, 149 deselected, 11 min 1 s on the author's machine). Tests that read the data, the stored artefacts or the
+files in a new git repository and runs that tier there (2026-10-09, on the final-phase tree: 3,585 passed,
+76 skipped, 149 deselected, 9 min 7 s on the author's machine; 2026-10-07 before the final phase: 3,556 passed). Tests that read the data, the stored artefacts or the
 development record are marked `devtree` (automatically for every test on the real-data-shaped worlds,
 tests/fm1/conftest.py) and run in the full suite on the development machine.
 
@@ -307,8 +307,9 @@ retrained) and build. Every knob changed below is one that `fit --reuse-from` ac
    the January + July 2026 caches `data/cache_stand/ranking.parquet` and `data/cache_order/ranking.parquet`: move those
    aside first to keep them. Then
    `python scripts/adsb_fetch.py index --year <Y>` and `python scripts/adsb_fetch.py run --year <Y> --months <M,...>`
-   (with `--months` it writes `data/adsb/v2/y<Y>_other`). Add the new days to the SAME feature store the final
-   model's training table came from: `python scripts/analysis/r12_build.py features --store <that store> --months
+   (with `--months` it writes `data/adsb/v2/y<Y>_other`). Add the new days to the feature store the final
+   model's training table came from (or, when the period REPEATS days of an earlier build, to a fresh store seeded with
+   the training days — the paragraph after the guards): `python scripts/analysis/r12_build.py features --store <that store> --months
    <spec> --sources data/adsb/v2,data/adsb/v2/y2025_other,data/adsb/v2/y2026,data/adsb/v2/y<Y>_other --final`
    (always pass `--sources` listing the new directory: the default lists only the three directories named there).
    Then rebuild the tables WITHOUT `--days`: `python scripts/analysis/r12_build.py tables --store <that store>
@@ -339,6 +340,41 @@ retrained) and build. Every knob changed below is one that `fit --reuse-from` ac
 table (`adsb.serve_missing_max_share`, LIMITATIONS 10): fetch the missing days and rebuild with `--final`. The E2
 check refuses when `data/raw/ranking.parquet` is missing or is not `data.scored_file`.
 
-**Not verified end-to-end.** No data of a later period existed when this was written, so this path has been checked
-piece by piece (each command's arguments, the reuse rule, the month parser, the year directory), not run on a new
-period.
+**Verified end-to-end on 2026-10-08** (the final phase below): the path ran on the organiser's `final_ranking.parquet` and
+produced the final submission. Two things the first run taught, now part of the path: (1) `r12_build.py` takes the
+heavy-compute lock itself for a real store, so it is run directly or through `scripts/analysis/r12_launch.py`, never
+inside another lock holder; (2) **a period that repeats days of an earlier build with a changed flight set** (the final
+file's January/July rows carry the organiser's ±12 s take-off dither; 31 flights moved across UTC midnight) is refused by
+the store's per-day flight-set guard — build it in a FRESH store seeded with the training days (copy the `day_2025-*`
+files and `STAMP.json` into a new directory and point `--store` at it); the training table assembled from the copied
+days is byte-identical, which `fit --reuse-from` checks.
+
+## Final phase (2026-10-08): the final model on `final_ranking.parquet`
+
+On 2026-10-08 the organiser opened a final phase: one blind submission per team on `final_ranking.parquet` (January,
+February, June and July 2026; 670,790 departures; the January and July rows are the earlier scored rows with the take-off
+time dithered by ±12 s on 91.9 % of rows), named `<team-name>_final.parquet`, due 2026-10-14T10:00Z, ranked on the initial
+two months, the two new months and all four; "the design of the model shouldn't change". The final model
+(`configs/fm1_v57_open.yaml`) was run on the new period by the section above, nothing else. What ran, in order, with the
+evidence each step left (times EDT, this machine):
+
+| step | command | evidence |
+|---|---|---|
+| files | `final_ranking.parquet` (sha256 `4b0692a7…`, 85,853,399 bytes, bucket 2026-10-08T11:04Z) and `final_submitting.parquet` (`b3445d80…`) fetched to `data/raw_final/` with a manifest | 08:45 |
+| ADS-B days | `python scripts/adsb_fetch.py index --year 2026`; `python scripts/adsb_fetch.py run --year 2026 --months 2,6` → `data/adsb/v2/y2026_other/` | 58 days ok, 0 failed, `unparseable_members` 0 on every day; 160–245 s per day; a re-fetch of February was byte-identical to the first (28/28). 2026-06-11 is a partial upstream archive (328,510 samples against ~1.7 M on its neighbours) |
+| scored file | `data/raw/ranking.parquet` and `submitting.parquet` = the final files while building (the Rome E2 rule reads the scored file by that name); the January + July files and their caches set aside and restored afterwards | sha256 of the copies checked |
+| caches | `python scripts/stand_ab.py --ranking cache`; `python scripts/stand_ab.py --ranking order-cache` | 661,713 rows each = the matched departures (those with an AOBT_3) of the final file; 11.5 s, 1.9 GB |
+| weather | `python scripts/fetch_weather.py --months 2026-02,2026-06` | 20 files (10 airports × 2 months) |
+| weather cache | `python scripts/stand_ab.py weather-cache` and `python scripts/stand_ab.py --ranking weather-cache` after moving the old cache aside (the cache manifest pins the archive digest, which the two new months changed; the archive's row-count pins in `tests/test_weather_parser.py` were updated the same way) | manifest digest `17a86452…` |
+| features | `python scripts/analysis/r12_build.py features --store data/r12/features_final --months 2025-01..2025-12,2026-01,2026-02,2026-06,2026-07 --sources data/adsb/v2,data/adsb/v2/y2025_other,data/adsb/v2/y2026,data/adsb/v2/y2026_other --final --rss-limit-gib 5` (fresh store seeded with the 365 `day_2025-*` files) | 485 universe days: built 120, done 365, missing 0; 1,098 s; peak RSS 2.96 GiB |
+| tables | `python scripts/analysis/r12_build.py tables --store data/r12/features_final --out data/r12/tables_final --rss-limit-gib 5` | `train.parquet` sha256 identical to `tables_51348d3e1cb3/train.parquet` (2,062,440 rows); `serve.parquet` 661,713 rows, 0 on missing days; sources adsb.lol only; 8 s |
+| stand-exit table | `python scripts/analysis/uad_build.py parked --rows data/raw/ranking.parquet --adsb-dir data/adsb/v2/y2026 data/adsb/v2/y2026_other data/adsb/v2/y2025_other --out data/uad/final_parked`; `python scripts/analysis/uad_build.py table --rows data/raw/ranking.parquet --adsb-dir data/adsb/v2/y2026 data/adsb/v2/y2026_other data/adsb/v2/y2025_other --parked data/uad/2025_parked data/uad/final_parked --alias-from data/uad/2025_table_a3 --out data/uad/final_table_a3` | report params `d196b652a9a7`, sources adsb.lol only, 670,790 rows (every departure); 421 s + 355 s, ≤ 2.7 GB |
+| config | `configs/fm1_final.yaml` = `fm1_v57_open.yaml` with `adsb.table_dir: data/r12/tables_final`, `modules.uad.table: data/uad/final_table_a3/table.parquet`, `data.template_file: data/raw_final/final_submitting.parquet` (all in `knobs.REUSE_FREE_KNOBS`; `knobs.reuse_blockers` empty against the final model) | config hash `2950c7552ed7…` |
+| dry run, fit, build | `python -m prc validate --config configs/fm1_final.yaml --protocol dry-run`; `python -m prc fit --config configs/fm1_final.yaml --allow-heavy --reuse-from artifacts/fm1/1dc07433357e-ef56e51e`; `python -m prc build-submission --config configs/fm1_final.yaml --out submissions/final --version 1` | artefact `2950c7552ed7-12679217` (matched learners reused; the unmatched lane and MTX recomputed; 137 s); `merry-quicksand_v1.parquet` sha256 `a514c644…`, 670,790 rows, no input changed since the fit; 166 s, peak footprint 8.6 GB |
+| checks | label-free, by session scripts kept with the run record (not shipped): rows = template, ids in the template's order, no null, every value ≥ 1, int32, manifest read; `decided_by` by month; the 344,841 January + July rows joined to `merry-quicksand_v59.parquet` by id (provenance files) | ±12 s on 84.9 % of rows, 60 s on 99.71 %, mean +0.06 s, 59 rows changed lane; monthly means January 1079.3 = v59, July 994.9 vs 994.8 |
+| upload | `python tools/verify_upload.py --final --file submissions/final/merry-quicksand_v1.parquet` (dry run; `--upload` on the owner's go): key `merry-quicksand_final.parquet`, the same bytes | RISK_REPORT_final.md |
+
+The build is label-free throughout (the final file carries no taxi-out times; no board exists for it); the dither is the
+organiser's and is left as it is. The ADS-B stack decided 42 / 39 / 40 / 40 % of the rows of January / February / June /
+July: adsb.lol coverage of the new months matches the scored months'. Per-month means: January 1079, February 988, June
+985, July 995 s.

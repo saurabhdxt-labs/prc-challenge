@@ -140,3 +140,18 @@
     days of 19–24 February 2025. The registered test had three rows (July); the other 25 were seen before the
     registration. No test row falls on a storm day, so the knob's effect there is unknown, and six of the ten scored
     rows it changes are on 18–19 January 2026, a disrupted night at LTFM. The default (true) is the shipped rule.
+24. **The final file's dither moves a tail of predictions in every lane.** The January / July rows of the final file carry
+    a ±12 s take-off dither; against v59 the predictions moved by ≤ 12 s on 84.9 % of rows and ≤ 60 s on 99.71 %, with no
+    systematic shift (mean +0.06 s). The 999 rows (0.29 %) that moved more sit mostly in the LEARNED lanes — 544 in the
+    CatBoost half-blend (up to 711 s), 162 in the ADS-B stack, 202 in the unmatched body — whose queue / order / ADS-B
+    features are anchored on the dithered take-off time; the threshold rules contribute less (LDI 43, storm 14, the Rome
+    E2W rule 7, one of them the largest single move, 6,589 s). RISK_REPORT_final.md §2.
+25. **A new period that repeats days of an earlier build needs a fresh feature store.** The store refuses a day whose
+    flight set changed (31 flights crossed UTC midnight under the dither); the documented path seeds a fresh store with the
+    training days (REPRODUCE "Running the final model on a new period").
+26. **The earlier pipeline's v6 queue+order boosters on disk are a 2026-10-08 refit, not the originals.** The three
+    `data/cache_stand/lgbm_v6_queue_order_seed{0,1,2}.txt` files (inputs of the earlier pipeline in `prc/pipeline/`, not of
+    the final model) were deleted on 2026-10-08 (a disk clean-up on a wrong "nothing reads them" claim) and refit from their recorded provenance by the same procedure on the same
+    caches; LightGBM's multithreaded fit is not bit-reproducible (early stopping at 24,784 rounds against 25,316), so the
+    tests that replay the earlier pipeline on them pin the refit (`tests/pipeline/test_pipeline_real_files.py`). The final
+    model never reads them.

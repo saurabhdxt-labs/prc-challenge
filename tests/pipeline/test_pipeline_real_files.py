@@ -41,14 +41,17 @@ def cfg():
 
 
 def test_the_real_dry_run_routes_every_scored_row_and_verifies_every_lane_input(cfg, tmp_path):
-    """Rehearsed: the routing table mapping LIRF unmatched rows to `unmatched` -> RED (lirf_rules count 0)."""
+    """Rehearsed: the routing table mapping LIRF unmatched rows to `unmatched` -> RED (lirf_rules count 0).
+    Provenance pin: the v6 queue+order boosters on disk were refit on 2026-10-08 (the originals, best_iter 25,316 /
+    n_ref 30,398, were deleted that morning and no backup existed; the same procedure on the same caches stopped at
+    24,784 / 29,759 — LightGBM's multithreaded fit is not bit-reproducible); the pin names the boosters that exist."""
     rep = cli.dry_run(cfg, tmp_path, log=lambda m: None)
     assert rep["routing"]["counts"] == {"matched": N_MATCHED, "unmatched": N_UNMATCHED_NON_LIRF, "lirf_rules": N_LIRF_UNMATCHED}
     assert rep["scored"] == {"file": str(cfg.paths.scored_file), "n_departures": 344_841, "n_scored": 344_841,
                              "n_template": 344_841}
     assert rep["fallback_airports"] == [] and rep["fallback_rows"] == {}
     m = rep["lane_inputs"]["matched"]
-    assert (m["best_iter"], m["n_ref"], m["n_features"], m["n_training_rows"]) == (25_316, 30_398, 83, 2_062_440)
+    assert (m["best_iter"], m["n_ref"], m["n_features"], m["n_training_rows"]) == (24_784, 29_759, 83, 2_062_440)
     assert all(len(v["sha256"]) == 64 for v in rep["inputs"].values())
     assert not any("submissions" in v["path"] for v in rep["inputs"].values())
 
