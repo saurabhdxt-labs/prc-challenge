@@ -73,7 +73,8 @@ and how to run the final model on a new period (`docs/fm1/REPRODUCE.md`, "Runnin
 
 **Final phase (2026-10-08).** The organiser's single blind submission on `final_ranking.parquet` (January, February, June,
 July 2026) is the final model run on that file by the documented new-period path, nothing else: `docs/fm1/REPRODUCE.md`,
-"Final phase" (every command, hash and check), and `docs/fm1/RISK_REPORT_final.md`.
+"Final phase" (every command, hash and check), and `docs/fm1/RISK_REPORT_final.md`. Uploaded 2026-10-10 04:05Z as
+`merry-quicksand_final.parquet` (sha256 `a514c644…`, 670,790 rows; the scorer answered `Succeeded`, no score).
 
 **The final model is open-data v57** (`configs/fm1_v57_open.yaml`):
 

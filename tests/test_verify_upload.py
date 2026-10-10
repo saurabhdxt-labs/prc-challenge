@@ -147,17 +147,37 @@ def test_build_meta_path_prefers_meta_json_then_fm1_manifest(tmp_path):
     assert U.build_meta_path(f) == meta
 
 
-def test_confirm_uploaded_requires_the_key_with_the_local_size():
-    """The FINAL upload is one shot with no result file: the only confirmation is the bucket listing after the PUT. The
-    key must be listed with exactly the local byte size; a missing key or another size is an error naming the key.
-    Seen red first 2026-10-09 (AttributeError: no confirm_uploaded). Mutation rehearsal 2026-10-09: presence check dropped
-    -> red (missing-key case); size comparison dropped -> red (wrong-size case)."""
-    objs = [{"key": "merry-quicksand_final.parquet", "size": 4_080_675}, {"key": "merry-quicksand_v59.parquet", "size": 2}]
+def _listing(*entries):
+    """Objects in the shape prc.s3.S3.list_objects really returns, parsed from the wire XML (BC-51: the first version of
+    the test below faked the listing with a `size` key the producer never emits, and the real upload's confirmation
+    crashed on `bytes`)."""
+    xml = ('<?xml version="1.0" encoding="UTF-8"?><ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
+           + "".join(f"<Contents><Key>{k}</Key><Size>{n}</Size><LastModified>2026-10-10T04:05:50.534Z</LastModified>"
+                     f'<ETag>"e"</ETag></Contents>' for k, n in entries) + "</ListBucketResult>").encode()
+    from prc import s3
+
+    class R:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self): return xml
+    return s3.S3(s3.Credentials("AK", "SK"), opener=lambda req: R()).list_objects("b")
+
+
+def test_regression_bug_51_confirm_uploaded_reads_the_size_the_listing_really_carries():
+    """BC-51 (2026-10-10 04:05Z, the FINAL upload): the PUT returned 200, then confirm_uploaded raised "bucket size
+    4,080,675 expected, listed -1" because it read `size` while S3.list_objects returns `bytes`. The listing objects here
+    come from the real parser, not a hand-written dict. Seen red first 2026-10-10 (ValueError, listed -1). Mutation
+    rehearsal 2026-10-10: reading `size` again -> red; presence check dropped -> red (missing-key case); size comparison
+    dropped -> red (wrong-size case)."""
+    objs = _listing(("merry-quicksand_final.parquet", 4_080_675), ("merry-quicksand_v59.parquet", 2))
+    assert set(objs[0]) == {"key", "bytes", "last_modified", "etag"}
     U.confirm_uploaded(objs, "merry-quicksand_final.parquet", 4_080_675)
     with pytest.raises(ValueError, match="merry-quicksand_final.parquet.*not listed"):
         U.confirm_uploaded(objs[1:], "merry-quicksand_final.parquet", 4_080_675)
     with pytest.raises(ValueError, match="merry-quicksand_final.parquet.*size 4,080,675 .* 4,080,674"):
-        U.confirm_uploaded([{"key": "merry-quicksand_final.parquet", "size": 4_080_674}], "merry-quicksand_final.parquet", 4_080_675)
+        U.confirm_uploaded(_listing(("merry-quicksand_final.parquet", 4_080_674)), "merry-quicksand_final.parquet", 4_080_675)
+    with pytest.raises(KeyError):                       # an object without the producer's size key is not silently -1
+        U.confirm_uploaded([{"key": "merry-quicksand_final.parquet"}], "merry-quicksand_final.parquet", 4_080_675)
 
 
 @pytest.mark.parametrize("result,rc", [(None, 0), ({"status": "Succeeded"}, 0), ({"status": "Failed"}, 1),

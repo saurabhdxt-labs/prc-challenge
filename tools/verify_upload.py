@@ -4,7 +4,7 @@ and it refuses unless every gate passes (owner rule: every upload needs its own 
     /opt/homebrew/bin/python3.11 -B tools/verify_upload.py --version 48 --prereg plans/PREREG_hpx_serve_2026_09_29.md \
         --base submissions/merry-quicksand_v46.parquet --rederive hpx --serve logs/hpx_scratch/serve_2026 [--upload]
 
-FINAL phase (one blind submission, no prereg/base, scored blind -- no result file ever appears):
+FINAL phase (one blind submission, no prereg/base, scored blind -- the result file carries a status and no score):
 
     /opt/homebrew/bin/python3.11 -B tools/verify_upload.py --final [--file submissions/final/<key>] \
         [--template data/raw_final/final_submitting.parquet] [--upload]
@@ -167,12 +167,13 @@ def compare(expected: pd.DataFrame, got: pd.DataFrame) -> int:
 
 
 def confirm_uploaded(objects, key: str, size: int) -> None:
-    """After the PUT: the bucket listing must show `key` with exactly the local byte size — for the FINAL upload the
-    listing is the only confirmation there is (no result file is promised)."""
+    """After the PUT: the bucket listing must show `key` with exactly the local byte size (`bytes`, the key
+    prc.s3.S3.list_objects emits; BC-51). For the FINAL upload the listing is the first confirmation; the organiser's
+    scorer then wrote a result file with status Succeeded and no score (2026-10-10)."""
     found = [o for o in objects if o.get("key") == key]
     if not found:
         raise ValueError(f"{key} is not listed in the bucket after the upload")
-    got = int(found[0].get("size", -1))
+    got = int(found[0]["bytes"])
     if got != int(size):
         raise ValueError(f"{key}: bucket size {size:,} expected, listed {got:,}")
 
@@ -262,7 +263,7 @@ def main(argv=None) -> int:  # pragma: no cover - I/O shell around the tested ga
         path.with_name(path.name + ".uploaded.json").write_text(json.dumps(
             {"key": key, "sha256": uploaded_sha, "uploaded_utc": dt.datetime.now(dt.timezone.utc).isoformat()},
             indent=1))
-        print("FINAL is scored blind: no result file may ever appear for this key")
+        print("FINAL is scored blind: a result file, if any, carries a status and no score")
         res_key = key + "_result.json"
         dest = ROOT / "submissions" / "final" / res_key
         t0 = time.time()
@@ -272,7 +273,7 @@ def main(argv=None) -> int:  # pragma: no cover - I/O shell around the tested ga
                 print(dest.read_text())
                 return result_rc(json.loads(dest.read_text()))
             time.sleep(10)
-        print(f"no result expected for FINAL ({key}); upload confirmed")
+        print(f"no result file within {RESULT_WAIT_S} s for FINAL ({key}); the upload is confirmed by the listing")
         return result_rc(None)
 
     key = key_for(a.version)

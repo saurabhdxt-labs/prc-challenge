@@ -93,7 +93,10 @@ files, IEM weather, EUROCONTROL's published monthly means for months 1–7 of 20
    was kept as written, and the owner's reading (an improved component inside the same pipeline would have been exploration,
    not a design change) was never exercised. Label reads during the search: the 2025 training labels (held out by month) and
    one label-free count of the final file's LIRF rows per band; the final file's labels do not exist.
-9. **One blind upload.** Nothing can be selected on the final; every check above is label-free.
+9. **One blind upload, made.** Nothing can be selected on the final; every check above is label-free. Uploaded 2026-10-10
+   04:05:50Z as `merry-quicksand_final.parquet` (4,080,675 bytes, sha256 `a514c644…`); the organiser's scorer answered
+   `Succeeded` with 670,790 pairs used and no score. The verifier's post-upload size check failed on its own key mismatch
+   (BC-51) after the PUT had returned 200; the upload was confirmed from the bucket listing and the fix is tested.
 
 ## 4. Residual uncertainty
 
