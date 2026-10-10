@@ -1,8 +1,9 @@
 # PRC Data Challenge 2026 — taxi-out prediction (team merry-quicksand)
 
 FM1 predicts the taxi-out time (`TAXITIME_SEC_mvt`, seconds) of each departure at ten European airports (EDDF, EDDM,
-EGLL, EHAM, LEBL, LEMD, LFPG, LIRF, LSZH, LTFM) from the organiser's movement files, scored by RMSE on the 344,841
-departures of January and July 2026.
+EGLL, EHAM, LEBL, LEMD, LFPG, LIRF, LSZH, LTFM) from the organiser's movement files. The public board scored RMSE on the
+344,841 departures of January and July 2026; the final phase is one blind submission on the 670,790 departures of
+January, February, June and July 2026 (uploaded 2026-10-10, below).
 
 **The final model is open-data v57** (`configs/fm1_v57_open.yaml`): the forecaster (v50) + monthly calibration to
 EUROCONTROL's published 2026 taxi-out means (MTX) + the ADS-B stand-exit stage for departures without a
@@ -112,9 +113,7 @@ says so).
 
 ## Licence
 
-Copyright (C) 2026 Saurabh Dixit. Licensed under the GNU GPL, version 3 (`LICENSE`).
-
-Code: GNU General Public License v3.0 (`LICENSE`). Data: see `docs/fm1/DATA_SOURCES.md` (adsb.lol and OpenStreetMap are
+Copyright (C) 2026 Saurabh Dixit. Code: GNU General Public License v3.0 (`LICENSE`). Data: see `docs/fm1/DATA_SOURCES.md` (adsb.lol and OpenStreetMap are
 ODbL 1.0; the adsb.fi capture is under non-commercial terms, is never redistributed and is not used by the final
 model; attribution "Data: adsb.fi (https://adsb.fi)" where it is used). The shipped ADS-B stack models
 (`data/r12/r13_stack_full/models_lgbcat/`) contain information from ADSB.lol contributors, made available under the
